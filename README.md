@@ -1,2 +1,2 @@
 # NServiceBus.IBMMQ
-IBMMQ transport spik
+IBMMQ transport spike
