@@ -1,7 +1,32 @@
 # NServiceBus.IBMMQ
 IBMMQ transport spike
 
-### IBMMQ  Headers
+
+## IBM MQ concepts
+## Messages
+IBM MQ has no built-in concept of commands vs events. All messages are simply "messages":
+```
+// All messages look the same to MQ
+MQMessage message = new MQMessage();
+message.WriteString(jsonPayload);
+queue.Put(message, pmo);
+```
+
+## Queues
+IBM MQ uses physical queue names, often with strict naming conventions:
+```
+QM1/APP.SALES.REQUEST
+QM1/APP.SALES.RESPONSE
+QM1/APP.SALES.ERROR
+```
+**Constraints**:
+- Queue names: max 48 characters
+- Typically uppercase
+- No special characters except `.` and `_`
+- Queues must usually be pre-created by administrators
+
+
+###   Headers
 Every IBM MQ message has two types of metadata:
 
 | Header | Purpose | Extensible? |
