@@ -11,7 +11,8 @@ internal class IbmMqMessageReceiver : IMessageReceiver
     private readonly IbmMqHelper _ibmMqHelper;
 
     OnMessage? onMessage;
-    private OnError onError;
+    private OnError? onError;
+    Task? MessagePump;
 
     public IbmMqMessageReceiver(MQQueueManager queueManagerInstance, ReceiveSettings receiveSettings)
     {
@@ -45,8 +46,6 @@ internal class IbmMqMessageReceiver : IMessageReceiver
 
     public Task StopReceive(CancellationToken cancellationToken = default)
         => MessagePump ?? Task.CompletedTask;
-
-    Task MessagePump;
 
     async Task PumpMessages(CancellationToken cancellationToken = default)
     {
@@ -104,7 +103,7 @@ internal class IbmMqMessageReceiver : IMessageReceiver
             {
                 var errorContext = new ErrorContext(ex, messageHeaders, messageId, messageBody, new TransportTransaction(), 0, ReceiveAddress, new Extensibility.ContextBag());
 
-                var result = await onError.Invoke(errorContext)
+                var result = await onError!.Invoke(errorContext, cancellationToken)
                     .ConfigureAwait(false);
 
                 if (result is ErrorHandleResult.RetryRequired)
