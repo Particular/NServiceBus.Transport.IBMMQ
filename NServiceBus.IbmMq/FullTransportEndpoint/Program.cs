@@ -12,6 +12,7 @@ endpointB.SendFailedMessagesTo("error");
 endpointB.UseTransport(ibmmq);
 endpointB.UseSerialization<SystemJsonSerializer>();
 endpointB.PurgeOnStartup(true);
+//endpointB.SendOnly();
 
 builder.UseNServiceBus(endpointB);
 
@@ -21,25 +22,51 @@ await host.StartAsync();
 
 var instance = host.Services.GetRequiredService<IMessageSession>();
 
-while (true)
+
+using var cts = new CancellationTokenSource();
+Console.CancelKeyPress += (_, e) =>
 {
+    e.Cancel = true;
+    cts.Cancel();
+};
+
+var instanceId = Guid.CreateVersion7();
+long sendCount = 0;
+
+while (!cts.IsCancellationRequested)
+{
+    if (!Console.KeyAvailable)
+    {
+        await Task.Delay(100);
+        continue;
+    }
+
     Console.ReadLine();
-    Console.WriteLine("Sending message...");
-    await instance.SendLocal(new MyMessage());
+
+    var t = new List<Task>();
+    for (int i = 0; i < 10; i++)
+    {
+        var data = $"{instanceId}/{++sendCount}";
+        Console.WriteLine($"Sending message: {data}");
+        t.Add(instance.Send("DEV.SHIPPING", new MyMessage(data)));
+    }
+
+    await Task.WhenAll(t);
+    Console.WriteLine("Done");
 }
 
 
 await host.StopAsync();
 
-
-class MyHandler : IHandleMessages<MyMessage>
+sealed class MyHandler : IHandleMessages<MyMessage>
 {
-    public Task Handle(MyMessage message, IMessageHandlerContext context)
+    public async Task Handle(MyMessage message, IMessageHandlerContext context)
     {
-        Console.WriteLine("Received message!");
-        return Task.CompletedTask;
+        Console.WriteLine($"Start {message.Data}");
+        await Task.Delay(200, context.CancellationToken);
+        Console.WriteLine($"End: {message.Data}");
     }
 }
 
 
-record MyMessage(string Data = "Hello World!");
+record MyMessage(string Data);
