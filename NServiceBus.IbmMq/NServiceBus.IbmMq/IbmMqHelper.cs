@@ -6,8 +6,6 @@ namespace NServiceBus.IbmMq;
 
 internal class IbmMqHelper(MQQueueManager queueManager)
 {
-    private readonly MQQueueManager _queueManager = queueManager;
-
     internal MQQueue EnsureQueue(string name, int openOptions)
     {
         try
@@ -22,12 +20,12 @@ internal class IbmMqHelper(MQQueueManager queueManager)
 
     private MQQueue AccessQueue(string name, int openOptions)
     {
-        return _queueManager.AccessQueue(name, openOptions);
+        return queueManager.AccessQueue(name, openOptions);
     }
 
     private MQQueue CreateQueue(string name, int openOptions)
     {
-        var agent = new PCFMessageAgent(_queueManager);
+        var agent = new PCFMessageAgent(queueManager);
 
         PCFMessage request = new PCFMessage(MQC.MQCMD_CREATE_Q);
         request.AddParameter(MQC.MQCA_Q_NAME, name);
@@ -159,7 +157,7 @@ internal class IbmMqHelper(MQQueueManager queueManager)
 
     private MQTopic AccessTopic(string topicName, string topicString)
     {
-        return _queueManager.AccessTopic(
+        return queueManager.AccessTopic(
             null,
             topicName,
             MQC.MQTOPIC_OPEN_AS_PUBLICATION,
@@ -168,7 +166,7 @@ internal class IbmMqHelper(MQQueueManager queueManager)
 
     private void CreateTopic(string topicName, string topicString)
     {
-        var agent = new PCFMessageAgent(_queueManager);
+        var agent = new PCFMessageAgent(queueManager);
         var command = new PCFMessage(MQC.MQCMD_CREATE_TOPIC);
         command.AddParameter(MQC.MQCA_TOPIC_NAME, topicName); // The administrative name of the topic object
         command.AddParameter(MQC.MQCA_TOPIC_STRING, topicString); // The actual topic string used by publishers/subscribers
