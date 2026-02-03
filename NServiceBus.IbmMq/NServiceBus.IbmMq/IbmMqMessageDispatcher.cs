@@ -29,11 +29,20 @@ internal class IbmMqMessageDispatcher : IMessageDispatcher
 
     Task DispatchUnicast(UnicastTransportOperation unicastTransportOperation)
     {
+        // Queue is not thread-safe and cannot be concurrently accessed.
         using var queue = _ibmMqHelper.EnsureQueue(unicastTransportOperation.Destination, MQC.MQOO_OUTPUT);
 
         MQMessage message = _ibmMqHelper.CreateMessage(unicastTransportOperation.Message);
 
         MQPutMessageOptions putOptions = new();
+
+        // TODO: Correct transaction management when NOT receive only but sendsatomicwithreceive
+        //putOptions.Options |= MQC.MQPMO_SYNCPOINT | // Include in transaction
+
+        // TODO: Evaluate if MQPMO_NEW_MSG_ID must be set if we already set the MessagID based on the message ID header.
+        //putOptions.Options |= MQC.MQPMO_NEW_MSG_ID; // Generate unique MQ message ID
+
+        putOptions.Options |=  MQC.MQPMO_FAIL_IF_QUIESCING;
 
         queue.Put(message, putOptions);
 
