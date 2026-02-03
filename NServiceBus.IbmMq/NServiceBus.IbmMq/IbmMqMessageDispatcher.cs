@@ -46,6 +46,8 @@ internal class IbmMqMessageDispatcher : IMessageDispatcher
 
         queue.Put(message, putOptions);
 
+        queue.Close(); // Also done in Dipose, but cleaner as this indicate a normal sequence
+
         return Task.CompletedTask;
     }
 
