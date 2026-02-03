@@ -71,7 +71,6 @@ internal class IbmMqMessageReceiver : IMessageReceiver
             {
                 queue.Get(receivedMessage, getOptions);
 
-                messageId = UTF8Encoding.Default.GetString(receivedMessage.MessageId);
                 messageBody = receivedMessage.ReadBytes(receivedMessage.MessageLength);
 
                 var propertyNames = receivedMessage.GetPropertyNames("%");
@@ -83,6 +82,9 @@ internal class IbmMqMessageReceiver : IMessageReceiver
                         messageHeaders.Add(name, receivedMessage.GetStringProperty(name));
                     }
                 }
+
+                if (messageHeaders.TryGetValue(Headers.MessageId, out var messageIdHeader))
+                    messageId = messageIdHeader;
 
                 var messageContext = new MessageContext(messageId, messageHeaders, messageBody, new TransportTransaction(), ReceiveAddress, new Extensibility.ContextBag());
 

@@ -47,8 +47,10 @@ internal class IbmMqHelper(MQQueueManager queueManager)
     {
         MQMessage message = new();
 
-        message.WriteBytes(UTF8Encoding.Default.GetString(outgoingMessage.Body.ToArray()));
-        message.Format = MQC.MQFMT_STRING;
+        //message.WriteBytes(UTF8Encoding.Default.GetString(outgoingMessage.Body.ToArray()));
+        message.Write(outgoingMessage.Body.ToArray());
+        message.Format = MQC.MQFMT_NONE;
+        message.Encoding = MQC.utf;
 
         foreach (var header in outgoingMessage.Headers)
         {
