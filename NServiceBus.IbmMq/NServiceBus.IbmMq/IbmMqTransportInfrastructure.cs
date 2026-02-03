@@ -3,27 +3,34 @@ using NServiceBus.Transport;
 
 namespace NServiceBus.IbmMq;
 
-class IbmMqTransportInfrastructure : TransportInfrastructure
+class IbmMqTransportInfrastructure : TransportInfrastructure, IDisposable
 {
-    MQQueueManager queueManagerInstance;
+    MQQueueManager receiveQueueManagerInstance = new MQQueueManager("QM1");
+    MQQueueManager sendQueueManagerInstance = new MQQueueManager("QM1");
 
     public IbmMqTransportInfrastructure(ReceiveSettings[] receiverSettings)
     {
-        queueManagerInstance = new MQQueueManager("QM1");
-        Dispatcher = new IbmMqMessageDispatcher(queueManagerInstance);
+        Dispatcher = new IbmMqMessageDispatcher(sendQueueManagerInstance);
 
         Receivers = receiverSettings.ToDictionary(x => x.Id,
-            x => new IbmMqMessageReceiver(queueManagerInstance, x) as IMessageReceiver);
+            x => new IbmMqMessageReceiver(receiveQueueManagerInstance, x) as IMessageReceiver);
     }
 
     public override Task Shutdown(CancellationToken cancellationToken = default)
     {
-        queueManagerInstance?.Disconnect();
+        receiveQueueManagerInstance?.Disconnect();
+        sendQueueManagerInstance?.Disconnect();
         return Task.CompletedTask;
     }
 
     public override string ToTransportAddress(QueueAddress address)
     {
         return address.BaseAddress;
+    }
+
+    public void Dispose()
+    {
+        ((IDisposable)receiveQueueManagerInstance)?.Dispose();
+        ((IDisposable)sendQueueManagerInstance)?.Dispose();
     }
 }
