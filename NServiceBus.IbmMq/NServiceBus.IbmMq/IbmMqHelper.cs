@@ -1,7 +1,6 @@
 ﻿using IBM.WMQ;
 using IBM.WMQ.PCF;
 using NServiceBus.Transport;
-using System.Text;
 
 namespace NServiceBus.IbmMq;
 
@@ -46,18 +45,95 @@ internal class IbmMqHelper(MQQueueManager queueManager)
     internal MQMessage CreateMessage(OutgoingMessage outgoingMessage)
     {
         MQMessage message = new();
-
-        //message.WriteBytes(UTF8Encoding.Default.GetString(outgoingMessage.Body.ToArray()));
+        message.Persistence = MQC.MQPER_PERSISTENT;
         message.Write(outgoingMessage.Body.ToArray());
-        message.Format = MQC.MQFMT_NONE;
-        message.Encoding = MQC.utf;
+        message.Format = MQC.MQFMT_NONE; //
 
-        foreach (var header in outgoingMessage.Headers)
-        {
-            message.SetStringProperty(header.Key, header.Value);
-        }
+        SetFormatAndCharacterSet(outgoingMessage, message);
+        SetExpiry(outgoingMessage, message);
+        SetReplyToQueueName(outgoingMessage, message);
+        SetMessageId(outgoingMessage, message);
+        SetCorrelationId(outgoingMessage, message);
+        SetMessageProperties(outgoingMessage, message);
 
         return message;
+    }
+
+    private static void SetMessageProperties(OutgoingMessage outgoingMessage, MQMessage message)
+    {
+        foreach (var header in outgoingMessage.Headers)
+        {
+            var pd = new MQPropertyDescriptor();
+            pd.Options = MQC.MQPD_SUPPORT_OPTIONAL;
+            message.SetStringProperty(header.Key, pd, header.Value);
+        }
+    }
+
+    private static void SetFormatAndCharacterSet(OutgoingMessage outgoingMessage, MQMessage message)
+    {
+        if (outgoingMessage.Headers.TryGetValue(Headers.ContentType, out var contentType))
+        {
+            if (contentType.StartsWith("text/", StringComparison.OrdinalIgnoreCase) || contentType == "application/json")
+            {
+                message.Format = MQC.MQFMT_STRING;
+                message.CharacterSet = 1208; // UTF-8
+            }
+        }
+    }
+
+    private static void SetCorrelationId(OutgoingMessage outgoingMessage, MQMessage message)
+    {
+        if (outgoingMessage.Headers.TryGetValue(Headers.CorrelationId, out var correlationId))
+        {
+            if (Guid.TryParse(correlationId, out var correlationGuid))
+            {
+                var correlBytes = new byte[24];
+                Array.Copy(correlationGuid.ToByteArray(), correlBytes, 16);
+                message.CorrelationId = correlBytes;
+            }
+        }
+    }
+
+    private static void SetMessageId(OutgoingMessage outgoingMessage, MQMessage message)
+    {
+        if (outgoingMessage.Headers.TryGetValue(Headers.MessageId, out var messageId))
+        {
+            if (Guid.TryParse(messageId, out var messageGuid))
+            {
+                var messageIdByes = new byte[24];
+                Array.Copy(messageGuid.ToByteArray(), messageIdByes, 16);
+                message.MessageId = messageIdByes;
+            }
+        }
+    }
+
+    private static void SetReplyToQueueName(OutgoingMessage outgoingMessage, MQMessage message)
+    {
+        if (outgoingMessage.Headers.TryGetValue(Headers.ReplyToAddress, out var replyToAddress))
+        {
+            message.ReplyToQueueName = replyToAddress;
+        }
+    }
+
+    private static void SetExpiry(OutgoingMessage outgoingMessage, MQMessage message)
+    {
+        // TODO: Maybe this is not set via headers, but message properties, can't remember (RAMON)
+        if (outgoingMessage.Headers.TryGetValue(Headers.TimeToBeReceived, out var timeToBeReceived) && string.IsNullOrEmpty(timeToBeReceived))
+        {
+            if (TimeSpan.TryParse(timeToBeReceived, out var ttbrValue))
+            {
+                var expiryInTenthsOfSeconds = (int)(ttbrValue.TotalSeconds * 10);
+                message.Expiry = expiryInTenthsOfSeconds;
+            }
+            else
+            {
+                throw new InvalidOperationException($"Invalid TimeToBeReceived format: {timeToBeReceived}");
+            }
+        }
+        else
+        {
+            message.Expiry = MQC.MQEI_UNLIMITED;
+        }
     }
 
     internal MQTopic EnsureTopic(Type eventType)
@@ -116,8 +192,8 @@ internal class IbmMqHelper(MQQueueManager queueManager)
         var destinationQueue = EnsureQueue(endpointName, MQC.MQOO_INPUT_SHARED | MQC.MQOO_OUTPUT);
 
         int finalOptions = options
-            | MQC.MQSO_FAIL_IF_QUIESCING
-            | MQC.MQSO_DURABLE;
+                           | MQC.MQSO_FAIL_IF_QUIESCING
+                           | MQC.MQSO_DURABLE;
 
         return queueManager.AccessTopic(
             destinationQueue,
