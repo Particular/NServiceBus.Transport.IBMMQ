@@ -33,6 +33,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "poc", "poc", "{251801CB-B24
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NServiceBus.IbmMq.Shipping", "NServiceBus.IbmMq.Shipping\NServiceBus.IbmMq.Shipping.csproj", "{2147C533-10D6-C0D6-EB68-999285522C24}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FullTransportEndpoint", "FullTransportEndpoint\FullTransportEndpoint.csproj", "{0F1B0751-E960-4C8F-B257-A83AD77C5C5B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -75,6 +77,10 @@ Global
 		{2147C533-10D6-C0D6-EB68-999285522C24}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2147C533-10D6-C0D6-EB68-999285522C24}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2147C533-10D6-C0D6-EB68-999285522C24}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0F1B0751-E960-4C8F-B257-A83AD77C5C5B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0F1B0751-E960-4C8F-B257-A83AD77C5C5B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0F1B0751-E960-4C8F-B257-A83AD77C5C5B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0F1B0751-E960-4C8F-B257-A83AD77C5C5B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
