@@ -80,15 +80,15 @@ internal class IbmMqHelper(MQQueueManager queueManager)
     internal static string EscapePropertyName(string name)
     {
         return name
-            .Replace("_", "_u_")
-            .Replace(".", "_d_")
-            .Replace("$", "_dlr_");
+            .Replace("_", "_u_")   // Escape underscores FIRST
+            .Replace(".", "_d_")   // Then dots
+            .Replace("$", "_dlr_"); // Then dollars
     }
 
     internal static string UnescapePropertyName(string name)
     {
         return name
-            .Replace("_dlr_", "$")
+            .Replace("_dlr_", "$")  // Unescape in reverse order
             .Replace("_d_", ".")
             .Replace("_u_", "_");
     }
