@@ -13,7 +13,7 @@ endpointB.SendFailedMessagesTo("error");
 endpointB.UseTransport(ibmmq);
 endpointB.UseSerialization<SystemJsonSerializer>();
 endpointB.PurgeOnStartup(true);
-endpointB.SendOnly();
+//endpointB.SendOnly();
 
 builder.UseNServiceBus(endpointB);
 
