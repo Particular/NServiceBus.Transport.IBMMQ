@@ -36,16 +36,23 @@ long sendCount = 0;
 
 while (!cts.IsCancellationRequested)
 {
-    if (!Console.KeyAvailable)
+    Console.Write("\nHow many message to send: ");
+
+    var readLineTask = Task.Run(Console.ReadLine, cts.Token);
+    _ = await Task.WhenAny(readLineTask, Task.Delay(Timeout.Infinite, cts.Token));
+
+    if (cts.IsCancellationRequested)
     {
-        await Task.Delay(100);
-        continue;
+        break;
     }
 
-    Console.ReadLine();
+    var input = await readLineTask;
+    var x = int.TryParse(input, out var nrInt) ? nrInt : 1;
+    Console.WriteLine();
 
     var t = new List<Task>();
-    for (int i = 0; i < 10; i++)
+
+    for (int i = 0; i < x; i++)
     {
         var data = $"{instanceId}/{++sendCount}";
         Console.WriteLine($"Sending message: {data}");
