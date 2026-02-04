@@ -55,7 +55,7 @@ internal class IbmMqHelper(MQQueueManager queueManager)
         SetReplyToQueueName(outgoingMessage, message);
         SetMessageId(outgoingMessage, message);
         SetCorrelationId(outgoingMessage, message);
-
+       
         SetMessageProperties(outgoingMessage, message);
 
         // message body last
@@ -72,7 +72,7 @@ internal class IbmMqHelper(MQQueueManager queueManager)
             var pd = new MQPropertyDescriptor();
             pd.Options = MQC.MQPD_SUPPORT_OPTIONAL;
             var escapedKey = EscapePropertyName(header.Key);
-            //   Console.WriteLine($"Setting/Escaping:{header.Key}->{escapedKey} = {header.Value}");
+            //Console.WriteLine($"Setting/Escaping:{header.Key}->{escapedKey} = {header.Value}");
             message.SetStringProperty(escapedKey, pd, header.Value);
         }
     }
