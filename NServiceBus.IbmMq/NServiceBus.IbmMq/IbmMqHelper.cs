@@ -46,6 +46,11 @@ internal class IbmMqHelper(MQQueueManager queueManager)
         MQMessage message = new();
 
         //set all MQMD fields first if format is not set, defaults to MQHRF2
+        message.MessageType = MQC.MQMT_DATAGRAM;
+        message.Persistence = MQC.MQPER_PERSISTENT;
+        message.CharacterSet = MQC.CODESET_UTF; // UTF-8
+
+        //set all MQMD fields first if format is not set, defaults to MQHRF2
         /// message.Format = MQC.MQFMT_STRING;
         message.MessageType = MQC.MQMT_DATAGRAM;
         message.Persistence = MQC.MQPER_PERSISTENT;
