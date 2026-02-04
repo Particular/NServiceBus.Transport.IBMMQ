@@ -1,3 +1,4 @@
+using FullTransportEndpoint.Messages;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NServiceBus.IbmMq;
@@ -58,7 +59,3 @@ while (!cts.IsCancellationRequested)
 
 await host.StopAsync();
 
-public record MyMessage(string Data) : IMessage
-{
-
-}
