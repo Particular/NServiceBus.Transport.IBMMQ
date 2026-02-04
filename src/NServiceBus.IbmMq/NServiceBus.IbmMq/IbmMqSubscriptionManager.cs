@@ -4,22 +4,16 @@ using NServiceBus.Unicast.Messages;
 
 namespace NServiceBus.Transport.IbmMq;
 
-internal class IbmMqSubscriptionManager : ISubscriptionManager
+internal class IbmMqSubscriptionManager(MQQueueManager queueManagerInstance, string receiveAddress)
+    : ISubscriptionManager
 {
-    private readonly IbmMqHelper _ibmMqHelper;
-    private readonly string _receiveAddress;
-
-    public IbmMqSubscriptionManager(MQQueueManager queueManagerInstance, string receiveAddress)
-    {
-        _ibmMqHelper = new IbmMqHelper(queueManagerInstance);
-        _receiveAddress = receiveAddress;
-    }
+    private readonly IbmMqHelper _ibmMqHelper = new(queueManagerInstance);
 
     public Task SubscribeAll(MessageMetadata[] eventTypes, ContextBag context, CancellationToken cancellationToken = default)
     {
         foreach(var eventType in eventTypes)
         {
-            _ibmMqHelper.EnsureSubscription(eventType.MessageType, _receiveAddress);
+            _ibmMqHelper.EnsureSubscription(eventType.MessageType, receiveAddress);
         }
 
         return Task.CompletedTask;
