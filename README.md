@@ -103,3 +103,17 @@ MQRFH2 solves this by providing a flexible key-value store.
 
 **Key Takeaway**: MQMD is for MQ infrastructure; MQRFH2 is for your application. NServiceBus headers belong in MQRFH2.
 
+**MQMT_DATAGRAM** sets the message type to indicate it's a one-way message that doesn't expect a reply.
+
+  IBM MQ message types:
+  ┌───────────────┬───────┬───────────────────────────────────────────────────────────────────┐
+  │   Constant    │ Value │                              Meaning                              │
+  ├───────────────┼───────┼───────────────────────────────────────────────────────────────────┤
+  │ MQMT_DATAGRAM │ 8     │ One-way message, no reply expected                                │
+  ├───────────────┼───────┼───────────────────────────────────────────────────────────────────┤
+  │ MQMT_REQUEST  │ 1     │ Request message, expects a reply                                  │
+  ├───────────────┼───────┼───────────────────────────────────────────────────────────────────┤
+  │ MQMT_REPLY    │ 2     │ Reply to a previous request                                       │
+  ├───────────────┼───────┼───────────────────────────────────────────────────────────────────┤
+  │ MQMT_REPORT   │ 4     │ Report message (delivery confirmation, expiry notification, etc.) │
+  └───────────────┴───────┴───────────────────────────────────────────────────────────────────┘
