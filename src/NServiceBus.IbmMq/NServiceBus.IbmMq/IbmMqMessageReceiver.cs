@@ -2,28 +2,20 @@
 
 namespace NServiceBus.Transport.IbmMq;
 
-internal class IbmMqMessageReceiver : IMessageReceiver
+internal class IbmMqMessageReceiver(MQQueueManager queueManagerInstance, ReceiveSettings receiveSettings)
+    : IMessageReceiver
 {
-    private readonly MQQueueManager _queueManager;
-    private readonly ReceiveSettings _receiveSettings;
-    private readonly IbmMqHelper _ibmMqHelper;
+    private readonly IbmMqHelper _ibmMqHelper = new(queueManagerInstance);
 
     OnMessage? onMessage;
     private OnError? onError;
     Task? MessagePump;
 
-    public IbmMqMessageReceiver(MQQueueManager queueManagerInstance, ReceiveSettings receiveSettings)
-    {
-        _queueManager = queueManagerInstance;
-        _receiveSettings = receiveSettings;
-        _ibmMqHelper = new IbmMqHelper(queueManagerInstance);
-    }
+    public ISubscriptionManager Subscriptions => new IbmMqSubscriptionManager(queueManagerInstance, ReceiveAddress);
 
-    public ISubscriptionManager Subscriptions => new IbmMqSubscriptionManager(_queueManager, ReceiveAddress);
+    public string Id => receiveSettings.Id;
 
-    public string Id => _receiveSettings.Id;
-
-    public string ReceiveAddress => _receiveSettings.ReceiveAddress.BaseAddress;
+    public string ReceiveAddress => receiveSettings.ReceiveAddress.BaseAddress;
 
     public Task ChangeConcurrency(PushRuntimeSettings limitations, CancellationToken cancellationToken = default)
     {
@@ -39,7 +31,7 @@ internal class IbmMqMessageReceiver : IMessageReceiver
 
     public async Task StartReceive(CancellationToken cancellationToken = default)
     {
-        MessagePump = Task.Run(() => PumpMessages(cancellationToken));
+        MessagePump = Task.Run(() => PumpMessages(cancellationToken), cancellationToken);
     }
 
     public Task StopReceive(CancellationToken cancellationToken = default)
@@ -92,7 +84,7 @@ internal class IbmMqMessageReceiver : IMessageReceiver
 
                 await onMessage!(messageContext, cancellationToken);
 
-                _queueManager.Commit();
+                queueManagerInstance.Commit();
             }
             catch (MQException ex) when (ex.ReasonCode == MQC.MQRC_NO_MSG_AVAILABLE)
             {
@@ -108,12 +100,12 @@ internal class IbmMqMessageReceiver : IMessageReceiver
 
                 if (result is ErrorHandleResult.RetryRequired)
                 {
-                    _queueManager.Backout();
+                    queueManagerInstance.Backout();
                 }
                 else
 
                 {
-                    _queueManager.Commit();
+                    queueManagerInstance.Commit();
                 }
             }
         }

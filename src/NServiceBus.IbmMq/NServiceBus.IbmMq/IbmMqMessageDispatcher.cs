@@ -2,17 +2,8 @@
 
 namespace NServiceBus.Transport.IbmMq;
 
-internal class IbmMqMessageDispatcher : IMessageDispatcher
+internal class IbmMqMessageDispatcher(IbmMqHelper ibmMqHelper) : IMessageDispatcher
 {
-    private readonly MQQueueManager _queueManager;
-    private readonly IbmMqHelper _ibmMqHelper;
-
-    public IbmMqMessageDispatcher(MQQueueManager queueManagerInstance)
-    {
-        _queueManager = queueManagerInstance;
-        _ibmMqHelper = new IbmMqHelper(_queueManager);
-    }
-
     public async Task Dispatch(TransportOperations outgoingMessages, TransportTransaction transaction, CancellationToken cancellationToken = default)
     {
         foreach (var transportOperation in outgoingMessages.UnicastTransportOperations)
@@ -29,9 +20,9 @@ internal class IbmMqMessageDispatcher : IMessageDispatcher
     Task DispatchUnicast(UnicastTransportOperation unicastTransportOperation)
     {
         // Queue is not thread-safe and cannot be concurrently accessed.
-        using var queue = _ibmMqHelper.EnsureQueue(unicastTransportOperation.Destination, MQC.MQOO_OUTPUT);
+        using var queue = ibmMqHelper.EnsureQueue(unicastTransportOperation.Destination, MQC.MQOO_OUTPUT);
 
-        MQMessage message = _ibmMqHelper.CreateMessage(unicastTransportOperation.Message);
+        MQMessage message = ibmMqHelper.CreateMessage(unicastTransportOperation.Message);
 
         MQPutMessageOptions putOptions = new();
 
@@ -52,9 +43,9 @@ internal class IbmMqMessageDispatcher : IMessageDispatcher
 
     private Task DispatchMulticast(MulticastTransportOperation transportOperation)
     {
-        using var topic = _ibmMqHelper.EnsureTopic(transportOperation.MessageType);
+        using var topic = ibmMqHelper.EnsureTopic(transportOperation.MessageType);
 
-        var message = _ibmMqHelper.CreateMessage(transportOperation.Message);
+        var message = ibmMqHelper.CreateMessage(transportOperation.Message);
 
         topic.Put(message);
 

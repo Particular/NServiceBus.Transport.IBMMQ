@@ -4,21 +4,24 @@ namespace NServiceBus.Transport.IbmMq;
 
 class IbmMqTransportInfrastructure : TransportInfrastructure, IDisposable
 {
-    MQQueueManager receiveQueueManagerInstance = new MQQueueManager("QM1");
-    MQQueueManager sendQueueManagerInstance = new MQQueueManager("QM1");
+    MQQueueManager receiveQueueManager = new("QM1");
+    MQQueueManager sendQueueManager = new("QM1");
 
     public IbmMqTransportInfrastructure(ReceiveSettings[] receiverSettings)
     {
-        Dispatcher = new IbmMqMessageDispatcher(sendQueueManagerInstance);
+        Dispatcher = new IbmMqMessageDispatcher(new IbmMqHelper(sendQueueManager));
 
-        Receivers = receiverSettings.ToDictionary(x => x.Id,
-            x => new IbmMqMessageReceiver(receiveQueueManagerInstance, x) as IMessageReceiver);
+        Receivers = receiverSettings
+            .ToDictionary(
+                x => x.Id,
+                x => new IbmMqMessageReceiver(receiveQueueManager, x) as IMessageReceiver
+            );
     }
 
     public override Task Shutdown(CancellationToken cancellationToken = default)
     {
-        receiveQueueManagerInstance?.Disconnect();
-        sendQueueManagerInstance?.Disconnect();
+        receiveQueueManager.Disconnect();
+        sendQueueManager.Disconnect();
         return Task.CompletedTask;
     }
 
@@ -29,7 +32,7 @@ class IbmMqTransportInfrastructure : TransportInfrastructure, IDisposable
 
     public void Dispose()
     {
-        ((IDisposable)receiveQueueManagerInstance)?.Dispose();
-        ((IDisposable)sendQueueManagerInstance)?.Dispose();
+        ((IDisposable)receiveQueueManager).Dispose();
+        ((IDisposable)sendQueueManager).Dispose();
     }
 }
