@@ -1,8 +1,9 @@
+using FullTransportEndpoint.Messages;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using NServiceBus.IbmMq;
 
-Console.Title = "Bridge";
+Console.Title = "FullTransportEndpoint";
 var builder = Host.CreateApplicationBuilder(args);
 
 var ibmmq = new IbmMqTransport("localhost", "admin", "passw0rd", null, null);
@@ -12,7 +13,7 @@ endpointB.SendFailedMessagesTo("error");
 endpointB.UseTransport(ibmmq);
 endpointB.UseSerialization<SystemJsonSerializer>();
 endpointB.PurgeOnStartup(true);
-//endpointB.SendOnly();
+endpointB.SendOnly();
 
 builder.UseNServiceBus(endpointB);
 
@@ -58,15 +59,3 @@ while (!cts.IsCancellationRequested)
 
 await host.StopAsync();
 
-sealed class MyHandler : IHandleMessages<MyMessage>
-{
-    public async Task Handle(MyMessage message, IMessageHandlerContext context)
-    {
-        Console.WriteLine($"Start {message.Data}");
-        await Task.Delay(200, context.CancellationToken);
-        Console.WriteLine($"End: {message.Data}");
-    }
-}
-
-
-record MyMessage(string Data);

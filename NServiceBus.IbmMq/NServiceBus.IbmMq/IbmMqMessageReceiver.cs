@@ -58,7 +58,8 @@ internal class IbmMqMessageReceiver : IMessageReceiver
             {
                 Options = MQC.MQGMO_WAIT // Should wait for a message to arrive
                     | MQC.MQGMO_SYNCPOINT // Process messages in a transaction (commit/backout)
-                    | MQC.MQGMO_FAIL_IF_QUIESCING, // Fail if the queue manager is quiescing (shutting down)
+                    | MQC.MQGMO_FAIL_IF_QUIESCING // Fail if the queue manager is quiescing (shutting down)
+                    | MQC.MQGMO_PROPERTIES_IN_HANDLE, // Extract properties from MQRFH2, present body as clean MQSTR
 
                 // TODO: Make WaitInterval configurable
                 WaitInterval = 5000 // How long to wait for a message
@@ -77,11 +78,12 @@ internal class IbmMqMessageReceiver : IMessageReceiver
                 var propertyNames = receivedMessage.GetPropertyNames("%");
                 while (propertyNames.MoveNext())
                 {
-                    // TODO: Fallback mechanism to log properties that cannot be mapped to headers?
-                    var name = propertyNames.Current.ToString();
-                    if (name != null)
+                    var escapedName = propertyNames.Current.ToString();
+                    if (escapedName != null)
                     {
-                        messageHeaders.Add(name, receivedMessage.GetStringProperty(name));
+                        // Unescape the property name (restore dots from underscores)
+                        var originalName = IbmMqHelper.UnescapePropertyName(escapedName);
+                        messageHeaders.Add(originalName, receivedMessage.GetStringProperty(escapedName));
                     }
                 }
 

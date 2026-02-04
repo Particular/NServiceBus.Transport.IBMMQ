@@ -1,4 +1,5 @@
-﻿using IBM.WMQ;
+﻿using System.Text;
+using IBM.WMQ;
 using IBM.WMQ.PCF;
 using NServiceBus.Transport;
 
@@ -43,16 +44,23 @@ internal class IbmMqHelper(MQQueueManager queueManager)
     internal MQMessage CreateMessage(OutgoingMessage outgoingMessage)
     {
         MQMessage message = new();
-        message.Persistence = MQC.MQPER_PERSISTENT;
-        message.Write(outgoingMessage.Body.ToArray());
-        message.Format = MQC.MQFMT_NONE; //
 
-        SetFormatAndCharacterSet(outgoingMessage, message);
+        //set all MQMD fields first
+        message.Format = MQC.MQFMT_STRING;
+        message.MessageType = MQC.MQMT_DATAGRAM;
+        message.Persistence = MQC.MQPER_PERSISTENT;
+
+        message.CharacterSet = 1208; // UTF-8
         SetExpiry(outgoingMessage, message);
         SetReplyToQueueName(outgoingMessage, message);
         SetMessageId(outgoingMessage, message);
         SetCorrelationId(outgoingMessage, message);
+
         SetMessageProperties(outgoingMessage, message);
+
+        // message body last
+        var bodyString = Encoding.UTF8.GetString(outgoingMessage.Body.Span);
+        message.WriteString(bodyString);
 
         return message;
     }
@@ -63,20 +71,26 @@ internal class IbmMqHelper(MQQueueManager queueManager)
         {
             var pd = new MQPropertyDescriptor();
             pd.Options = MQC.MQPD_SUPPORT_OPTIONAL;
-            message.SetStringProperty(header.Key, pd, header.Value);
+            var escapedKey = EscapePropertyName(header.Key);
+            //   Console.WriteLine($"Setting/Escaping:{header.Key}->{escapedKey} = {header.Value}");
+            message.SetStringProperty(escapedKey, pd, header.Value);
         }
     }
 
-    private static void SetFormatAndCharacterSet(OutgoingMessage outgoingMessage, MQMessage message)
+    internal static string EscapePropertyName(string name)
     {
-        if (outgoingMessage.Headers.TryGetValue(Headers.ContentType, out var contentType))
-        {
-            if (contentType.StartsWith("text/", StringComparison.OrdinalIgnoreCase) || contentType == "application/json")
-            {
-                message.Format = MQC.MQFMT_STRING;
-                message.CharacterSet = 1208; // UTF-8
-            }
-        }
+        return name
+            .Replace("_", "_u_")
+            .Replace(".", "_d_")
+            .Replace("$", "_dlr_");
+    }
+
+    internal static string UnescapePropertyName(string name)
+    {
+        return name
+            .Replace("_dlr_", "$")
+            .Replace("_d_", ".")
+            .Replace("_u_", "_");
     }
 
     private static void SetCorrelationId(OutgoingMessage outgoingMessage, MQMessage message)
@@ -116,7 +130,7 @@ internal class IbmMqHelper(MQQueueManager queueManager)
     private static void SetExpiry(OutgoingMessage outgoingMessage, MQMessage message)
     {
         // TODO: Maybe this is not set via headers, but message properties, can't remember (RAMON)
-        if (outgoingMessage.Headers.TryGetValue(Headers.TimeToBeReceived, out var timeToBeReceived) && string.IsNullOrEmpty(timeToBeReceived))
+        if (outgoingMessage.Headers.TryGetValue(Headers.TimeToBeReceived, out var timeToBeReceived) && !string.IsNullOrEmpty(timeToBeReceived))
         {
             if (TimeSpan.TryParse(timeToBeReceived, out var ttbrValue))
             {
