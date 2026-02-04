@@ -28,14 +28,14 @@ public class IbmMqTransport : TransportDefinition
         ];
     }
 
-    public async override Task<TransportInfrastructure> Initialize(HostSettings hostSettings, ReceiveSettings[] receivers, string[] sendingAddresses, CancellationToken cancellationToken = default)
+    public override Task<TransportInfrastructure> Initialize(HostSettings hostSettings, ReceiveSettings[] receivers, string[] sendingAddresses, CancellationToken cancellationToken = default)
     {
         MQEnvironment.Hostname = Host;
         MQEnvironment.Channel = Channel;
         MQEnvironment.Port = Port;
         MQEnvironment.UserId = User;
         MQEnvironment.Password = Password;
-        
-        return new IbmMqTransportInfrastructure(receivers);
+
+        return Task.FromResult<TransportInfrastructure>(new IbmMqTransportInfrastructure(receivers));
     }
 }
