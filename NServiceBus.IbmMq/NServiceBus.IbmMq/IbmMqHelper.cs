@@ -45,8 +45,8 @@ internal class IbmMqHelper(MQQueueManager queueManager)
     {
         MQMessage message = new();
 
-        //set all MQMD fields first
-        message.Format = MQC.MQFMT_STRING;
+        //set all MQMD fields first if format is not set, defaults to MQHRF2
+        /// message.Format = MQC.MQFMT_STRING;
         message.MessageType = MQC.MQMT_DATAGRAM;
         message.Persistence = MQC.MQPER_PERSISTENT;
 
@@ -58,9 +58,7 @@ internal class IbmMqHelper(MQQueueManager queueManager)
        
         SetMessageProperties(outgoingMessage, message);
 
-        // message body last
-        var bodyString = Encoding.UTF8.GetString(outgoingMessage.Body.Span);
-        message.WriteString(bodyString);
+        message.Write(outgoingMessage.Body.ToArray());
 
         return message;
     }
@@ -80,17 +78,17 @@ internal class IbmMqHelper(MQQueueManager queueManager)
     internal static string EscapePropertyName(string name)
     {
         return name
-            .Replace("_", "_u_")   // Escape underscores FIRST
-            .Replace(".", "_d_")   // Then dots
+            //.Replace("_", "_u_")   // Escape underscores FIRST
+            //.Replace(".", "_d_")   // Then dots
             .Replace("$", "_dlr_"); // Then dollars
     }
 
     internal static string UnescapePropertyName(string name)
     {
         return name
-            .Replace("_dlr_", "$")  // Unescape in reverse order
-            .Replace("_d_", ".")
-            .Replace("_u_", "_");
+            .Replace("_dlr_", "$");  // Unescape in reverse order
+            //.Replace("_d_", ".")
+            //.Replace("_u_", "_");
     }
 
     private static void SetCorrelationId(OutgoingMessage outgoingMessage, MQMessage message)
