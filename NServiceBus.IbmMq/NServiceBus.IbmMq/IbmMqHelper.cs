@@ -1,12 +1,14 @@
-﻿using System.Text;
-using IBM.WMQ;
+﻿using IBM.WMQ;
 using IBM.WMQ.PCF;
+using NServiceBus.Logging;
 using NServiceBus.Transport;
 
 namespace NServiceBus.IbmMq;
 
 internal class IbmMqHelper(MQQueueManager queueManager)
 {
+    private static readonly ILog Log = LogManager.GetLogger<IbmMqHelper>();
+
     internal MQQueue EnsureQueue(string name, int openOptions)
     {
         try
@@ -48,23 +50,19 @@ internal class IbmMqHelper(MQQueueManager queueManager)
         //set all MQMD fields first if format is not set, defaults to MQHRF2
         message.MessageType = MQC.MQMT_DATAGRAM;
         message.Persistence = MQC.MQPER_PERSISTENT;
-        message.CharacterSet = MQC.CODESET_UTF; // UTF-8
+        message.CharacterSet = MQC.CODESET_UTF;
 
-        //set all MQMD fields first if format is not set, defaults to MQHRF2
-        /// message.Format = MQC.MQFMT_STRING;
-        message.MessageType = MQC.MQMT_DATAGRAM;
-        message.Persistence = MQC.MQPER_PERSISTENT;
-
-        message.CharacterSet = 1208; // UTF-8
+        //SetFormatAndCharacterSet(outgoingMessage, message); // TODO: Support binary payloads
         SetExpiry(outgoingMessage, message);
         SetReplyToQueueName(outgoingMessage, message);
         SetMessageId(outgoingMessage, message);
         SetCorrelationId(outgoingMessage, message);
-       
+
         SetMessageProperties(outgoingMessage, message);
 
         message.Write(outgoingMessage.Body.ToArray());
 
+        Log.DebugFormat("Format={0} CharacterSet={1}, Encoding={2}", message.Format, message.CharacterSet, message.Encoding);
         return message;
     }
 
@@ -94,6 +92,27 @@ internal class IbmMqHelper(MQQueueManager queueManager)
             .Replace("_dlr_", "$");  // Unescape in reverse order
             //.Replace("_d_", ".")
             //.Replace("_u_", "_");
+    }
+
+    private static void SetFormatAndCharacterSet(OutgoingMessage outgoingMessage, MQMessage message)
+    {
+        var isTextContentType = outgoingMessage.Headers.TryGetValue(Headers.ContentType, out var contentType)
+                                && (contentType.StartsWith("text/", StringComparison.OrdinalIgnoreCase) || contentType == "application/json");
+
+        Log.DebugFormat("ContentType {0} is text {1}", contentType, isTextContentType);
+
+        if (isTextContentType)
+        {
+            // MQFMT_STRING is set when invoking message.WriteString
+            message.Format = MQC.MQFMT_STRING;
+            message.CharacterSet = MQC.CODESET_UTF; // UTF-8
+        }
+        else
+        {
+            // Payload is non-text, non UTF8, and very likely binary
+            message.Format = MQC.MQFMT_NONE;
+            message.CharacterSet = MQC.MQCCSI_EMBEDDED;
+        }
     }
 
     private static void SetCorrelationId(OutgoingMessage outgoingMessage, MQMessage message)
