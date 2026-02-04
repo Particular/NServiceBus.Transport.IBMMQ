@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/sample/">
+    <Project Path="FullTransportEndpoint.Messages/FullTransportEndpoint.Messages.csproj" />
+    <Project Path="FullTransportEndpoint.Subscriber/FullTransportEndpoint.Subscriber.csproj" />
+    <Project Path="FullTransportEndpoint/FullTransportEndpoint.csproj" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path="docker-compose.yml" />
+    <File Path="README.md" />
+  </Folder>
+  <Project Path="NServiceBus.IbmMq/NServiceBus.Transport.IbmMq.csproj" />
+</Solution>
