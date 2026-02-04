@@ -1,0 +1,56 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.12.35707.178
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NServiceBus.Transport.IbmMq", "NServiceBus.IbmMq\NServiceBus.Transport.IbmMq.csproj", "{E1E4778A-B2BF-4FD0-9D39-0FE0B15A1F5B}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{8EC462FD-D22E-90A8-E5CE-7E832BA40C5D}"
+	ProjectSection(SolutionItems) = preProject
+		docker-compose.yml = docker-compose.yml
+		README.md = README.md
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FullTransportEndpoint", "FullTransportEndpoint\FullTransportEndpoint.csproj", "{0F1B0751-E960-4C8F-B257-A83AD77C5C5B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FullTransportEndpoint.Subscriber", "FullTransportEndpoint.Subscriber\FullTransportEndpoint.Subscriber.csproj", "{3ACD4E72-E237-4367-A7E6-6622CD07B9E8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "FullTransportEndpoint.Messages", "FullTransportEndpoint.Messages\FullTransportEndpoint.Messages.csproj", "{F56DE9AD-BFA0-4165-93B5-4979C9D377EC}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "sample", "sample", "{02EA681E-C7D8-13C7-8484-4AC65E1B71E8}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E1E4778A-B2BF-4FD0-9D39-0FE0B15A1F5B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E1E4778A-B2BF-4FD0-9D39-0FE0B15A1F5B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E1E4778A-B2BF-4FD0-9D39-0FE0B15A1F5B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E1E4778A-B2BF-4FD0-9D39-0FE0B15A1F5B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0F1B0751-E960-4C8F-B257-A83AD77C5C5B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0F1B0751-E960-4C8F-B257-A83AD77C5C5B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0F1B0751-E960-4C8F-B257-A83AD77C5C5B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0F1B0751-E960-4C8F-B257-A83AD77C5C5B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3ACD4E72-E237-4367-A7E6-6622CD07B9E8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3ACD4E72-E237-4367-A7E6-6622CD07B9E8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3ACD4E72-E237-4367-A7E6-6622CD07B9E8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3ACD4E72-E237-4367-A7E6-6622CD07B9E8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F56DE9AD-BFA0-4165-93B5-4979C9D377EC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F56DE9AD-BFA0-4165-93B5-4979C9D377EC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F56DE9AD-BFA0-4165-93B5-4979C9D377EC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F56DE9AD-BFA0-4165-93B5-4979C9D377EC}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{0F1B0751-E960-4C8F-B257-A83AD77C5C5B} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
+		{3ACD4E72-E237-4367-A7E6-6622CD07B9E8} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
+		{F56DE9AD-BFA0-4165-93B5-4979C9D377EC} = {02EA681E-C7D8-13C7-8484-4AC65E1B71E8}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {38CCF743-B00C-4170-8FFE-525D530627AA}
+	EndGlobalSection
+EndGlobal
