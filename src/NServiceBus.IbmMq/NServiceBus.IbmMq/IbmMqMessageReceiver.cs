@@ -1,10 +1,12 @@
 ﻿using IBM.WMQ;
+using NServiceBus.Logging;
 
 namespace NServiceBus.Transport.IbmMq;
 
 internal class IbmMqMessageReceiver(MQQueueManager queueManagerInstance, ReceiveSettings receiveSettings)
     : IMessageReceiver
 {
+    readonly ILog Log = LogManager.GetLogger<IbmMqMessageReceiver>();
     private readonly IbmMqHelper _ibmMqHelper = new(queueManagerInstance);
 
     OnMessage? onMessage;
@@ -19,6 +21,7 @@ internal class IbmMqMessageReceiver(MQQueueManager queueManagerInstance, Receive
 
     public Task ChangeConcurrency(PushRuntimeSettings limitations, CancellationToken cancellationToken = default)
     {
+        Log.DebugFormat("Changing concurrency to {0}", limitations.MaxConcurrency);
         throw new NotImplementedException();
     }
 
@@ -32,10 +35,14 @@ internal class IbmMqMessageReceiver(MQQueueManager queueManagerInstance, Receive
     public async Task StartReceive(CancellationToken cancellationToken = default)
     {
         MessagePump = Task.Run(() => PumpMessages(cancellationToken), cancellationToken);
+        Log.DebugFormat("Starting to receive messages from {0}", ReceiveAddress);
     }
 
     public Task StopReceive(CancellationToken cancellationToken = default)
         => MessagePump ?? Task.CompletedTask;
+    {
+        Log.DebugFormat("Stopping to receive messages from {0}", ReceiveAddress);
+    }
 
     async Task PumpMessages(CancellationToken cancellationToken = default)
     {
@@ -93,6 +100,7 @@ internal class IbmMqMessageReceiver(MQQueueManager queueManagerInstance, Receive
             }
             catch (Exception ex)
             {
+                Log.DebugFormat("Error processing message from {0}\n{1}", ReceiveAddress, ex);
                 var errorContext = new ErrorContext(ex, messageHeaders, messageId, messageBody, new TransportTransaction(), 0, ReceiveAddress, new Extensibility.ContextBag());
 
                 var result = await onError!.Invoke(errorContext, cancellationToken)
