@@ -8,6 +8,7 @@ internal class IbmMqMessageReceiver(MQQueueManager queueManagerInstance, Receive
 {
     readonly ILog Log = LogManager.GetLogger<IbmMqMessageReceiver>();
     private readonly IbmMqHelper _ibmMqHelper = new(queueManagerInstance);
+    CancellationTokenSource? messagePumpCts;
 
     OnMessage? onMessage;
     private OnError? onError;
@@ -34,14 +35,16 @@ internal class IbmMqMessageReceiver(MQQueueManager queueManagerInstance, Receive
 
     public async Task StartReceive(CancellationToken cancellationToken = default)
     {
-        MessagePump = Task.Run(() => PumpMessages(cancellationToken), cancellationToken);
         Log.DebugFormat("Starting to receive messages from {0}", ReceiveAddress);
+        messagePumpCts = new CancellationTokenSource();
+        MessagePump = Task.Run(() => PumpMessages(messagePumpCts.Token), messagePumpCts.Token);
     }
 
     public Task StopReceive(CancellationToken cancellationToken = default)
-        => MessagePump ?? Task.CompletedTask;
     {
         Log.DebugFormat("Stopping to receive messages from {0}", ReceiveAddress);
+        messagePumpCts?.Cancel();
+        return MessagePump ?? Task.CompletedTask;
     }
 
     async Task PumpMessages(CancellationToken cancellationToken = default)
