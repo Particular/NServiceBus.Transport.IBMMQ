@@ -6,6 +6,8 @@ namespace NServiceBus.Transport.IbmMq;
 internal class IbmMqMessageReceiver(MQQueueManager queueManagerInstance, ReceiveSettings receiveSettings)
     : IMessageReceiver
 {
+    // TODO: Make WaitInterval configurable
+    const int WaitInterval = 5000;
     readonly ILog Log = LogManager.GetLogger<IbmMqMessageReceiver>();
     private readonly IbmMqHelper _ibmMqHelper = new(queueManagerInstance);
     CancellationTokenSource? messagePumpCts;
@@ -42,7 +44,7 @@ internal class IbmMqMessageReceiver(MQQueueManager queueManagerInstance, Receive
 
     public Task StopReceive(CancellationToken cancellationToken = default)
     {
-        Log.DebugFormat("Stopping to receive messages from {0}", ReceiveAddress);
+        Log.DebugFormat("Stopping to receive messages from {0}, this can take over {WaitInterval:N0}ms ", ReceiveAddress);
         messagePumpCts?.Cancel();
         return MessagePump ?? Task.CompletedTask;
     }
@@ -61,8 +63,7 @@ internal class IbmMqMessageReceiver(MQQueueManager queueManagerInstance, Receive
                           | MQC.MQGMO_FAIL_IF_QUIESCING // Fail if the queue manager is quiescing (shutting down)
                           | MQC.MQGMO_PROPERTIES_IN_HANDLE, // Extract properties from MQRFH2, present body as clean MQSTR
 
-                // TODO: Make WaitInterval configurable
-                WaitInterval = 5000 // How long to wait for a message
+                WaitInterval = WaitInterval // How long to wait for a message
             };
 
             string messageId = string.Empty;
