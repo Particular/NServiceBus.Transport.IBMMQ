@@ -1,9 +1,11 @@
-# NServiceBus.IBMMQ
+# NServiceBus.Transport.IBMMQ
+
 IBMMQ transport spike
 
-
 ## IBM MQ concepts
+
 ## Messages
+
 IBM MQ has no built-in concept of commands vs events. All messages are simply "messages":
 ```
 // All messages look the same to MQ
@@ -106,14 +108,10 @@ MQRFH2 solves this by providing a flexible key-value store.
 **MQMT_DATAGRAM** sets the message type to indicate it's a one-way message that doesn't expect a reply.
 
   IBM MQ message types:
-  ┌───────────────┬───────┬───────────────────────────────────────────────────────────────────┐
-  │   Constant    │ Value │                              Meaning                              │
-  ├───────────────┼───────┼───────────────────────────────────────────────────────────────────┤
-  │ MQMT_DATAGRAM │ 8     │ One-way message, no reply expected                                │
-  ├───────────────┼───────┼───────────────────────────────────────────────────────────────────┤
-  │ MQMT_REQUEST  │ 1     │ Request message, expects a reply                                  │
-  ├───────────────┼───────┼───────────────────────────────────────────────────────────────────┤
-  │ MQMT_REPLY    │ 2     │ Reply to a previous request                                       │
-  ├───────────────┼───────┼───────────────────────────────────────────────────────────────────┤
-  │ MQMT_REPORT   │ 4     │ Report message (delivery confirmation, expiry notification, etc.) │
-  └───────────────┴───────┴───────────────────────────────────────────────────────────────────┘
+
+|   Constant    | Value |                              Meaning                              |
+|---|---|---|
+| MQMT_DATAGRAM | 8     | One-way message, no reply expected                                |
+| MQMT_REQUEST  | 1     | Request message, expects a reply                                  |
+| MQMT_REPLY    | 2     | Reply to a previous request                                       |
+| MQMT_REPORT   | 4     | Report message (delivery confirmation, expiry notification, etc.) |
