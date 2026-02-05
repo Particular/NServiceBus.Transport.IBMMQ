@@ -11,7 +11,7 @@ endpointB.SendFailedMessagesTo("error");
 endpointB.UseTransport(ibmmq);
 endpointB.UseSerialization<SystemJsonSerializer>();
 endpointB.PurgeOnStartup(true);
-
+endpointB.LimitMessageProcessingConcurrencyTo(2);
 
 builder.UseNServiceBus(endpointB);
 
