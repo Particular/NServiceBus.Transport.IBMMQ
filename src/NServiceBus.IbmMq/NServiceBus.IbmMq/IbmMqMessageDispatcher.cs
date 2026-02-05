@@ -6,6 +6,7 @@ internal class IbmMqMessageDispatcher(IbmMqHelper ibmMqHelper) : IMessageDispatc
 {
     public async Task Dispatch(TransportOperations outgoingMessages, TransportTransaction transaction, CancellationToken cancellationToken = default)
     {
+        // TODO: Ensure queue object gets re-used
         foreach (var transportOperation in outgoingMessages.UnicastTransportOperations)
         {
             await DispatchUnicast(transportOperation).ConfigureAwait(false);
@@ -22,7 +23,7 @@ internal class IbmMqMessageDispatcher(IbmMqHelper ibmMqHelper) : IMessageDispatc
         // Queue is not thread-safe and cannot be concurrently accessed.
         using var queue = ibmMqHelper.EnsureQueue(unicastTransportOperation.Destination, MQC.MQOO_OUTPUT);
 
-        MQMessage message = ibmMqHelper.CreateMessage(unicastTransportOperation.Message);
+        MQMessage message = IbmMqMessageConverter.ToNative(unicastTransportOperation.Message);
 
         MQPutMessageOptions putOptions = new();
 
@@ -41,14 +42,11 @@ internal class IbmMqMessageDispatcher(IbmMqHelper ibmMqHelper) : IMessageDispatc
         return Task.CompletedTask;
     }
 
-    private Task DispatchMulticast(MulticastTransportOperation transportOperation)
+    Task DispatchMulticast(MulticastTransportOperation transportOperation)
     {
         using var topic = ibmMqHelper.EnsureTopic(transportOperation.MessageType);
-
-        var message = ibmMqHelper.CreateMessage(transportOperation.Message);
-
+        var message = IbmMqMessageConverter.ToNative(transportOperation.Message);
         topic.Put(message);
-
         return Task.CompletedTask;
     }
 }

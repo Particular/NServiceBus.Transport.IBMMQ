@@ -1,22 +1,22 @@
-﻿using IBM.WMQ;
 using NServiceBus.Logging;
 
 namespace NServiceBus.Transport.IbmMq;
 
-internal class IbmMqMessageReceiver(MQQueueManager queueManagerInstance, ReceiveSettings receiveSettings)
-    : IMessageReceiver
+internal class IbmMqMessageReceiver(
+    MQConnectionPool connectionPool,
+    ReceiveSettings receiveSettings
+) : IMessageReceiver
 {
-    // TODO: Make WaitInterval configurable
-    const int WaitInterval = 5000;
     readonly ILog Log = LogManager.GetLogger<IbmMqMessageReceiver>();
-    private readonly IbmMqHelper _ibmMqHelper = new(queueManagerInstance);
-    CancellationTokenSource? messagePumpCts;
 
+    readonly List<MessagePumpWorker> workers = new();
+    readonly object _workersLock = new();
+
+    int concurrency = 1;
     OnMessage? onMessage;
-    private OnError? onError;
-    Task? MessagePump;
+    OnError? onError;
 
-    public ISubscriptionManager Subscriptions => new IbmMqSubscriptionManager(queueManagerInstance, ReceiveAddress);
+    public ISubscriptionManager Subscriptions => new IbmMqSubscriptionManager(connectionPool, ReceiveAddress);
 
     public string Id => receiveSettings.Id;
 
@@ -24,102 +24,86 @@ internal class IbmMqMessageReceiver(MQQueueManager queueManagerInstance, Receive
 
     public Task ChangeConcurrency(PushRuntimeSettings limitations, CancellationToken cancellationToken = default)
     {
-        Log.DebugFormat("Changing concurrency to {0}", limitations.MaxConcurrency);
-        throw new NotImplementedException();
+        var newConcurrency = limitations.MaxConcurrency;
+        Log.DebugFormat("Changing concurrency from {0} to {1}", concurrency, newConcurrency);
+
+        lock (_workersLock)
+        {
+            if (newConcurrency > concurrency)
+            {
+                // Scale up - add more workers
+                for (int i = concurrency; i < newConcurrency; i++)
+                {
+                    var worker = new MessagePumpWorker(connectionPool, ReceiveAddress, onMessage!, onError!, i);
+                    workers.Add(worker);
+                    worker.Start();
+                    Log.DebugFormat("Added worker {0}", i);
+                }
+            }
+            else if (newConcurrency < concurrency)
+            {
+                // Scale down - remove excess workers
+                var workersToRemove = workers.Skip(newConcurrency).ToList();
+                workers.RemoveRange(newConcurrency, workers.Count - newConcurrency);
+
+                // Stop and dispose removed workers asynchronously
+                Task.Run(async () =>
+                {
+                    foreach (var worker in workersToRemove)
+                    {
+                        await worker.DisposeAsync().ConfigureAwait(false);
+                    }
+                });
+            }
+
+            concurrency = newConcurrency;
+        }
+
+        return Task.CompletedTask;
     }
 
     public Task Initialize(PushRuntimeSettings limitations, OnMessage onMessage, OnError onError, CancellationToken cancellationToken = default)
     {
         this.onMessage = onMessage;
         this.onError = onError;
+        concurrency = limitations.MaxConcurrency;
+        Log.DebugFormat("Initialized receiver with concurrency {0}", concurrency);
         return Task.CompletedTask;
     }
 
-    public async Task StartReceive(CancellationToken cancellationToken = default)
+    public Task StartReceive(CancellationToken cancellationToken = default)
     {
-        Log.DebugFormat("Starting to receive messages from {0}", ReceiveAddress);
-        messagePumpCts = new CancellationTokenSource();
-        MessagePump = Task.Run(() => PumpMessages(messagePumpCts.Token), messagePumpCts.Token);
-    }
+        Log.DebugFormat("Starting to receive messages from {0} with {1} workers", ReceiveAddress, concurrency);
 
-    public Task StopReceive(CancellationToken cancellationToken = default)
-    {
-        Log.DebugFormat("Stopping to receive messages from {0}, this can take over {WaitInterval:N0}ms ", ReceiveAddress);
-        messagePumpCts?.Cancel();
-        return MessagePump ?? Task.CompletedTask;
-    }
-
-    async Task PumpMessages(CancellationToken cancellationToken = default)
-    {
-        MQQueue queue = _ibmMqHelper.EnsureQueue(ReceiveAddress, MQC.MQOO_INPUT_AS_Q_DEF);
-
-        while (!cancellationToken.IsCancellationRequested)
+        lock (_workersLock)
         {
-            MQMessage receivedMessage = new();
-            MQGetMessageOptions getOptions = new()
+            for (int i = 0; i < concurrency; i++)
             {
-                Options = MQC.MQGMO_WAIT // Should wait for a message to arrive
-                          | MQC.MQGMO_SYNCPOINT // Process messages in a transaction (commit/backout)
-                          | MQC.MQGMO_FAIL_IF_QUIESCING // Fail if the queue manager is quiescing (shutting down)
-                          | MQC.MQGMO_PROPERTIES_IN_HANDLE, // Extract properties from MQRFH2, present body as clean MQSTR
-
-                WaitInterval = WaitInterval // How long to wait for a message
-            };
-
-            string messageId = string.Empty;
-            byte[] messageBody = [];
-            Dictionary<string, string> messageHeaders = [];
-
-            try
-            {
-                queue.Get(receivedMessage, getOptions);
-
-                messageBody = receivedMessage.ReadBytes(receivedMessage.MessageLength);
-
-                var propertyNames = receivedMessage.GetPropertyNames("%");
-                while (propertyNames.MoveNext())
-                {
-                    var escapedName = propertyNames.Current.ToString();
-                    if (escapedName != null)
-                    {
-                        // Unescape the property name (restore dots from underscores)
-                        var originalName = IbmMqHelper.UnescapePropertyName(escapedName);
-                        messageHeaders.Add(originalName, receivedMessage.GetStringProperty(escapedName));
-                    }
-                }
-
-                if (messageHeaders.TryGetValue(Headers.MessageId, out var messageIdHeader))
-                    messageId = messageIdHeader;
-
-                var messageContext = new MessageContext(messageId, messageHeaders, messageBody, new TransportTransaction(), ReceiveAddress, new Extensibility.ContextBag());
-
-                await onMessage!(messageContext, cancellationToken);
-
-                queueManagerInstance.Commit();
-            }
-            catch (MQException ex) when (ex.ReasonCode == MQC.MQRC_NO_MSG_AVAILABLE)
-            {
-                // Do nothing
-                await Task.Yield();
-            }
-            catch (Exception ex)
-            {
-                Log.DebugFormat("Error processing message from {0}\n{1}", ReceiveAddress, ex);
-                var errorContext = new ErrorContext(ex, messageHeaders, messageId, messageBody, new TransportTransaction(), 0, ReceiveAddress, new Extensibility.ContextBag());
-
-                var result = await onError!.Invoke(errorContext, cancellationToken)
-                    .ConfigureAwait(false);
-
-                if (result is ErrorHandleResult.RetryRequired)
-                {
-                    queueManagerInstance.Backout();
-                }
-                else
-
-                {
-                    queueManagerInstance.Commit();
-                }
+                var worker = new MessagePumpWorker(connectionPool, ReceiveAddress, onMessage!, onError!, i);
+                workers.Add(worker);
+                worker.Start();
             }
         }
+
+        return Task.CompletedTask;
+    }
+
+    public async Task StopReceive(CancellationToken cancellationToken = default)
+    {
+        Log.DebugFormat("Stopping {0} workers for {1}", workers.Count, ReceiveAddress);
+
+        List<MessagePumpWorker> workersToStop;
+        lock (_workersLock)
+        {
+            workersToStop = workers.ToList();
+            workers.Clear();
+        }
+
+        foreach (var worker in workersToStop)
+        {
+            await worker.DisposeAsync().ConfigureAwait(false);
+        }
+
+        Log.DebugFormat("All workers stopped for {0}", ReceiveAddress);
     }
 }
