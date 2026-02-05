@@ -57,9 +57,9 @@ internal class IbmMqMessageReceiver(MQQueueManager queueManagerInstance, Receive
             MQGetMessageOptions getOptions = new()
             {
                 Options = MQC.MQGMO_WAIT // Should wait for a message to arrive
-                    | MQC.MQGMO_SYNCPOINT // Process messages in a transaction (commit/backout)
-                    | MQC.MQGMO_FAIL_IF_QUIESCING // Fail if the queue manager is quiescing (shutting down)
-                    | MQC.MQGMO_PROPERTIES_IN_HANDLE, // Extract properties from MQRFH2, present body as clean MQSTR
+                          | MQC.MQGMO_SYNCPOINT // Process messages in a transaction (commit/backout)
+                          | MQC.MQGMO_FAIL_IF_QUIESCING // Fail if the queue manager is quiescing (shutting down)
+                          | MQC.MQGMO_PROPERTIES_IN_HANDLE, // Extract properties from MQRFH2, present body as clean MQSTR
 
                 // TODO: Make WaitInterval configurable
                 WaitInterval = 5000 // How long to wait for a message
