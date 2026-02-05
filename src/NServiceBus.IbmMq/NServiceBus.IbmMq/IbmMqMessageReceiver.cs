@@ -99,8 +99,10 @@ internal class IbmMqMessageReceiver(
             workers.Clear();
         }
 
+        // Stop all workers, passing the cancellation token so in-flight messages can be cancelled
         foreach (var worker in workersToStop)
         {
+            await worker.StopAsync(cancellationToken).ConfigureAwait(false);
             await worker.DisposeAsync().ConfigureAwait(false);
         }
 
