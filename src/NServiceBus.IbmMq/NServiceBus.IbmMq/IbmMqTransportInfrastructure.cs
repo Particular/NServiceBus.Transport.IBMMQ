@@ -1,9 +1,12 @@
 ﻿using IBM.WMQ;
+using NServiceBus.Logging;
 
 namespace NServiceBus.Transport.IbmMq;
 
 class IbmMqTransportInfrastructure : TransportInfrastructure, IDisposable
 {
+    static readonly ILog Log = LogManager.GetLogger<IbmMqTransportInfrastructure>();
+
     MQQueueManager receiveQueueManager = new("QM1");
     MQQueueManager sendQueueManager = new("QM1");
 
@@ -20,6 +23,7 @@ class IbmMqTransportInfrastructure : TransportInfrastructure, IDisposable
 
     public override Task Shutdown(CancellationToken cancellationToken = default)
     {
+        Log.Debug("Shutting down IbmMqTransportInfrastructure");
         receiveQueueManager.Disconnect();
         sendQueueManager.Disconnect();
         return Task.CompletedTask;
@@ -32,6 +36,7 @@ class IbmMqTransportInfrastructure : TransportInfrastructure, IDisposable
 
     public void Dispose()
     {
+        Log.Debug("Disposing IbmMqTransportInfrastructure");
         ((IDisposable)receiveQueueManager).Dispose();
         ((IDisposable)sendQueueManager).Dispose();
     }
