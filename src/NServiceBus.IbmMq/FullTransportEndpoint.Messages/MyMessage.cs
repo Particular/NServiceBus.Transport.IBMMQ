@@ -1,4 +1,5 @@
-﻿namespace FullTransportEndpoint.Messages
-{
-    public record MyMessage(string Data) : IMessage;
-}
+﻿namespace FullTransportEndpoint.Messages;
+
+public record MyMessage(string Data) : IMessage;
+
+public record MyMessage2 : IMessage;
