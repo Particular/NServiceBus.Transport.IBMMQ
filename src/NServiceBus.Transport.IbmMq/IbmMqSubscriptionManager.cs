@@ -1,10 +1,10 @@
+namespace NServiceBus.Transport.IbmMq;
+
 using NServiceBus.Extensibility;
 using NServiceBus.Logging;
 using NServiceBus.Unicast.Messages;
 
-namespace NServiceBus.Transport.IbmMq;
-
-internal class IbmMqSubscriptionManager(
+class IbmMqSubscriptionManager(
     MQConnectionPool connectionPool,
     string receiveAddress
 ) : ISubscriptionManager

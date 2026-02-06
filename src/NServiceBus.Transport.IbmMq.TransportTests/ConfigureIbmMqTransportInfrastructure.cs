@@ -1,18 +1,14 @@
+namespace NServiceBus.TransportTests;
+
 using System;
 using System.Threading;
-using System.Threading.Channels;
 using System.Threading.Tasks;
-using IBM.WMQ;
-using Microsoft.ApplicationInsights;
 using NServiceBus.Transport;
 using NServiceBus.Transport.IbmMq;
 
-namespace NServiceBus.TransportTests;
-
 public class ConfigureIbmMqTransportInfrastructure : IConfigureTransportInfrastructure
 {
-    private static readonly string ConnectionDetails =
-        Environment.GetEnvironmentVariable("IbmMq_ConnectionDetails") ?? "localhost;admin;passw0rd";
+    static readonly string ConnectionDetails = Environment.GetEnvironmentVariable("IbmMq_ConnectionDetails") ?? "localhost;admin;passw0rd";
 
     public TransportDefinition CreateTransportDefinition()
     {
@@ -68,7 +64,11 @@ public class ConfigureIbmMqTransportInfrastructure : IConfigureTransportInfrastr
             );
 
         var transportInfrastructure = await transportDefinition.Initialize(
-            hostSettings, [receiveSettings], [], cancellationToken);
+            hostSettings,
+            [receiveSettings],
+            [],
+            cancellationToken
+        ).ConfigureAwait(false);
 
         queuesToCleanUp = [transportInfrastructure.ToTransportAddress(inputQueueName), errorQueueName];
 
@@ -77,15 +77,11 @@ public class ConfigureIbmMqTransportInfrastructure : IConfigureTransportInfrastr
 
     public Task Cleanup(CancellationToken cancellationToken = default)
     {
+        if (queuesToCleanUp == null)
+        {
+            // TODO: Do we need to clean up queues?
+        }
         return Task.CompletedTask;
-
-        // TODO: Do we need to clean up queues?
-
-        // if (queuesToCleanUp == null)
-        // {
-        //
-        //     return Task.CompletedTask;
-        // }
     }
 
     string[] queuesToCleanUp;

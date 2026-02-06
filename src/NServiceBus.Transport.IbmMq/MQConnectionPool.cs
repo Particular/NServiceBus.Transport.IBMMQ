@@ -1,16 +1,18 @@
-using IBM.WMQ;
-using NServiceBus.Logging;
-using System.Collections.Concurrent;
-
 namespace NServiceBus.Transport.IbmMq;
+
+using System.Collections.Concurrent;
+using NServiceBus.Logging;
+using IBM.WMQ;
 
 sealed class MQConnectionPool(Func<MQQueueManager> createQueueManager) : IDisposable
 {
     static readonly ILog Log = LogManager.GetLogger<MQConnectionPool>();
 
-    private readonly ConcurrentBag<MQQueueManager> _available = new();
-    private readonly ConcurrentDictionary<MQQueueManager, bool> _all = new();
-    private bool _disposed;
+    readonly ConcurrentBag<MQQueueManager> _available = [];
+#pragma warning disable PS0025
+    readonly ConcurrentDictionary<MQQueueManager, bool> _all = new();
+#pragma warning restore PS0025
+    bool _disposed;
 
     public MQQueueManager Lease()
     {
@@ -68,7 +70,7 @@ sealed class MQConnectionPool(Func<MQQueueManager> createQueueManager) : IDispos
         _all.Clear();
     }
 
-    private static void DisconnectAndDispose(MQQueueManager connection)
+    static void DisconnectAndDispose(MQQueueManager connection)
     {
         try
         {

@@ -1,15 +1,15 @@
-using NServiceBus.Logging;
-
 namespace NServiceBus.Transport.IbmMq;
 
-internal class IbmMqMessageReceiver(
+using NServiceBus.Logging;
+
+class IbmMqMessageReceiver(
     MQConnectionPool connectionPool,
     ReceiveSettings receiveSettings
 ) : IMessageReceiver
 {
     readonly ILog Log = LogManager.GetLogger<IbmMqMessageReceiver>();
 
-    readonly List<MessagePumpWorker> workers = new();
+    readonly List<MessagePumpWorker> workers = [];
     readonly object _workersLock = new();
 
     int concurrency = 1;
@@ -47,13 +47,15 @@ internal class IbmMqMessageReceiver(
                 workers.RemoveRange(newConcurrency, workers.Count - newConcurrency);
 
                 // Stop and dispose removed workers asynchronously
-                Task.Run(async () =>
-                {
-                    foreach (var worker in workersToRemove)
+                _ = Task.Run(async () =>
                     {
-                        await worker.DisposeAsync().ConfigureAwait(false);
-                    }
-                });
+                        foreach (var worker in workersToRemove)
+                        {
+                            await worker.DisposeAsync().ConfigureAwait(false);
+                        }
+                    },
+                    CancellationToken.None
+                );
             }
 
             concurrency = newConcurrency;

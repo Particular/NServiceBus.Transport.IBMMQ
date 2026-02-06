@@ -1,7 +1,7 @@
+namespace NServiceBus.Transport.IbmMq;
+
 using System.Text.RegularExpressions;
 using IBM.WMQ;
-
-namespace NServiceBus.Transport.IbmMq;
 
 class IbmMqMessageConverter
 {
@@ -10,8 +10,8 @@ class IbmMqMessageConverter
     //   nsbhdrs  – comma-separated list of all escaped header names
     //   nsbempty – comma-separated list of escaped header names whose value is empty
     // On receive, names in nsbempty are reconstructed as "" without touching MQ properties.
-    internal const string HeaderManifestProperty = "nsbhdrs";
-    internal const string EmptyHeadersProperty   = "nsbempty";
+    const string HeaderManifestProperty = "nsbhdrs";
+    const string EmptyHeadersProperty = "nsbempty";
 
 
     public static byte[] FromNative(MQMessage receivedMessage, Dictionary<string, string> messageHeaders, ref string messageId)
@@ -86,11 +86,12 @@ class IbmMqMessageConverter
     {
         // Temporarily create a message using the same logic as IbmMqHelper.CreateMessage
         // but inline here since we don't have a QueueManager instance
-        MQMessage message = new();
-
-        message.MessageType = MQC.MQMT_DATAGRAM;
-        message.Persistence = MQC.MQPER_PERSISTENT;
-        message.CharacterSet = MQC.CODESET_UTF; // UTF-8
+        MQMessage message = new()
+        {
+            MessageType = MQC.MQMT_DATAGRAM,
+            Persistence = MQC.MQPER_PERSISTENT,
+            CharacterSet = MQC.CODESET_UTF // UTF-8
+        };
 
         SetExpiry(outgoingMessage, message);
         SetReplyToQueueName(outgoingMessage, message);

@@ -1,13 +1,9 @@
-using IBM.WMQ;
-using IBM.WMQ.PCF;
-using NServiceBus.Logging;
-using NServiceBus.Transport;
-using System.Text;
-using System.Text.RegularExpressions;
-
 namespace NServiceBus.Transport.IbmMq;
 
-internal class IbmMqHelper(MQQueueManager queueManager)
+using IBM.WMQ;
+using IBM.WMQ.PCF;
+
+class IbmMqHelper(MQQueueManager queueManager)
 {
     internal MQQueue EnsureQueue(string name, int openOptions)
     {
@@ -38,7 +34,7 @@ internal class IbmMqHelper(MQQueueManager queueManager)
     {
         var agent = new PCFMessageAgent(queueManager);
 
-        PCFMessage request = new PCFMessage(MQC.MQCMD_CREATE_Q);
+        var request = new PCFMessage(MQC.MQCMD_CREATE_Q);
         request.AddParameter(MQC.MQCA_Q_NAME, name);
         request.AddParameter(MQC.MQIA_Q_TYPE, MQC.MQQT_LOCAL); // Local queue
         request.AddParameter(MQC.MQIA_MAX_Q_DEPTH, 5000); // Max queue depth
@@ -60,27 +56,25 @@ internal class IbmMqHelper(MQQueueManager queueManager)
 
         try
         {
-            topic = AccessTopic(topicName, topicString);
+            topic = AccessTopic(topicName);
         }
         catch (MQException ex) when (ex.ReasonCode == MQC.MQRC_UNKNOWN_OBJECT_NAME)
         {
             CreateTopic(topicName, topicString);
 
-            topic = AccessTopic(topicName, topicString);
+            topic = AccessTopic(topicName);
         }
 
         return topic;
     }
 
-    MQTopic AccessTopic(string topicName, string topicString)
-    {
-
-        return queueManager.AccessTopic(
+    MQTopic AccessTopic(string topicName) =>
+        queueManager.AccessTopic(
             null,
             topicName,
             MQC.MQTOPIC_OPEN_AS_PUBLICATION,
-            MQC.MQOO_OUTPUT);
-    }
+            MQC.MQOO_OUTPUT
+        );
 
     void CreateTopic(string topicName, string topicString)
     {
@@ -121,13 +115,7 @@ internal class IbmMqHelper(MQQueueManager queueManager)
         );
     }
 
-    static string GenerateTopicName(Type eventType)
-    {
-        return $"DEV.{eventType.Name.ToUpperInvariant()}";
-    }
+    static string GenerateTopicName(Type eventType) => $"DEV.{eventType.Name.ToUpperInvariant()}";
 
-    static string GenerateTopicString(Type eventType)
-    {
-        return $"dev/{eventType.Name.ToLowerInvariant()}/";
-    }
+    static string GenerateTopicString(Type eventType) => $"dev/{eventType.Name.ToLowerInvariant()}/";
 }

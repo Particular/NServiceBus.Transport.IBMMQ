@@ -1,8 +1,8 @@
-﻿using IBM.WMQ;
+﻿namespace NServiceBus.Transport.IbmMq;
 
-namespace NServiceBus.Transport.IbmMq;
+using IBM.WMQ;
 
-internal class IbmMqMessageDispatcher(IbmMqHelper ibmMqHelper) : IMessageDispatcher
+class IbmMqMessageDispatcher(IbmMqHelper ibmMqHelper) : IMessageDispatcher
 {
     public Task Dispatch(TransportOperations outgoingMessages, TransportTransaction transaction, CancellationToken cancellationToken = default)
     {
@@ -13,7 +13,7 @@ internal class IbmMqMessageDispatcher(IbmMqHelper ibmMqHelper) : IMessageDispatc
         {
             if (outgoingMessages.UnicastTransportOperations.Count > 0)
             {
-                queues = new Dictionary<string, MQQueue>();
+                queues = [];
 
                 foreach (var transportOperation in outgoingMessages.UnicastTransportOperations)
                 {
@@ -23,7 +23,7 @@ internal class IbmMqMessageDispatcher(IbmMqHelper ibmMqHelper) : IMessageDispatc
 
             if (outgoingMessages.MulticastTransportOperations.Count > 0)
             {
-                topics = new Dictionary<Type, MQTopic>();
+                topics = [];
 
                 foreach (var transportOperation in outgoingMessages.MulticastTransportOperations)
                 {
