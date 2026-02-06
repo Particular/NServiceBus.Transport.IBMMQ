@@ -39,7 +39,7 @@ public class IbmMqTransportSettings
     /// Connection channel name.
     /// Default: "SYSTEM.DEF.SVRCONN"
     /// </summary>
-    public string Channel { get; set; } = "SYSTEM.DEF.SVRCONN";
+    public string Channel { get; set; } = "DEV.ADMIN.SVRCONN";
 
     /// <summary>
     /// List of connection names for high availability scenarios.

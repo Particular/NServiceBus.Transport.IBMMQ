@@ -11,7 +11,7 @@ var ibmmq = new IbmMqTransport(settings =>
     settings.QueueManagerName = "QM1";
     settings.Host = "localhost";
     settings.Port = 1414;
-    settings.Channel = "DEV.APP.SVRCONN";
+    settings.Channel = "DEV.ADMIN.SVRCONN";
     settings.User = "admin";
     settings.Password = "passw0rd";
 });
