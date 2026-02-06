@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/Tests/">
+    <Project Path="NServiceBus.Transport.IbmMq.AcceptanceTests/NServiceBus.Transport.IbmMq.AcceptanceTests.csproj" />
+    <Project Path="NServiceBus.Transport.IbmMq.Tests/NServiceBus.Transport.IbmMq.Tests.csproj" />
+    <Project Path="NServiceBus.Transport.IbmMq.TransportTests/NServiceBus.Transport.IbmMq.TransportTests.csproj" />
+  </Folder>
+  <Project Path="NServiceBus.Transport.IbmMq/NServiceBus.Transport.IbmMq.csproj" />
+</Solution>
