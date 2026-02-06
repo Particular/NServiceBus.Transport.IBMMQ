@@ -4,7 +4,7 @@ using System.Collections.Concurrent;
 
 namespace NServiceBus.Transport.IbmMq;
 
-sealed class MQConnectionPool(string queueManagerName) : IDisposable
+sealed class MQConnectionPool(Func<MQQueueManager> createQueueManager) : IDisposable
 {
     static readonly ILog Log = LogManager.GetLogger<MQConnectionPool>();
 
@@ -26,7 +26,7 @@ sealed class MQConnectionPool(string queueManagerName) : IDisposable
         }
 
         Log.Debug("Creating new connection for pool");
-        var newConnection = new MQQueueManager(queueManagerName);
+        var newConnection = createQueueManager();
         _all.TryAdd(newConnection, true);
         return newConnection;
     }

@@ -17,11 +17,12 @@ class IbmMqTransportInfrastructure : TransportInfrastructure, IDisposable
         ArgumentNullException.ThrowIfNull(receiverSettings);
 
         var queueManagerName = connectionConfiguration.QueueManagerName ?? string.Empty;
+        var createQueueManager = () => new MQQueueManager(queueManagerName, connectionConfiguration.ConnectionProperties);
 
         Log.Info($"Connecting to IBM MQ Queue Manager: {(string.IsNullOrWhiteSpace(queueManagerName) ? "(default)" : queueManagerName)}");
 
-        connectionPool = new MQConnectionPool(queueManagerName);
-        sendQueueManager = new MQQueueManager(queueManagerName, connectionConfiguration.ConnectionProperties);
+        connectionPool = new MQConnectionPool(createQueueManager);
+        sendQueueManager = createQueueManager();
 
         Dispatcher = new IbmMqMessageDispatcher(new IbmMqHelper(sendQueueManager));
         Receivers = receiverSettings
@@ -30,7 +31,6 @@ class IbmMqTransportInfrastructure : TransportInfrastructure, IDisposable
                 x => new IbmMqMessageReceiver(connectionPool, x) as IMessageReceiver
             );
     }
-
 
     public override Task Shutdown(CancellationToken cancellationToken = default)
     {

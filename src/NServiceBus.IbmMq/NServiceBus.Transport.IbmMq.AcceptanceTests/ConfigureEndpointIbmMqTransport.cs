@@ -9,7 +9,7 @@ public class ConfigureEndpointIbmMqTransport : IConfigureEndpointTestExecution
 {
     private static readonly string ConnectionDetails =
         Environment.GetEnvironmentVariable("IbmMq_ConnectionDetails") ?? "localhost;admin;passw0rd";
-    
+
     public Task Configure(string endpointName, EndpointConfiguration configuration, RunSettings settings,
         PublisherMetadata publisherMetadata)
     {
@@ -36,7 +36,17 @@ public class ConfigureEndpointIbmMqTransport : IConfigureEndpointTestExecution
             throw new InvalidOperationException("Password is required in IbmMq_ConnectionDetails");
         }
 
-        var transport = new IbmMqTransport(host, user, password, port, null);
+        var transport = new IbmMqTransport(s =>
+            {
+                if (port.HasValue)
+                {
+                    s.Port = port.Value;
+                }
+                s.Host = host;
+                s.Password = password;
+                s.User = user;
+            }
+        );
 
         configuration.UseTransport(transport);
 
