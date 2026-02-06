@@ -15,15 +15,14 @@ sealed class MessagePumpWorker(
     readonly ILog Log = LogManager.GetLogger<MessagePumpWorker>();
     readonly MQQueueManager _connection = connectionPool.Lease();
     Task? pumpTask;
-    CancellationTokenSource? stopCts;
-    CancellationTokenSource? cancellationCts;
+    CancellationTokenSource stopCts = new();
+    CancellationTokenSource cancellationCts = new();
 
     public void Start()
     {
         Log.DebugFormat("Worker {0} starting for queue {1}", workerIndex, queueName);
-        stopCts = new CancellationTokenSource();
         // Don't pass cancellation token to Task.Run to avoid race condition
-        pumpTask = Task.Run(() => PumpMessages(stopCts.Token));
+        pumpTask = Task.Run(() => PumpMessages(cancellationCts.Token));
     }
 
     public async Task StopAsync(CancellationToken cancellationToken = default)
@@ -32,36 +31,25 @@ sealed class MessagePumpWorker(
 
         // If a cancellation token is provided, link it to message processing cancellation
         // This allows StopReceive to control whether in-flight messages are cancelled
-        if (cancellationToken.CanBeCanceled && cancellationCts != null)
+        if (cancellationToken.CanBeCanceled)
         {
             var cancellationCtsClone = cancellationCts; // Capture to avoid closure issues
-            cancellationToken.Register(() => cancellationCtsClone?.Cancel());
+            cancellationToken.Register(() => cancellationCtsClone.Cancel());
         }
 
-        if (stopCts != null)
-        {
-            await stopCts.CancelAsync();
-        }
+        await stopCts.CancelAsync();
 
         if (pumpTask != null)
         {
-            try
-            {
-                await pumpTask.ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                // Expected when cancellation is requested
-            }
+            await pumpTask.ConfigureAwait(false);
         }
     }
 
     public async ValueTask DisposeAsync()
     {
         await StopAsync().ConfigureAwait(false);
-
-        cancellationCts?.Dispose();
-        stopCts?.Dispose();
+        cancellationCts.Dispose();
+        stopCts.Dispose();
         connectionPool.Return(_connection);
 
         Log.DebugFormat("Worker {0} disposed", workerIndex);
@@ -73,11 +61,6 @@ sealed class MessagePumpWorker(
         MQQueue queue = helper.EnsureQueue(queueName, MQC.MQOO_INPUT_AS_Q_DEF);
 
         Log.DebugFormat("Worker {0} started pumping messages from {1}", workerIndex, queueName);
-
-        // Create a separate cancellation token for message processing
-        // This is NOT linked to the pump's cancellation token
-        // StopAsync will decide whether to cancel it based on its cancellation token parameter
-        cancellationCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
         while (!stopCts.IsCancellationRequested)
         {
@@ -97,7 +80,7 @@ sealed class MessagePumpWorker(
             Dictionary<string, string> originalHeaders = [];
 
             // Create ContextBag once to share between MessageContext and ErrorContext
-            var contextBag = new Extensibility.ContextBag();
+            var contextBag = new Extensibility.ContextBag(); // TODO: Compare with other transports if this is really what we want
 
             try
             {
@@ -116,10 +99,11 @@ sealed class MessagePumpWorker(
                     messageBody,
                     new TransportTransaction(),
                     queueName,
-                    contextBag);
+                    contextBag
+                );
 
                 // Pass messageProcessingCts token, not pump's cancellation token
-                await onMessage(messageContext, cancellationCts.Token).ConfigureAwait(false);
+                await onMessage(messageContext, cancellationToken).ConfigureAwait(false);
 
                 _connection.Commit();
             }
@@ -129,7 +113,7 @@ sealed class MessagePumpWorker(
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                // Cancellation was requested, exit the loop gracefully
+                // Cancellation was requested, exit the loop ungracefully to terminate ASAP
                 break;
             }
             catch (Exception ex)
@@ -138,13 +122,14 @@ sealed class MessagePumpWorker(
 
                 var errorContext = new ErrorContext(
                     ex,
-                    originalHeaders,  // Use snapshot, not mutated headers
+                    originalHeaders, // Use snapshot, not mutated headers
                     messageId,
                     messageBody,
                     new TransportTransaction(),
-                    receivedMessage.BackoutCount + 1,  // Fix delivery count
+                    receivedMessage.BackoutCount + 1,
                     queueName,
-                    contextBag);  // Share the same ContextBag
+                    contextBag
+                );
 
                 try
                 {
