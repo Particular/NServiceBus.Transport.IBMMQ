@@ -35,30 +35,12 @@ internal class ConnectionConfiguration
             [MQC.TRANSPORT_PROPERTY] = MQC.TRANSPORT_MQSERIES_MANAGED
         };
         
-        /// Transform and test it bac to the string format
-        //// Use Connections if specified, otherwise use Host + Port
-        //if (!settings.Connections.Any())
-        //{
-        //    properties.Add(MQC.CONNECTION_NAME_PROPERTY, settings.Connections);
-        //}
-        //else
-        //{
-        //    properties.Add(MQC.HOST_NAME_PROPERTY, settings.Host);
-        //    properties.Add(MQC.PORT_PROPERTY, settings.Port);
-        //}
-
+   
         // Add channel
         properties.Add(MQC.CHANNEL_PROPERTY, settings.Channel);
 
         // Add reconnect option
-        properties.Add(MQC.CONNECT_OPTIONS_PROPERTY, settings.ReconnectOption switch
-        {
-            ReconnectOption.Disabled => MQC.MQCNO_RECONNECT_DISABLED,
-            ReconnectOption.Reconnect => MQC.MQCNO_RECONNECT,
-            ReconnectOption.ReconnectQueueManager => MQC.MQCNO_RECONNECT_Q_MGR,
-            ReconnectOption.ReconnectAsDefinedInConfig => MQC.MQCNO_RECONNECT_AS_DEF,
-            _ => throw new ArgumentException($"Invalid reconnect option: {settings.ReconnectOption}")
-        });
+        properties.Add(MQC.CONNECT_OPTIONS_PROPERTY, MQC.MQCNO_RECONNECT_DISABLED);
 
         // Add application name if specified, otherwise use assembly name
         var appName = settings.ApplicationName ?? Assembly.GetExecutingAssembly().GetName().Name ?? "NServiceBus.IbmMq";
