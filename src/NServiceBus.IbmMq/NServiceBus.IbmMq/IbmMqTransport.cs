@@ -1,4 +1,5 @@
-﻿using IBM.WMQ;
+using System.Collections;
+using IBM.WMQ;
 using NServiceBus.Transport.IbmMq.Configuration;
 
 namespace NServiceBus.Transport.IbmMq;
@@ -44,23 +45,6 @@ public class IbmMqTransport : TransportDefinition
 
     public override Task<TransportInfrastructure> Initialize(HostSettings hostSettings, ReceiveSettings[] receivers, string[] sendingAddresses, CancellationToken cancellationToken = default)
     {
-        // Set MQEnvironment properties for authentication
-        if (!string.IsNullOrWhiteSpace(Settings.User))
-        {
-            MQEnvironment.UserId = Settings.User;
-        }
-
-        if (!string.IsNullOrWhiteSpace(Settings.Password))
-        {
-            MQEnvironment.Password = Settings.Password;
-        }
-
-        // Set SSL certificate revocation check if enabled
-        if (Settings.SslCertRevocationCheck)
-        {
-            MQEnvironment.SSLCertRevocationCheck = Settings.SslCertRevocationCheck;
-        }
-
         var connectionConfiguration = new ConnectionConfiguration(Settings);
 
         return Task.FromResult<TransportInfrastructure>(
