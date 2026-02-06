@@ -7,11 +7,14 @@ using NServiceBus.Transport.IbmMq;
 // ReSharper disable once CheckNamespace
 public class ConfigureEndpointIbmMqTransport : IConfigureEndpointTestExecution
 {
-    private static readonly string ConnectionDetails =
-        Environment.GetEnvironmentVariable("IbmMq_ConnectionDetails") ?? "localhost;admin;passw0rd";
+    static readonly string ConnectionDetails = Environment.GetEnvironmentVariable("IbmMq_ConnectionDetails") ?? "localhost;admin;passw0rd";
 
-    public Task Configure(string endpointName, EndpointConfiguration configuration, RunSettings settings,
-        PublisherMetadata publisherMetadata)
+    Task IConfigureEndpointTestExecution.Configure(
+        string endpointName,
+        EndpointConfiguration configuration,
+        RunSettings settings,
+        PublisherMetadata publisherMetadata
+    )
     {
         var parts = ConnectionDetails.Split(';');
 
@@ -53,6 +56,5 @@ public class ConfigureEndpointIbmMqTransport : IConfigureEndpointTestExecution
         return Task.CompletedTask;
     }
 
-    //TODO: Do we need to clean up queues?
-    public Task Cleanup() => Task.CompletedTask;
+    Task IConfigureEndpointTestExecution.Cleanup() => Task.CompletedTask; // TODO: Do we need to clean up queues?
 }
