@@ -1,30 +1,31 @@
-﻿using IBM.WMQ;
+using IBM.WMQ;
 using NServiceBus.Logging;
 
 namespace NServiceBus.Transport.IbmMq;
 
 class IbmMqTransportInfrastructure : TransportInfrastructure, IDisposable
 {
+    const string QueueManagerName = "QM1"; // TODO: Use settings object from WIP PR
     static readonly ILog Log = LogManager.GetLogger<IbmMqTransportInfrastructure>();
 
-    MQQueueManager receiveQueueManager = new("QM1");
-    MQQueueManager sendQueueManager = new("QM1");
+    // TODO: Use settings object from WIP PR
+    readonly MQConnectionPool connectionPool = new(QueueManagerName);
+    readonly MQQueueManager sendQueueManager = new(QueueManagerName);
 
     public IbmMqTransportInfrastructure(ReceiveSettings[] receiverSettings)
     {
         Dispatcher = new IbmMqMessageDispatcher(new IbmMqHelper(sendQueueManager));
-
         Receivers = receiverSettings
             .ToDictionary(
                 x => x.Id,
-                x => new IbmMqMessageReceiver(receiveQueueManager, x) as IMessageReceiver
+                x => new IbmMqMessageReceiver(connectionPool, x) as IMessageReceiver
             );
     }
 
     public override Task Shutdown(CancellationToken cancellationToken = default)
     {
         Log.Debug("Shutting down IbmMqTransportInfrastructure");
-        receiveQueueManager.Disconnect();
+        connectionPool.Dispose();
         sendQueueManager.Disconnect();
         return Task.CompletedTask;
     }
@@ -37,7 +38,7 @@ class IbmMqTransportInfrastructure : TransportInfrastructure, IDisposable
     public void Dispose()
     {
         Log.Debug("Disposing IbmMqTransportInfrastructure");
-        ((IDisposable)receiveQueueManager).Dispose();
+        connectionPool.Dispose();
         ((IDisposable)sendQueueManager).Dispose();
     }
 }
