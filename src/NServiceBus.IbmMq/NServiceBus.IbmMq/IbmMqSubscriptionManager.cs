@@ -1,19 +1,32 @@
-﻿using IBM.WMQ;
 using NServiceBus.Extensibility;
+using NServiceBus.Logging;
 using NServiceBus.Unicast.Messages;
 
 namespace NServiceBus.Transport.IbmMq;
 
-internal class IbmMqSubscriptionManager(MQQueueManager queueManagerInstance, string receiveAddress)
-    : ISubscriptionManager
+internal class IbmMqSubscriptionManager(
+    MQConnectionPool connectionPool,
+    string receiveAddress
+) : ISubscriptionManager
 {
-    private readonly IbmMqHelper _ibmMqHelper = new(queueManagerInstance);
+    readonly ILog Log = LogManager.GetLogger<IbmMqSubscriptionManager>();
 
     public Task SubscribeAll(MessageMetadata[] eventTypes, ContextBag context, CancellationToken cancellationToken = default)
     {
-        foreach(var eventType in eventTypes)
+        Log.DebugFormat("SubscribeAll");
+        var connection = connectionPool.Lease();
+        try
         {
-            _ibmMqHelper.EnsureSubscription(eventType.MessageType, receiveAddress);
+            var helper = new IbmMqHelper(connection);
+            foreach (var eventType in eventTypes)
+            {
+                Log.DebugFormat("Subscribing to {0} => {1}", eventType.MessageType, receiveAddress);
+                helper.EnsureSubscription(eventType.MessageType, receiveAddress);
+            }
+        }
+        finally
+        {
+            connectionPool.Return(connection);
         }
 
         return Task.CompletedTask;
