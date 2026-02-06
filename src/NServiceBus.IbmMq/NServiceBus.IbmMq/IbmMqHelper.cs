@@ -15,8 +15,8 @@ internal class IbmMqHelper(MQQueueManager queueManager)
         // Truncate long names and add hash for uniqueness
         if (name.Length > 48)
         {
-            var hash = name.GetHashCode().ToString("X8");
-            name = name.Substring(0, 48 - 9) + "_" + hash; // 39 chars + "_" + 8 char hash = 48
+            // TODO: Add custom queuename sanitizer
+            throw new ArgumentException($"Queue name '{name}' is longer than 48 characters.", nameof(name));
         }
 
         try
