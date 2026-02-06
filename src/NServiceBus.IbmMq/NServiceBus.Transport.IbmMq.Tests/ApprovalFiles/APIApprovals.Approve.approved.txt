@@ -1,0 +1,14 @@
+namespace NServiceBus.Transport.IbmMq
+{
+    public class IbmMqTransport : NServiceBus.Transport.TransportDefinition
+    {
+        public IbmMqTransport(string host, string user, string password, int? port, string? channel) { }
+        public string Channel { get; }
+        public string Host { get; }
+        public string Password { get; }
+        public int Port { get; }
+        public string User { get; }
+        public override System.Collections.Generic.IReadOnlyCollection<NServiceBus.TransportTransactionMode> GetSupportedTransactionModes() { }
+        public override System.Threading.Tasks.Task<NServiceBus.Transport.TransportInfrastructure> Initialize(NServiceBus.Transport.HostSettings hostSettings, NServiceBus.Transport.ReceiveSettings[] receivers, string[] sendingAddresses, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+}

@@ -1,5 +1,9 @@
-﻿using IBM.WMQ;
+using IBM.WMQ;
 using IBM.WMQ.PCF;
+using NServiceBus.Logging;
+using NServiceBus.Transport;
+using System.Text;
+using System.Text.RegularExpressions;
 
 namespace NServiceBus.Transport.IbmMq;
 
@@ -7,6 +11,14 @@ internal class IbmMqHelper(MQQueueManager queueManager)
 {
     internal MQQueue EnsureQueue(string name, int openOptions)
     {
+        // IBM MQ has a 48-character limit for queue names
+        // Truncate long names and add hash for uniqueness
+        if (name.Length > 48)
+        {
+            var hash = name.GetHashCode().ToString("X8");
+            name = name.Substring(0, 48 - 9) + "_" + hash; // 39 chars + "_" + 8 char hash = 48
+        }
+
         try
         {
             return AccessQueue(name, openOptions);
