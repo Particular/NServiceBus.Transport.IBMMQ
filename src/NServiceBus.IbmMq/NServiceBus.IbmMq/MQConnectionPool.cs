@@ -31,9 +31,9 @@ sealed class MQConnectionPool(Func<MQQueueManager> createQueueManager) : IDispos
         return newConnection;
     }
 
-    public void Return(MQQueueManager connection)
+    public void Return(MQQueueManager connection, bool dirty = false)
     {
-        if (_disposed)
+        if (_disposed || dirty)
         {
             Log.Debug("Pool disposed, disconnecting returned connection");
             DisconnectAndDispose(connection);
