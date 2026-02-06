@@ -1,23 +1,36 @@
 ﻿using IBM.WMQ;
+using NServiceBus.Transport.IbmMq.Configuration;
 
 namespace NServiceBus.Transport.IbmMq;
 
 public class IbmMqTransport : TransportDefinition
 {
-    public string Host { get; }
-    public int Port { get; } = 1414;
-    public string User { get; }
-    public string Password { get; }
-    public string Channel { get; } = "DEV.ADMIN.SVRCONN"; // a level of authorization. We do not want to use Admin in a production environment but need to figure out queue permisions
+    internal IbmMqTransportSettings Settings { get; }
 
-    public IbmMqTransport(string host, string user, string password, int? port, string? channel) : base(TransportTransactionMode.ReceiveOnly, true, true, true)
+    /// <summary>
+    /// Creates a new instance of IBM MQ transport with configuration
+    /// </summary>
+    /// <param name="settingsToConfigure">Lambda to configure transport settings</param>
+    public IbmMqTransport(Action<IbmMqTransportSettings> settingsToConfigure)
+        : base(TransportTransactionMode.ReceiveOnly, true, true, true)
     {
-        Host = host;
-        User = user;
-        Password = password;
-        if (port != null) Port = port.Value;
-        if (channel != null) Channel = channel;
+        ArgumentNullException.ThrowIfNull(settingsToConfigure);
+
+        Settings = new IbmMqTransportSettings();
+        settingsToConfigure(Settings);
+        Settings.Validate();
     }
+
+    /// <summary>
+    /// Internal constructor for creating transport with pre-configured settings
+    /// </summary>
+    internal IbmMqTransport(IbmMqTransportSettings settings)
+        : base(TransportTransactionMode.ReceiveOnly, true, true, true)
+    {
+        Settings = settings ?? throw new ArgumentNullException(nameof(settings));
+        Settings.Validate();
+    }
+
 
     public override IReadOnlyCollection<TransportTransactionMode> GetSupportedTransactionModes()
     {
@@ -28,14 +41,29 @@ public class IbmMqTransport : TransportDefinition
         ];
     }
 
+
     public override Task<TransportInfrastructure> Initialize(HostSettings hostSettings, ReceiveSettings[] receivers, string[] sendingAddresses, CancellationToken cancellationToken = default)
     {
-        MQEnvironment.Hostname = Host;
-        MQEnvironment.Channel = Channel;
-        MQEnvironment.Port = Port;
-        MQEnvironment.UserId = User;
-        MQEnvironment.Password = Password;
+        // Set MQEnvironment properties for authentication
+        if (!string.IsNullOrWhiteSpace(Settings.User))
+        {
+            MQEnvironment.UserId = Settings.User;
+        }
 
-        return Task.FromResult<TransportInfrastructure>(new IbmMqTransportInfrastructure(receivers));
+        if (!string.IsNullOrWhiteSpace(Settings.Password))
+        {
+            MQEnvironment.Password = Settings.Password;
+        }
+
+        // Set SSL certificate revocation check if enabled
+        if (Settings.SslCertRevocationCheck)
+        {
+            MQEnvironment.SSLCertRevocationCheck = Settings.SslCertRevocationCheck;
+        }
+
+        var connectionConfiguration = new ConnectionConfiguration(Settings);
+
+        return Task.FromResult<TransportInfrastructure>(
+            new IbmMqTransportInfrastructure(connectionConfiguration, receivers));
     }
 }

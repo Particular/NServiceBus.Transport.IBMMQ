@@ -1,19 +1,28 @@
 using IBM.WMQ;
 using NServiceBus.Logging;
+using NServiceBus.Transport.IbmMq.Configuration;
 
 namespace NServiceBus.Transport.IbmMq;
 
 class IbmMqTransportInfrastructure : TransportInfrastructure, IDisposable
 {
-    const string QueueManagerName = "QM1"; // TODO: Use settings object from WIP PR
     static readonly ILog Log = LogManager.GetLogger<IbmMqTransportInfrastructure>();
 
-    // TODO: Use settings object from WIP PR
-    readonly MQConnectionPool connectionPool = new(QueueManagerName);
-    readonly MQQueueManager sendQueueManager = new(QueueManagerName);
+    readonly MQConnectionPool connectionPool;
+    readonly MQQueueManager sendQueueManager;
 
-    public IbmMqTransportInfrastructure(ReceiveSettings[] receiverSettings)
+    public IbmMqTransportInfrastructure(ConnectionConfiguration connectionConfiguration, ReceiveSettings[] receiverSettings)
     {
+        ArgumentNullException.ThrowIfNull(connectionConfiguration);
+        ArgumentNullException.ThrowIfNull(receiverSettings);
+
+        var queueManagerName = connectionConfiguration.QueueManagerName ?? string.Empty;
+
+        Log.Info($"Connecting to IBM MQ Queue Manager: {(string.IsNullOrWhiteSpace(queueManagerName) ? "(default)" : queueManagerName)}");
+
+        connectionPool = new MQConnectionPool(queueManagerName);
+        sendQueueManager = new MQQueueManager(queueManagerName, connectionConfiguration.ConnectionProperties);
+
         Dispatcher = new IbmMqMessageDispatcher(new IbmMqHelper(sendQueueManager));
         Receivers = receiverSettings
             .ToDictionary(
@@ -21,6 +30,7 @@ class IbmMqTransportInfrastructure : TransportInfrastructure, IDisposable
                 x => new IbmMqMessageReceiver(connectionPool, x) as IMessageReceiver
             );
     }
+
 
     public override Task Shutdown(CancellationToken cancellationToken = default)
     {
