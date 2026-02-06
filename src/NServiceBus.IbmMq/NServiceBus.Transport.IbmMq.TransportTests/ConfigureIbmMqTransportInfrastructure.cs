@@ -39,7 +39,18 @@ public class ConfigureIbmMqTransportInfrastructure : IConfigureTransportInfrastr
             throw new InvalidOperationException("Password is required in IbmMq_ConnectionDetails");
         }
 
-        var transport = new IbmMqTransport(host, user, password, port, null);
+        var transport = new IbmMqTransport(s =>
+        {
+            if (port.HasValue)
+            {
+                s.Port = port.Value;
+            }
+
+            s.Host = host;
+            s.Password = password;
+            s.User = user;
+        });
+
         return transport;
     }
 
@@ -53,7 +64,8 @@ public class ConfigureIbmMqTransportInfrastructure : IConfigureTransportInfrastr
                 inputQueueName,
                 true,
                 false,
-                errorQueueName);
+                errorQueueName
+            );
 
         var transportInfrastructure = await transportDefinition.Initialize(
             hostSettings, [receiveSettings], [], cancellationToken);
@@ -63,15 +75,17 @@ public class ConfigureIbmMqTransportInfrastructure : IConfigureTransportInfrastr
         return transportInfrastructure;
     }
 
-    //TODO: Do we need to clean up queues?
-    public async Task Cleanup(CancellationToken cancellationToken = default)
+    public Task Cleanup(CancellationToken cancellationToken = default)
     {
-        if (queuesToCleanUp == null)
-        {
-            return;
-        }
-        
-        // TODO: Purge queues
+        return Task.CompletedTask;
+
+        // TODO: Do we need to clean up queues?
+
+        // if (queuesToCleanUp == null)
+        // {
+        //
+        //     return Task.CompletedTask;
+        // }
     }
 
     string[] queuesToCleanUp;
