@@ -6,7 +6,15 @@ using NServiceBus.Transport.IbmMq;
 Console.Title = "FullTransportEndpoint";
 var builder = Host.CreateApplicationBuilder(args);
 
-var ibmmq = new IbmMqTransport("localhost", "admin", "passw0rd", null, null);
+var ibmmq = new IbmMqTransport(settings =>
+{
+    settings.QueueManagerName = "QM1";
+    settings.Host = "localhost";
+    settings.Port = 1414;
+    settings.Channel = "DEV.APP.SVRCONN";
+    settings.User = "admin";
+    settings.Password = "passw0rd";
+});
 
 var endpointB = new EndpointConfiguration("DEV.SHIPPING");
 endpointB.SendFailedMessagesTo("error");
