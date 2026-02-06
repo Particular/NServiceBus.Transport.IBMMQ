@@ -1,9 +1,19 @@
+using System.Text.RegularExpressions;
 using IBM.WMQ;
 
 namespace NServiceBus.Transport.IbmMq;
 
 class IbmMqMessageConverter
 {
+    // IBM MQ silently discards string properties set to "" — they cannot be enumerated via
+    // GetPropertyNames nor retrieved via GetStringProperty.  Work around this by:
+    //   nsbhdrs  – comma-separated list of all escaped header names
+    //   nsbempty – comma-separated list of escaped header names whose value is empty
+    // On receive, names in nsbempty are reconstructed as "" without touching MQ properties.
+    internal const string HeaderManifestProperty = "nsbhdrs";
+    internal const string EmptyHeadersProperty   = "nsbempty";
+    
+    
     public static byte[] FromNative(MQMessage receivedMessage, Dictionary<string, string> messageHeaders, ref string messageId)
     {
         byte[] messageBody = receivedMessage.ReadBytes(receivedMessage.MessageLength);
@@ -14,7 +24,7 @@ class IbmMqMessageConverter
         string manifest = null;
         try
         {
-            manifest = receivedMessage.GetStringProperty(IbmMqHelper.HeaderManifestProperty);
+            manifest = receivedMessage.GetStringProperty(HeaderManifestProperty);
         }
         catch (MQException)
         {
@@ -27,7 +37,7 @@ class IbmMqMessageConverter
             string emptyRaw = null;
             try
             {
-                emptyRaw = receivedMessage.GetStringProperty(IbmMqHelper.EmptyHeadersProperty);
+                emptyRaw = receivedMessage.GetStringProperty(EmptyHeadersProperty);
             }
             catch (MQException)
             {
@@ -40,7 +50,7 @@ class IbmMqMessageConverter
             foreach (var escapedName in manifest.Split(','))
             {
                 messageHeaders.Add(
-                    IbmMqHelper.UnescapePropertyName(escapedName),
+                    UnescapePropertyName(escapedName),
                     emptySet.Contains(escapedName) ? "" : receivedMessage.GetStringProperty(escapedName));
             }
         }
@@ -53,7 +63,7 @@ class IbmMqMessageConverter
                 var escapedName = propertyNames.Current.ToString();
                 if (escapedName != null)
                 {
-                    var originalName = IbmMqHelper.UnescapePropertyName(escapedName);
+                    var originalName = UnescapePropertyName(escapedName);
                     messageHeaders.Add(originalName, receivedMessage.GetStringProperty(escapedName));
                 }
             }
@@ -94,7 +104,7 @@ class IbmMqMessageConverter
 
         foreach (var header in outgoingMessage.Headers)
         {
-            var escapedKey = IbmMqHelper.EscapePropertyName(header.Key);
+            var escapedKey = EscapePropertyName(header.Key);
             allNames.Add(escapedKey);
 
             if (header.Value.Length == 0)
@@ -107,11 +117,11 @@ class IbmMqMessageConverter
             }
         }
 
-        message.SetStringProperty(IbmMqHelper.HeaderManifestProperty, pd, string.Join(",", allNames));
+        message.SetStringProperty(HeaderManifestProperty, pd, string.Join(",", allNames));
 
         if (emptyNames.Count > 0)
         {
-            message.SetStringProperty(IbmMqHelper.EmptyHeadersProperty, pd, string.Join(",", emptyNames));
+            message.SetStringProperty(EmptyHeadersProperty, pd, string.Join(",", emptyNames));
         }
 
         message.Write(outgoingMessage.Body.ToArray());
@@ -172,4 +182,31 @@ class IbmMqMessageConverter
             message.Expiry = MQC.MQEI_UNLIMITED;
         }
     }
+    
+    // MQ validates property names as Java identifiers: only ASCII letters, digits, and underscores.
+    // Encode underscores as "__", all other non-alphanumeric chars as "_xHHHH".
+    // This handles edge cases like:
+    // - "Test_xABCD" -> escapes to "Test__xABCD" -> unescapes back to "Test_xABCD" ✓
+    // - "Test.Name" -> escapes to "Test_x002EName" -> unescapes back to "Test.Name" ✓
+    // - "Test__Value" -> escapes to "Test____Value" -> unescapes back to "Test__Value" ✓    
+    internal static string EscapePropertyName(string name)
+    {
+        // First, escape existing underscores by doubling them
+        name = name.Replace("_", "__");
+
+        // Then replace all non-alphanumeric characters (excluding underscore) with _xHHHH
+        return Regex.Replace(name, @"[^a-zA-Z0-9_]", match => $"_x{(int)match.Value[0]:X4}");
+    }
+
+    internal static string UnescapePropertyName(string name)
+    {
+        // First, replace _xHHHH patterns with the corresponding character
+        // Use negative lookbehind (?<!_) to avoid matching _x that's part of __x
+        // (which represents a literal underscore followed by 'x', not an escape sequence)
+        name = Regex.Replace(name, @"(?<!_)_x([0-9A-Fa-f]{4})", match =>
+            ((char)Convert.ToInt32(match.Groups[1].Value, 16)).ToString());
+
+        // Then replace double underscores with single underscores
+        return name.Replace("__", "_");
+    }    
 }
