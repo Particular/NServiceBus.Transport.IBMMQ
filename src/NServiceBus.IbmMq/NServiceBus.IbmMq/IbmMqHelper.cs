@@ -62,6 +62,7 @@ internal class IbmMqHelper(MQQueueManager queueManager)
 
     MQTopic AccessTopic(string topicName, string topicString)
     {
+
         return queueManager.AccessTopic(
             null,
             topicName,
