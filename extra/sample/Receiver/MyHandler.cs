@@ -1,7 +1,4 @@
-﻿using FullTransportEndpoint.Messages;
-
-namespace FullTransportEndpoint.Subscriber;
-
+﻿
 sealed class MyHandler : IHandleMessages<MyMessage>
 {
     public async Task Handle(MyMessage message, IMessageHandlerContext context)

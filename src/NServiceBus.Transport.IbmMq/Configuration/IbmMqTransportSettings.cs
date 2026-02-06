@@ -118,7 +118,7 @@ public class IbmMqTransportSettings
 
     /// <summary>
     /// Maximum message size in bytes that can be received.
-    /// Messages larger than this will cause an error.
+    /// Shared larger than this will cause an error.
     /// Should match or be less than the queue manager's MAXMSGL setting.
     /// Default: 4194304 bytes (4MB)
     /// Valid range: 1024-104857600 (1KB-100MB)

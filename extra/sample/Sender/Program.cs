@@ -1,9 +1,9 @@
-using FullTransportEndpoint.Messages;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using NServiceBus;
 using NServiceBus.Transport.IbmMq;
 
-Console.Title = "FullTransportEndpoint";
+Console.Title = "Sender";
 var builder = Host.CreateApplicationBuilder(args);
 
 var ibmmq = new IbmMqTransport(settings =>

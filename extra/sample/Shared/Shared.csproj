@@ -4,10 +4,12 @@
     <TargetFramework>net9.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <RootNamespace>Messages</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="NServiceBus" Version="9.2.9" />
+    <PackageReference Include="NServiceBus.Extensions.Hosting" Version="3.*" />
+    <ProjectReference Include="..\..\..\src\NServiceBus.Transport.IbmMq\NServiceBus.Transport.IbmMq.csproj" />
   </ItemGroup>
 
 </Project>

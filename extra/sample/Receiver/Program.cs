@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Hosting;
 using NServiceBus.Transport.IbmMq;
 
-Console.Title = "Subscriber.FullTransportEndpoint";
+Console.Title = "Receiver";
 var builder = Host.CreateApplicationBuilder(args);
 
 var ibmmq = new IbmMqTransport(settings =>
