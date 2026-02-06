@@ -34,20 +34,25 @@ internal class ConnectionConfiguration
             // Always use managed transport mode (pure .NET implementation)
             [MQC.TRANSPORT_PROPERTY] = MQC.TRANSPORT_MQSERIES_MANAGED
         };
-        
-   
-        // Add channel
+
         properties.Add(MQC.CHANNEL_PROPERTY, settings.Channel);
 
-        // Add reconnect option
         properties.Add(MQC.CONNECT_OPTIONS_PROPERTY, MQC.MQCNO_RECONNECT_DISABLED);
 
-        // Add application name if specified, otherwise use assembly name
         var appName = settings.ApplicationName ?? Assembly.GetExecutingAssembly().GetName().Name ?? "NServiceBus.IbmMq";
         properties.Add(MQC.APPNAME_PROPERTY, appName);
 
-        // Add SSL properties if configured
         AddSslProperties(properties, settings);
+
+        if (!string.IsNullOrWhiteSpace(settings.User))
+        {
+            properties.Add(MQC.USER_ID_PROPERTY, settings.User);
+        }
+
+        if (!string.IsNullOrWhiteSpace(settings.Password))
+        {
+            properties.Add(MQC.PASSWORD_PROPERTY, settings.Password);
+        }
 
         return properties;
     }

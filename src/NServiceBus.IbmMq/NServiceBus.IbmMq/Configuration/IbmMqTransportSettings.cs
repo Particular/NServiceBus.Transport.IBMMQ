@@ -13,7 +13,7 @@ namespace NServiceBus.Transport.IbmMq.Configuration;
 /// </summary>
 public class IbmMqTransportSettings
 {
-    // Core Connection Settings 
+    // Core Connection Settings
 
     /// <summary>
     /// Name of the Queue Manager to connect to.
@@ -49,31 +49,17 @@ public class IbmMqTransportSettings
     /// </summary>
     public List<string>? Connections { get; set; }
 
-    //  Security Settings 
+    //  Security Settings
 
     /// <summary>
     /// User ID for authentication with the Queue Manager.
-    /// Sets MQEnvironment.UserId for all connections.
     /// </summary>
     public string? User { get; set; }
 
     /// <summary>
     /// Password for authentication with the Queue Manager.
-    /// Sets MQEnvironment.Password for all connections.
     /// </summary>
     public string? Password { get; set; }
-
-    //  Connection Behavior Settings 
-
-    /// <summary>
-    /// Client reconnection behavior.
-    /// - Disabled (0): No automatic reconnection
-    /// - Reconnect (1): Reconnect to any available queue manager
-    /// - ReconnectQueueManager (2): Reconnect to same queue manager (default)
-    /// - ReconnectAsDefinedInConfig (3): Use settings from mqclient.ini file
-    /// Default: ReconnectQueueManager
-    /// </summary>
-    public ReconnectOption ReconnectOption { get; set; } = ReconnectOption.ReconnectQueueManager;
 
 
     /// <summary>
@@ -83,7 +69,7 @@ public class IbmMqTransportSettings
     /// </summary>
     public string? ApplicationName { get; set; }
 
-    //  SSL/TLS Settings 
+    //  SSL/TLS Settings
 
     /// <summary>
     /// SSL key repository location.
@@ -119,15 +105,7 @@ public class IbmMqTransportSettings
     /// </summary>
     public int KeyResetCount { get; set; } = 0;
 
-    /// <summary>
-    /// Enable SSL certificate revocation checking using CRL/OCSP.
-    /// When true, checks if certificates have been revoked.
-    /// Sets MQEnvironment.SSLCertRevocationCheck.
-    /// Default: false
-    /// </summary>
-    public bool SslCertRevocationCheck { get; set; } = false;
-
-    //  Message Processing Settings 
+    //  Message Processing Settings
 
     /// <summary>
     /// Time in milliseconds to wait for a message when polling a queue.
