@@ -15,15 +15,15 @@ sealed class MessagePumpWorker(
     readonly ILog Log = LogManager.GetLogger<MessagePumpWorker>();
     readonly MQQueueManager _connection = connectionPool.Lease();
     Task? pumpTask;
-    CancellationTokenSource? cts;
-    CancellationTokenSource? messageProcessingCts;
+    CancellationTokenSource? stopCts;
+    CancellationTokenSource? cancellationCts;
 
     public void Start()
     {
         Log.DebugFormat("Worker {0} starting for queue {1}", workerIndex, queueName);
-        cts = new CancellationTokenSource();
+        stopCts = new CancellationTokenSource();
         // Don't pass cancellation token to Task.Run to avoid race condition
-        pumpTask = Task.Run(() => PumpMessages(cts.Token));
+        pumpTask = Task.Run(() => PumpMessages(stopCts.Token));
     }
 
     public async Task StopAsync(CancellationToken cancellationToken = default)
@@ -32,15 +32,15 @@ sealed class MessagePumpWorker(
 
         // If a cancellation token is provided, link it to message processing cancellation
         // This allows StopReceive to control whether in-flight messages are cancelled
-        if (cancellationToken.CanBeCanceled && messageProcessingCts != null)
+        if (cancellationToken.CanBeCanceled && cancellationCts != null)
         {
-            var processingCts = messageProcessingCts; // Capture to avoid closure issues
-            cancellationToken.Register(() => processingCts?.Cancel());
+            var cancellationCtsClone = cancellationCts; // Capture to avoid closure issues
+            cancellationToken.Register(() => cancellationCtsClone?.Cancel());
         }
 
-        if (cts != null)
+        if (stopCts != null)
         {
-            await cts.CancelAsync();
+            await stopCts.CancelAsync();
         }
 
         if (pumpTask != null)
@@ -60,8 +60,8 @@ sealed class MessagePumpWorker(
     {
         await StopAsync().ConfigureAwait(false);
 
-        messageProcessingCts?.Dispose();
-        cts?.Dispose();
+        cancellationCts?.Dispose();
+        stopCts?.Dispose();
         connectionPool.Return(_connection);
 
         Log.DebugFormat("Worker {0} disposed", workerIndex);
@@ -77,9 +77,9 @@ sealed class MessagePumpWorker(
         // Create a separate cancellation token for message processing
         // This is NOT linked to the pump's cancellation token
         // StopAsync will decide whether to cancel it based on its cancellation token parameter
-        messageProcessingCts = new CancellationTokenSource();
+        cancellationCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-        while (!cancellationToken.IsCancellationRequested)
+        while (!stopCts.IsCancellationRequested)
         {
             MQMessage receivedMessage = new();
             MQGetMessageOptions getOptions = new()
@@ -119,7 +119,7 @@ sealed class MessagePumpWorker(
                     contextBag);
 
                 // Pass messageProcessingCts token, not pump's cancellation token
-                await onMessage(messageContext, messageProcessingCts.Token).ConfigureAwait(false);
+                await onMessage(messageContext, cancellationCts.Token).ConfigureAwait(false);
 
                 _connection.Commit();
             }
@@ -148,7 +148,7 @@ sealed class MessagePumpWorker(
 
                 try
                 {
-                    var result = await onError.Invoke(errorContext, messageProcessingCts.Token).ConfigureAwait(false);
+                    var result = await onError.Invoke(errorContext, cancellationCts.Token).ConfigureAwait(false);
 
                     if (result is ErrorHandleResult.RetryRequired)
                     {
