@@ -1,4 +1,6 @@
-﻿using System;
+﻿namespace NServiceBus.Transport.IbmMq.Configuration;
+
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -6,7 +8,6 @@ using System.Threading.Tasks;
 
 using IBM.WMQ;
 
-namespace NServiceBus.Transport.IbmMq.Configuration;
 
 /// <summary>
 /// Configuration settings for IBM MQ transport
@@ -159,7 +160,7 @@ public class IbmMqTransportSettings
 
     }
 
-    private void ValidateConnection()
+    void ValidateConnection()
     {
         // Either ConnectionNameList OR Host+Port must be valid
         if (Connections is not null && Connections.Count() > 0)
@@ -181,7 +182,7 @@ public class IbmMqTransportSettings
                     nameof(Host));
             }
 
-            if (Port <= 0 || Port > 65535)
+            if (Port is <= 0 or > 65535)
             {
                 throw new ArgumentException(
                     "Port must be between 1 and 65535",
@@ -195,7 +196,7 @@ public class IbmMqTransportSettings
         }
     }
 
-    private void ValidateSslConfiguration()
+    void ValidateSslConfiguration()
     {
         bool hasKeyRepo = !string.IsNullOrWhiteSpace(SslKeyRepository);
         bool hasCipherSpec = !string.IsNullOrWhiteSpace(CipherSpec);
@@ -223,16 +224,16 @@ public class IbmMqTransportSettings
         }
     }
 
-    private void ValidateMessageProcessing()
+    void ValidateMessageProcessing()
     {
-        if (MessageWaitInterval < 100 || MessageWaitInterval > 30000)
+        if (MessageWaitInterval is < 100 or > 30000)
         {
             throw new ArgumentException(
                 "MessageWaitInterval must be between 100 and 30000 milliseconds",
                 nameof(MessageWaitInterval));
         }
 
-        if (MaxMessageLength < 1024 || MaxMessageLength > 104857600)
+        if (MaxMessageLength is < 1024 or > 104857600)
         {
             throw new ArgumentException(
                 "MaxMessageLength must be between 1024 (1KB) and 104857600 (100MB) bytes",
@@ -247,12 +248,14 @@ public class IbmMqTransportSettings
         }
     }
 
-    private static bool IsValidConnectionNameList(List<string> connectionNameList)
+    static bool IsValidConnectionNameList(List<string> connectionNameList)
     {
         // Basic validation: should contain at least one entry in format "host(port)"
 
         if (!connectionNameList.Any())
+        {
             return false;
+        }
 
         foreach (var entry in connectionNameList)
         {
@@ -260,19 +263,25 @@ public class IbmMqTransportSettings
 
             // Must contain opening and closing parentheses
             if (!trimmed.Contains('(') || !trimmed.Contains(')'))
+            {
                 return false;
+            }
 
             // Extract port to validate it's a number
             var startParen = trimmed.IndexOf('(');
             var endParen = trimmed.IndexOf(')');
 
             if (startParen >= endParen || startParen == 0)
+            {
                 return false;
+            }
 
             var portStr = trimmed.Substring(startParen + 1, endParen - startParen - 1);
 
             if (!int.TryParse(portStr, out var port) || port <= 0 || port > 65535)
+            {
                 return false;
+            }
         }
 
         return true;

@@ -1,8 +1,8 @@
+namespace NServiceBus.Transport.IbmMq;
+
 using IBM.WMQ;
 using NServiceBus.Logging;
 using NServiceBus.Transport.IbmMq.Configuration;
-
-namespace NServiceBus.Transport.IbmMq;
 
 class IbmMqTransportInfrastructure : TransportInfrastructure, IDisposable
 {

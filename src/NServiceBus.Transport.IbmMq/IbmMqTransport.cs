@@ -1,8 +1,6 @@
-using System.Collections;
-using IBM.WMQ;
-using NServiceBus.Transport.IbmMq.Configuration;
-
 namespace NServiceBus.Transport.IbmMq;
+
+using NServiceBus.Transport.IbmMq.Configuration;
 
 public class IbmMqTransport : TransportDefinition
 {

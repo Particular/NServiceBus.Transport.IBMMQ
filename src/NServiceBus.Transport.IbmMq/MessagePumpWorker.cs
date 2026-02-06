@@ -1,7 +1,7 @@
+namespace NServiceBus.Transport.IbmMq;
+
 using IBM.WMQ;
 using NServiceBus.Logging;
-
-namespace NServiceBus.Transport.IbmMq;
 
 sealed class MessagePumpWorker(
     MQConnectionPool connectionPool,
@@ -39,7 +39,7 @@ sealed class MessagePumpWorker(
             cancellationToken.Register(() => cancellationCtsClone.Cancel());
         }
 
-        await stopCts.CancelAsync();
+        await stopCts.CancelAsync().ConfigureAwait(false);
 
         if (pumpTask != null)
         {
@@ -92,10 +92,7 @@ sealed class MessagePumpWorker(
                         _connection = connectionPool.Lease();
                     }
 
-                    if (queue == null)
-                    {
-                        queue = _connection.AccessQueue(queueName, MQC.MQOO_INPUT_AS_Q_DEF);
-                    }
+                    queue ??= _connection.AccessQueue(queueName, MQC.MQOO_INPUT_AS_Q_DEF);
 
                     string messageId = string.Empty;
                     byte[] messageBody = [];
@@ -127,6 +124,10 @@ sealed class MessagePumpWorker(
                         _connection.Commit();
                         reconnectAttempt = 0;
                     }
+                    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                    {
+                        throw;
+                    }
                     catch (Exception ex) when (ex is not MQException)
                     {
                         Log.DebugFormat("Worker {0} error processing message from {1}\n{2}", workerIndex, queueName, ex);
@@ -154,6 +155,10 @@ sealed class MessagePumpWorker(
                             {
                                 _connection.Commit();
                             }
+                        }
+                        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                        {
+                            throw;
                         }
                         catch (Exception onErrorEx)
                         {

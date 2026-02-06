@@ -1,13 +1,13 @@
+namespace NServiceBus.Transport.IbmMq.Configuration;
+
 using IBM.WMQ;
 using System.Collections;
 using System.Reflection;
 
-namespace NServiceBus.Transport.IbmMq.Configuration;
-
 /// <summary>
 /// Builds IBM MQ connection properties hashtable from transport settings
 /// </summary>
-internal class ConnectionConfiguration
+class ConnectionConfiguration
 {
     public ConnectionConfiguration(IbmMqTransportSettings settings)
     {
