@@ -12,8 +12,8 @@ class IbmMqMessageConverter
     // On receive, names in nsbempty are reconstructed as "" without touching MQ properties.
     internal const string HeaderManifestProperty = "nsbhdrs";
     internal const string EmptyHeadersProperty   = "nsbempty";
-    
-    
+
+
     public static byte[] FromNative(MQMessage receivedMessage, Dictionary<string, string> messageHeaders, ref string messageId)
     {
         byte[] messageBody = receivedMessage.ReadBytes(receivedMessage.MessageLength);
@@ -21,7 +21,7 @@ class IbmMqMessageConverter
         // IBM MQ discards empty-string properties entirely. The sender writes a
         // manifest of all header names and a separate list of which ones are empty.
         // Try to read the manifest; if it doesn't exist, fall back to the old approach.
-        string manifest = null;
+        string? manifest = null;
         try
         {
             manifest = receivedMessage.GetStringProperty(HeaderManifestProperty);
@@ -34,7 +34,7 @@ class IbmMqMessageConverter
         if (!string.IsNullOrEmpty(manifest))
         {
             // New approach: use manifest to read all headers including empty ones
-            string emptyRaw = null;
+            string? emptyRaw = null;
             try
             {
                 emptyRaw = receivedMessage.GetStringProperty(EmptyHeadersProperty);
@@ -182,13 +182,13 @@ class IbmMqMessageConverter
             message.Expiry = MQC.MQEI_UNLIMITED;
         }
     }
-    
+
     // MQ validates property names as Java identifiers: only ASCII letters, digits, and underscores.
     // Encode underscores as "__", all other non-alphanumeric chars as "_xHHHH".
     // This handles edge cases like:
     // - "Test_xABCD" -> escapes to "Test__xABCD" -> unescapes back to "Test_xABCD" ✓
     // - "Test.Name" -> escapes to "Test_x002EName" -> unescapes back to "Test.Name" ✓
-    // - "Test__Value" -> escapes to "Test____Value" -> unescapes back to "Test__Value" ✓    
+    // - "Test__Value" -> escapes to "Test____Value" -> unescapes back to "Test__Value" ✓
     internal static string EscapePropertyName(string name)
     {
         // First, escape existing underscores by doubling them
@@ -208,5 +208,5 @@ class IbmMqMessageConverter
 
         // Then replace double underscores with single underscores
         return name.Replace("__", "_");
-    }    
+    }
 }
