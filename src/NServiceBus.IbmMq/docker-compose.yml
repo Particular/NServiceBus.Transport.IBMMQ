@@ -1,6 +1,6 @@
 services:
   ibm-mq:
-    image: ibmcom/mq:latest
+    image: icr.io/ibm-messaging/mq:latest
     container_name: ibm-mq
     ports:
       - "1414:1414"  # MQ listener port
