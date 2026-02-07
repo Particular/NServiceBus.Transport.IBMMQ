@@ -1,51 +1,43 @@
 namespace NServiceBus.Transport.IbmMq;
 
-using NServiceBus.Transport.IbmMq.Configuration;
-
 public class IbmMqTransport : TransportDefinition
 {
-    internal IbmMqTransportSettings Settings { get; }
+    IbmMqTransportOptions Options { get; }
 
     /// <summary>
     /// Creates a new instance of IBM MQ transport with configuration
     /// </summary>
     /// <param name="settingsToConfigure">Lambda to configure transport settings</param>
-    public IbmMqTransport(Action<IbmMqTransportSettings> settingsToConfigure)
+    public IbmMqTransport(Action<IbmMqTransportOptions> configure)
         : base(TransportTransactionMode.ReceiveOnly, true, true, true)
     {
-        ArgumentNullException.ThrowIfNull(settingsToConfigure);
+        ArgumentNullException.ThrowIfNull(configure);
 
-        Settings = new IbmMqTransportSettings();
-        settingsToConfigure(Settings);
-        Settings.Validate();
+        Options = new IbmMqTransportOptions();
+        configure(Options);
+        new IbmMqTransportOptionsValidate().Validate(Options);
     }
 
     /// <summary>
     /// Internal constructor for creating transport with pre-configured settings
     /// </summary>
-    internal IbmMqTransport(IbmMqTransportSettings settings)
+    internal IbmMqTransport(IbmMqTransportOptions options)
         : base(TransportTransactionMode.ReceiveOnly, true, true, true)
     {
-        Settings = settings ?? throw new ArgumentNullException(nameof(settings));
-        Settings.Validate();
+        Options = options ?? throw new ArgumentNullException(nameof(options));
+        new IbmMqTransportOptionsValidate().Validate(Options);
     }
 
-
-    public override IReadOnlyCollection<TransportTransactionMode> GetSupportedTransactionModes()
-    {
-        return
-        [
-            TransportTransactionMode.None,
-            TransportTransactionMode.ReceiveOnly
-        ];
-    }
-
+    public override IReadOnlyCollection<TransportTransactionMode> GetSupportedTransactionModes() =>
+    [
+        TransportTransactionMode.None,
+        TransportTransactionMode.ReceiveOnly
+    ];
 
     public override Task<TransportInfrastructure> Initialize(HostSettings hostSettings, ReceiveSettings[] receivers, string[] sendingAddresses, CancellationToken cancellationToken = default)
     {
-        var connectionConfiguration = new ConnectionConfiguration(Settings);
-
-        return Task.FromResult<TransportInfrastructure>(
-            new IbmMqTransportInfrastructure(connectionConfiguration, receivers));
+        var connectionConfiguration = new ConnectionConfiguration(Options);
+        var infrastructure = new IbmMqTransportInfrastructure(connectionConfiguration, receivers);
+        return Task.FromResult<TransportInfrastructure>(infrastructure);
     }
 }

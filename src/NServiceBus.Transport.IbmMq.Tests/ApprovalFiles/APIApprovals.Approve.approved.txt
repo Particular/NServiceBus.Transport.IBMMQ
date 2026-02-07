@@ -2,13 +2,27 @@ namespace NServiceBus.Transport.IbmMq
 {
     public class IbmMqTransport : NServiceBus.Transport.TransportDefinition
     {
-        public IbmMqTransport(string host, string user, string password, int? port, string? channel) { }
-        public string Channel { get; }
-        public string Host { get; }
-        public string Password { get; }
-        public int Port { get; }
-        public string User { get; }
+        public IbmMqTransport(System.Action<NServiceBus.Transport.IbmMq.IbmMqTransportOptions> configure) { }
         public override System.Collections.Generic.IReadOnlyCollection<NServiceBus.TransportTransactionMode> GetSupportedTransactionModes() { }
         public override System.Threading.Tasks.Task<NServiceBus.Transport.TransportInfrastructure> Initialize(NServiceBus.Transport.HostSettings hostSettings, NServiceBus.Transport.ReceiveSettings[] receivers, string[] sendingAddresses, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public class IbmMqTransportOptions
+    {
+        public IbmMqTransportOptions() { }
+        public string? ApplicationName { get; set; }
+        public string? Channel { get; set; }
+        public int CharacterSet { get; set; }
+        public string? CipherSpec { get; set; }
+        public System.Collections.Generic.List<string> Connections { get; }
+        public string? Host { get; set; }
+        public int KeyResetCount { get; set; }
+        public int MaxMessageLength { get; set; }
+        public int MessageWaitInterval { get; set; }
+        public string? Password { get; set; }
+        public int Port { get; set; }
+        public string? QueueManagerName { get; set; }
+        public string? SslKeyRepository { get; set; }
+        public string? SslPeerName { get; set; }
+        public string? User { get; set; }
     }
 }

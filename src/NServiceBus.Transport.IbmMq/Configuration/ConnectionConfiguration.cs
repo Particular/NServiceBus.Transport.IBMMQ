@@ -1,4 +1,4 @@
-namespace NServiceBus.Transport.IbmMq.Configuration;
+namespace NServiceBus.Transport.IbmMq;
 
 using IBM.WMQ;
 using System.Collections;
@@ -9,25 +9,19 @@ using System.Reflection;
 /// </summary>
 class ConnectionConfiguration
 {
-    public ConnectionConfiguration(IbmMqTransportSettings settings)
+    public ConnectionConfiguration(IbmMqTransportOptions options)
     {
-        ArgumentNullException.ThrowIfNull(settings);
+        ArgumentNullException.ThrowIfNull(options);
 
-        QueueManagerName = settings.QueueManagerName ?? string.Empty;
-        ConnectionProperties = BuildConnectionProperties(settings);
-    }
-
-    public ConnectionConfiguration(string queueManagerName, Hashtable connectionProperties)
-    {
-        QueueManagerName = queueManagerName ?? string.Empty;
-        ConnectionProperties = connectionProperties ?? throw new ArgumentNullException(nameof(connectionProperties));
+        QueueManagerName = options.QueueManagerName ?? string.Empty;
+        ConnectionProperties = BuildConnectionProperties(options);
     }
 
     public string QueueManagerName { get; }
 
     public Hashtable ConnectionProperties { get; }
 
-    static Hashtable BuildConnectionProperties(IbmMqTransportSettings settings)
+    static Hashtable BuildConnectionProperties(IbmMqTransportOptions options)
     {
         var properties = new Hashtable
         {
@@ -35,48 +29,48 @@ class ConnectionConfiguration
             [MQC.TRANSPORT_PROPERTY] = MQC.TRANSPORT_MQSERIES_MANAGED
         };
 
-        properties.Add(MQC.CHANNEL_PROPERTY, settings.Channel);
+        properties.Add(MQC.CHANNEL_PROPERTY, options.Channel);
 
         properties.Add(MQC.CONNECT_OPTIONS_PROPERTY, MQC.MQCNO_RECONNECT_DISABLED);
 
-        var appName = settings.ApplicationName ?? Assembly.GetExecutingAssembly().GetName().Name ?? "NServiceBus.IbmMq";
+        var appName = options.ApplicationName ?? Assembly.GetExecutingAssembly().GetName().Name ?? "NServiceBus.IbmMq";
         properties.Add(MQC.APPNAME_PROPERTY, appName);
 
-        AddSslProperties(properties, settings);
+        AddSslProperties(properties, options);
 
-        if (!string.IsNullOrWhiteSpace(settings.User))
+        if (!string.IsNullOrWhiteSpace(options.User))
         {
-            properties.Add(MQC.USER_ID_PROPERTY, settings.User);
+            properties.Add(MQC.USER_ID_PROPERTY, options.User);
         }
 
-        if (!string.IsNullOrWhiteSpace(settings.Password))
+        if (!string.IsNullOrWhiteSpace(options.Password))
         {
-            properties.Add(MQC.PASSWORD_PROPERTY, settings.Password);
+            properties.Add(MQC.PASSWORD_PROPERTY, options.Password);
         }
 
         return properties;
     }
 
-    static void AddSslProperties(Hashtable properties, IbmMqTransportSettings settings)
+    static void AddSslProperties(Hashtable properties, IbmMqTransportOptions options)
     {
-        if (!string.IsNullOrWhiteSpace(settings.SslKeyRepository))
+        if (!string.IsNullOrWhiteSpace(options.SslKeyRepository))
         {
-            properties.Add(MQC.SSL_CERT_STORE_PROPERTY, settings.SslKeyRepository);
+            properties.Add(MQC.SSL_CERT_STORE_PROPERTY, options.SslKeyRepository);
         }
 
-        if (!string.IsNullOrWhiteSpace(settings.CipherSpec))
+        if (!string.IsNullOrWhiteSpace(options.CipherSpec))
         {
-            properties.Add(MQC.SSL_CIPHER_SPEC_PROPERTY, settings.CipherSpec);
+            properties.Add(MQC.SSL_CIPHER_SPEC_PROPERTY, options.CipherSpec);
         }
 
-        if (!string.IsNullOrWhiteSpace(settings.SslPeerName))
+        if (!string.IsNullOrWhiteSpace(options.SslPeerName))
         {
-            properties.Add(MQC.SSL_PEER_NAME_PROPERTY, settings.SslPeerName);
+            properties.Add(MQC.SSL_PEER_NAME_PROPERTY, options.SslPeerName);
         }
 
-        if (settings.KeyResetCount > 0)
+        if (options.KeyResetCount > 0)
         {
-            properties.Add(MQC.SSL_RESET_COUNT_PROPERTY, settings.KeyResetCount);
+            properties.Add(MQC.SSL_RESET_COUNT_PROPERTY, options.KeyResetCount);
         }
     }
 }
