@@ -4,6 +4,7 @@ using IBM.WMQ;
 using NServiceBus.Logging;
 
 sealed class MessagePumpWorker(
+    int messageWaitInterval,
     MQConnectionPool connectionPool,
     string queueName,
     OnMessage onMessage,
@@ -11,7 +12,6 @@ sealed class MessagePumpWorker(
     int workerIndex
 ) : IAsyncDisposable
 {
-    const int WaitInterval = 5000; // TODO : Use injected settings when WIP PR is merged
     const int ReconnectBaseDelayMs = 1000;
     const int ReconnectMaxDelayMs = 60_000;
     readonly ILog Log = LogManager.GetLogger<MessagePumpWorker>();
@@ -75,7 +75,7 @@ sealed class MessagePumpWorker(
                           | MQC.MQGMO_SYNCPOINT
                           | MQC.MQGMO_FAIL_IF_QUIESCING
                           | MQC.MQGMO_PROPERTIES_IN_HANDLE,
-                WaitInterval = WaitInterval
+                WaitInterval = messageWaitInterval
             };
 
             int reconnectAttempt = 0;

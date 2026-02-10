@@ -78,7 +78,7 @@ sealed class MQConnectionPool(Func<MQQueueManager> createQueueManager) : IDispos
         }
         catch (MQException ex)
         {
-            Log.Debug($"Error disconnecting connection: {ex.Message}");
+            Log.Warn("Failed to disconnect connection", ex);
         }
 
         try
@@ -87,7 +87,7 @@ sealed class MQConnectionPool(Func<MQQueueManager> createQueueManager) : IDispos
         }
         catch (Exception ex)
         {
-            Log.Debug($"Error disposing connection: {ex.Message}");
+            Log.Warn("Failed to dispose connection", ex);
         }
     }
 }

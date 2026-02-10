@@ -21,6 +21,7 @@ namespace NServiceBus.Transport.IbmMq
         public string? Password { get; set; }
         public int Port { get; set; }
         public string? QueueManagerName { get; set; }
+        public System.Func<string, string>? QueueNameFormatter { get; set; }
         public string? SslKeyRepository { get; set; }
         public string? SslPeerName { get; set; }
         public string? User { get; set; }

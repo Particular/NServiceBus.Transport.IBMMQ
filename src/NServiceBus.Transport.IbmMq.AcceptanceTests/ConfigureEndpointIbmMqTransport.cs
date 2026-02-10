@@ -48,6 +48,8 @@ public class ConfigureEndpointIbmMqTransport : IConfigureEndpointTestExecution
                 s.Host = host;
                 s.Password = password;
                 s.User = user;
+                s.MessageWaitInterval = 1000;
+                s.QueueNameFormatter = Format;
             }
         );
 
@@ -56,5 +58,16 @@ public class ConfigureEndpointIbmMqTransport : IConfigureEndpointTestExecution
         return Task.CompletedTask;
     }
 
+    static string Format(string name)
+    {
+        if (name.Length > 48)
+        {
+            var hash = name.GetHashCode().ToString("X8");
+            name = name.Substring(0, 48 - 9) + "_" + hash; // 39 chars + "_" + 8 char hash = 48
+        }
+        return name;
+    }
+
     Task IConfigureEndpointTestExecution.Cleanup() => Task.CompletedTask; // TODO: Do we need to clean up queues?
 }
+

@@ -9,31 +9,43 @@ class IbmMqTransportInfrastructure : TransportInfrastructure, IDisposable
 
     readonly MQConnectionPool connectionPool;
     readonly MQQueueManager sendQueueManager;
+    readonly Func<string, string>? queueNameFormatter;
+    readonly int messageWaitInterval;
 
-    public IbmMqTransportInfrastructure(ConnectionConfiguration connectionConfiguration, ReceiveSettings[] receiverSettings)
+    public IbmMqTransportInfrastructure(
+        IbmMqTransportOptions options,
+        ConnectionConfiguration connectionConfiguration,
+        ReceiveSettings[] receiverSettings
+    )
     {
         ArgumentNullException.ThrowIfNull(connectionConfiguration);
         ArgumentNullException.ThrowIfNull(receiverSettings);
 
-        var queueManagerName = connectionConfiguration.QueueManagerName ?? string.Empty;
-        var createQueueManager = () => new MQQueueManager(queueManagerName, connectionConfiguration.ConnectionProperties);
+        MQQueueManager CreateQueueManager() => new(connectionConfiguration.QueueManagerName, connectionConfiguration.ConnectionProperties);
 
-        Log.Info($"Connecting to IBM MQ Queue Manager: {(string.IsNullOrWhiteSpace(queueManagerName) ? "(default)" : queueManagerName)}");
 
-        connectionPool = new MQConnectionPool(createQueueManager);
-        sendQueueManager = createQueueManager();
+        Log.InfoFormat("Connecting to IBM MQ Queue Manager: {0}", connectionConfiguration.QueueManagerName);
 
-        Dispatcher = new IbmMqMessageDispatcher(new IbmMqHelper(sendQueueManager));
+        connectionPool = new MQConnectionPool(CreateQueueManager);
+        sendQueueManager = CreateQueueManager();
+        queueNameFormatter = options.QueueNameFormatter;
+        messageWaitInterval = connectionConfiguration.MessageWaitInterval;
+
+        Dispatcher = new IbmMqMessageDispatcher(CreateHelper(sendQueueManager));
         Receivers = receiverSettings
             .ToDictionary(
                 x => x.Id,
-                x => new IbmMqMessageReceiver(connectionPool, x) as IMessageReceiver
+                x =>
+                {
+                    var subMgr = new IbmMqSubscriptionManager(CreateHelper, connectionPool, x.ReceiveAddress.BaseAddress);
+                    return new IbmMqMessageReceiver(CreateWorker, subMgr, x) as IMessageReceiver;
+                }
             );
     }
 
     public override Task Shutdown(CancellationToken cancellationToken = default)
     {
-        Log.Debug("Shutting down IbmMqTransportInfrastructure");
+        Log.Debug("Shutdown");
         connectionPool.Dispose();
         sendQueueManager.Disconnect();
         return Task.CompletedTask;
@@ -46,8 +58,14 @@ class IbmMqTransportInfrastructure : TransportInfrastructure, IDisposable
 
     public void Dispose()
     {
-        Log.Debug("Disposing IbmMqTransportInfrastructure");
+        Log.Debug("Disposing");
         connectionPool.Dispose();
         ((IDisposable)sendQueueManager).Dispose();
     }
+
+    IbmMqHelper CreateHelper(MQQueueManager qm) =>
+        new(qm, queueNameFormatter);
+
+    MessagePumpWorker CreateWorker(string queue, OnMessage onMsg, OnError onErr, int idx) =>
+        new(messageWaitInterval, connectionPool, queue, onMsg, onErr, idx);
 }
