@@ -23,7 +23,8 @@ class IbmMqSubscriptionManager(
             foreach (var eventType in eventTypes)
             {
                 Log.DebugFormat("Subscribing to {0} => {1}", eventType.MessageType, receiveAddress);
-                helper.EnsureSubscription(eventType.MessageType, receiveAddress);
+                using var topic = helper.EnsureSubscription(eventType.MessageType, receiveAddress);
+                topic.Close();
             }
         }
         finally
