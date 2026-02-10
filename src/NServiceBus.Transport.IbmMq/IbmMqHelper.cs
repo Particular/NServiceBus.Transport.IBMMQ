@@ -37,15 +37,20 @@ class IbmMqHelper(MQQueueManager queueManager, Func<string, string>? queueNameFo
     MQQueue CreateQueue(string name, int openOptions)
     {
         var agent = new PCFMessageAgent(queueManager);
+        try
+        {
+            var request = new PCFMessage(MQC.MQCMD_CREATE_Q);
+            request.AddParameter(MQC.MQCA_Q_NAME, name);
+            request.AddParameter(MQC.MQIA_Q_TYPE, MQC.MQQT_LOCAL); // Local queue
+            request.AddParameter(MQC.MQIA_MAX_Q_DEPTH, 5000); // Max queue depth
+            request.AddParameter(MQC.MQIA_DEF_PERSISTENCE, MQC.MQPER_PERSISTENT); // Persistent messages
 
-        var request = new PCFMessage(MQC.MQCMD_CREATE_Q);
-        request.AddParameter(MQC.MQCA_Q_NAME, name);
-        request.AddParameter(MQC.MQIA_Q_TYPE, MQC.MQQT_LOCAL); // Local queue
-        request.AddParameter(MQC.MQIA_MAX_Q_DEPTH, 5000); // Max queue depth
-        request.AddParameter(MQC.MQIA_DEF_PERSISTENCE, MQC.MQPER_PERSISTENT); // Persistent messages
-
-        agent.Send(request); // Send the PCF message to create the queue
-        agent.Disconnect(); // Close the agent connection
+            agent.Send(request);
+        }
+        finally
+        {
+            agent.Disconnect();
+        }
 
         // Try accessing the queue again after creation
         return AccessQueue(name, openOptions);
@@ -83,10 +88,17 @@ class IbmMqHelper(MQQueueManager queueManager, Func<string, string>? queueNameFo
     void CreateTopic(string topicName, string topicString)
     {
         var agent = new PCFMessageAgent(queueManager);
-        var command = new PCFMessage(MQC.MQCMD_CREATE_TOPIC);
-        command.AddParameter(MQC.MQCA_TOPIC_NAME, topicName); // The administrative name of the topic object
-        command.AddParameter(MQC.MQCA_TOPIC_STRING, topicString); // The actual topic string used by publishers/subscribers
-        agent.Send(command);
+        try
+        {
+            var command = new PCFMessage(MQC.MQCMD_CREATE_TOPIC);
+            command.AddParameter(MQC.MQCA_TOPIC_NAME, topicName); // The administrative name of the topic object
+            command.AddParameter(MQC.MQCA_TOPIC_STRING, topicString); // The actual topic string used by publishers/subscribers
+            agent.Send(command);
+        }
+        finally
+        {
+            agent.Disconnect();
+        }
     }
 
     public MQTopic EnsureSubscription(Type eventType, string endpointName)
@@ -104,19 +116,26 @@ class IbmMqHelper(MQQueueManager queueManager, Func<string, string>? queueNameFo
     MQTopic AccessSubscription(Type eventType, string endpointName, int options)
     {
         var destinationQueue = EnsureQueue(endpointName, MQC.MQOO_INPUT_SHARED | MQC.MQOO_OUTPUT);
+        try
+        {
+            int finalOptions = options
+                               | MQC.MQSO_FAIL_IF_QUIESCING
+                               | MQC.MQSO_DURABLE;
 
-        int finalOptions = options
-                           | MQC.MQSO_FAIL_IF_QUIESCING
-                           | MQC.MQSO_DURABLE;
-
-        return queueManager.AccessTopic(
-            destinationQueue,
-            GenerateTopicString(eventType),
-            null,
-            finalOptions,
-            null,
-            endpointName
-        );
+            return queueManager.AccessTopic(
+                destinationQueue,
+                GenerateTopicString(eventType),
+                null,
+                finalOptions,
+                null,
+                endpointName
+            );
+        }
+        finally
+        {
+            destinationQueue.Close();
+            ((IDisposable)destinationQueue).Dispose();
+        }
     }
 
     static string GenerateTopicName(Type eventType) => $"DEV.{eventType.Name.ToUpperInvariant()}";
