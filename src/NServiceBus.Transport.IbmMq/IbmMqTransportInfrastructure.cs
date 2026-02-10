@@ -3,7 +3,7 @@ namespace NServiceBus.Transport.IbmMq;
 using IBM.WMQ;
 using NServiceBus.Logging;
 
-class IbmMqTransportInfrastructure : TransportInfrastructure, IDisposable
+class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDisposable, IDisposable
 {
     static readonly ILog Log = LogManager.GetLogger<IbmMqTransportInfrastructure>();
 
@@ -47,22 +47,37 @@ class IbmMqTransportInfrastructure : TransportInfrastructure, IDisposable
     public override async Task Shutdown(CancellationToken cancellationToken = default)
     {
         Log.Debug("Shutdown");
-        var tasks = new List<Task>();
-        foreach (var receiver in Receivers.Values)
-        {
-            tasks.Add(((IAsyncDisposable)receiver).DisposeAsync().AsTask());
-        }
-
-        await Task.WhenAll(tasks)
-            .ConfigureAwait(false);
-
-
-        Dispose();
+        await DisposeAsync().ConfigureAwait(false);
     }
 
     public override string ToTransportAddress(QueueAddress address)
     {
         return address.BaseAddress;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+
+        Log.Debug("Disposing");
+
+        var tasks = new List<Task>();
+        foreach (var receiver in Receivers.Values)
+        {
+            if (receiver is IAsyncDisposable disposable)
+            {
+                tasks.Add(disposable.DisposeAsync().AsTask());
+            }
+        }
+
+        await Task.WhenAll(tasks).ConfigureAwait(false);
+
+        DisposeCore();
     }
 
     public void Dispose()
@@ -75,6 +90,11 @@ class IbmMqTransportInfrastructure : TransportInfrastructure, IDisposable
         _disposed = true;
 
         Log.Debug("Disposing");
+        DisposeCore();
+    }
+
+    void DisposeCore()
+    {
         connectionPool.Dispose();
 
         try
