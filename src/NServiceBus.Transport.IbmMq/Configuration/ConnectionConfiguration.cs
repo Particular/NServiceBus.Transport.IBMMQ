@@ -15,7 +15,10 @@ class ConnectionConfiguration
 
         QueueManagerName = options.QueueManagerName ?? string.Empty;
         ConnectionProperties = BuildConnectionProperties(options);
+        MessageWaitInterval = options.MessageWaitInterval;
     }
+
+    public int MessageWaitInterval { get; }
 
     public string QueueManagerName { get; }
 

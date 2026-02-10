@@ -3,7 +3,8 @@ namespace NServiceBus.Transport.IbmMq;
 using NServiceBus.Logging;
 
 class IbmMqMessageReceiver(
-    MQConnectionPool connectionPool,
+    Func<string, OnMessage, OnError, int, MessagePumpWorker> createWorker,
+    ISubscriptionManager subscriptions,
     ReceiveSettings receiveSettings
 ) : IMessageReceiver
 {
@@ -12,11 +13,11 @@ class IbmMqMessageReceiver(
     readonly List<MessagePumpWorker> workers = [];
     readonly object _workersLock = new();
 
-    int concurrency = 1;
+    int concurrency;
     OnMessage? onMessage;
     OnError? onError;
 
-    public ISubscriptionManager Subscriptions => new IbmMqSubscriptionManager(connectionPool, ReceiveAddress);
+    public ISubscriptionManager Subscriptions => subscriptions;
 
     public string Id => receiveSettings.Id;
 
@@ -34,7 +35,7 @@ class IbmMqMessageReceiver(
                 // Scale up - add more workers
                 for (int i = concurrency; i < newConcurrency; i++)
                 {
-                    var worker = new MessagePumpWorker(connectionPool, ReceiveAddress, onMessage!, onError!, i);
+                    var worker = createWorker(ReceiveAddress, onMessage!, onError!, i);
                     workers.Add(worker);
                     worker.Start();
                     Log.DebugFormat("Added worker {0}", i);
@@ -81,7 +82,7 @@ class IbmMqMessageReceiver(
         {
             for (int i = 0; i < concurrency; i++)
             {
-                var worker = new MessagePumpWorker(connectionPool, ReceiveAddress, onMessage!, onError!, i);
+                var worker = createWorker(ReceiveAddress, onMessage!, onError!, i);
                 workers.Add(worker);
                 worker.Start();
             }

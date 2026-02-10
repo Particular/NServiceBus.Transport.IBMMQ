@@ -37,7 +37,7 @@ public class IbmMqTransport : TransportDefinition
     public override Task<TransportInfrastructure> Initialize(HostSettings hostSettings, ReceiveSettings[] receivers, string[] sendingAddresses, CancellationToken cancellationToken = default)
     {
         var connectionConfiguration = new ConnectionConfiguration(Options);
-        var infrastructure = new IbmMqTransportInfrastructure(connectionConfiguration, receivers);
+        var infrastructure = new IbmMqTransportInfrastructure(Options, connectionConfiguration, receivers);
         return Task.FromResult<TransportInfrastructure>(infrastructure);
     }
 }

@@ -45,14 +45,31 @@ public class ConfigureIbmMqTransportInfrastructure : IConfigureTransportInfrastr
             s.Host = host;
             s.Password = password;
             s.User = user;
+            s.MessageWaitInterval = 1000;
+            s.QueueNameFormatter = Format;
+
         });
 
         return transport;
     }
 
-    public async Task<TransportInfrastructure> Configure(TransportDefinition transportDefinition,
-        HostSettings hostSettings, QueueAddress inputQueueName, string errorQueueName,
-        CancellationToken cancellationToken = default)
+    static string Format(string name)
+    {
+        if (name.Length > 48)
+        {
+            var hash = name.GetHashCode().ToString("X8");
+            name = name.Substring(0, 48 - 9) + "_" + hash; // 39 chars + "_" + 8 char hash = 48
+        }
+        return name;
+    }
+
+    public async Task<TransportInfrastructure> Configure(
+        TransportDefinition transportDefinition,
+        HostSettings hostSettings,
+        QueueAddress inputQueueName,
+        string errorQueueName,
+        CancellationToken cancellationToken = default
+    )
     {
         var receiveSettings =
             new ReceiveSettings(

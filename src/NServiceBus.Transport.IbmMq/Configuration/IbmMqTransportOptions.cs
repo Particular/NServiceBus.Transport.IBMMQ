@@ -129,4 +129,9 @@ public class IbmMqTransportOptions
     /// Default: 1208 (UTF-8)
     /// </summary>
     public int CharacterSet { get; set; } = 1208; // UTF-8
+
+    /// <summary>
+    /// Formatter for queue names. Can be used to sanitize queue names.
+    /// </summary>
+    public Func<string, string>? QueueNameFormatter { get; set; } = s => s;
 }

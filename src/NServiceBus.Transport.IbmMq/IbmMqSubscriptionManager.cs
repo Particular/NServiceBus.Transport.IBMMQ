@@ -1,10 +1,12 @@
 namespace NServiceBus.Transport.IbmMq;
 
+using IBM.WMQ;
 using NServiceBus.Extensibility;
 using NServiceBus.Logging;
 using NServiceBus.Unicast.Messages;
 
 class IbmMqSubscriptionManager(
+    Func<MQQueueManager, IbmMqHelper> createHelper,
     MQConnectionPool connectionPool,
     string receiveAddress
 ) : ISubscriptionManager
@@ -17,7 +19,7 @@ class IbmMqSubscriptionManager(
         var connection = connectionPool.Lease();
         try
         {
-            var helper = new IbmMqHelper(connection);
+            var helper = createHelper(connection);
             foreach (var eventType in eventTypes)
             {
                 Log.DebugFormat("Subscribing to {0} => {1}", eventType.MessageType, receiveAddress);

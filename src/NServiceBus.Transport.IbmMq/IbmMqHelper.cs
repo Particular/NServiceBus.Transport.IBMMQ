@@ -3,15 +3,19 @@ namespace NServiceBus.Transport.IbmMq;
 using IBM.WMQ;
 using IBM.WMQ.PCF;
 
-class IbmMqHelper(MQQueueManager queueManager)
+class IbmMqHelper(MQQueueManager queueManager, Func<string, string>? queueNameFormatter)
 {
-    internal MQQueue EnsureQueue(string name, int openOptions)
+    public MQQueue EnsureQueue(string name, int openOptions)
     {
         // IBM MQ has a 48-character limit for queue names
         // Truncate long names and add hash for uniqueness
+        if (queueNameFormatter != null)
+        {
+            name = queueNameFormatter(name);
+        }
+
         if (name.Length > 48)
         {
-            // TODO: Add custom queuename sanitizer
             throw new ArgumentException($"Queue name '{name}' is longer than 48 characters.", nameof(name));
         }
 
@@ -47,7 +51,7 @@ class IbmMqHelper(MQQueueManager queueManager)
         return AccessQueue(name, openOptions);
     }
 
-    internal MQTopic EnsureTopic(Type eventType)
+    public MQTopic EnsureTopic(Type eventType)
     {
         var topicName = GenerateTopicName(eventType);
         var topicString = GenerateTopicString(eventType);
@@ -85,7 +89,7 @@ class IbmMqHelper(MQQueueManager queueManager)
         agent.Send(command);
     }
 
-    internal MQTopic EnsureSubscription(Type eventType, string endpointName)
+    public MQTopic EnsureSubscription(Type eventType, string endpointName)
     {
         try
         {
