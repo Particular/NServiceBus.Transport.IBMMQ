@@ -6,12 +6,11 @@ class IbmMqMessageReceiver(
     Func<string, OnMessage, OnError, int, MessagePumpWorker> createWorker,
     ISubscriptionManager subscriptions,
     ReceiveSettings receiveSettings
-) : IMessageReceiver
+) : IMessageReceiver, IAsyncDisposable
 {
     readonly ILog Log = LogManager.GetLogger<IbmMqMessageReceiver>();
 
     readonly List<MessagePumpWorker> workers = [];
-    readonly object _workersLock = new();
 
     int concurrency;
     OnMessage? onMessage;
@@ -23,12 +22,15 @@ class IbmMqMessageReceiver(
 
     public string ReceiveAddress => receiveSettings.ReceiveAddress.BaseAddress;
 
-    public Task ChangeConcurrency(PushRuntimeSettings limitations, CancellationToken cancellationToken = default)
+    public async Task ChangeConcurrency(PushRuntimeSettings limitations, CancellationToken cancellationToken = default)
     {
         var newConcurrency = limitations.MaxConcurrency;
         Log.DebugFormat("Changing concurrency from {0} to {1}", concurrency, newConcurrency);
 
-        lock (_workersLock)
+        await receiveLock.WaitAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        try
         {
             if (newConcurrency > concurrency)
             {
@@ -48,21 +50,22 @@ class IbmMqMessageReceiver(
                 workers.RemoveRange(newConcurrency, workers.Count - newConcurrency);
 
                 // Stop and dispose removed workers asynchronously
-                _ = Task.Run(async () =>
-                    {
-                        foreach (var worker in workersToRemove)
-                        {
-                            await worker.DisposeAsync().ConfigureAwait(false);
-                        }
-                    },
-                    CancellationToken.None
-                );
+                var tasks = new List<Task>(workersToRemove.Count);
+                foreach (var worker in workersToRemove)
+                {
+                    tasks.Add(StopAndDisposeWorker(worker, cancellationToken));
+                }
+
+                await Task.WhenAll(tasks)
+                    .ConfigureAwait(false);
             }
 
             concurrency = newConcurrency;
         }
-
-        return Task.CompletedTask;
+        finally
+        {
+            receiveLock.Release();
+        }
     }
 
     public Task Initialize(PushRuntimeSettings limitations, OnMessage onMessage, OnError onError, CancellationToken cancellationToken = default)
@@ -74,41 +77,80 @@ class IbmMqMessageReceiver(
         return Task.CompletedTask;
     }
 
-    public Task StartReceive(CancellationToken cancellationToken = default)
+    readonly SemaphoreSlim receiveLock = new(1, 1);
+
+    public async Task StartReceive(CancellationToken cancellationToken = default)
     {
         Log.DebugFormat("Starting to receive messages from {0} with {1} workers", ReceiveAddress, concurrency);
 
-        lock (_workersLock)
+        await receiveLock.WaitAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        try
         {
+            var tasks = new List<Task>(concurrency);
             for (int i = 0; i < concurrency; i++)
             {
                 var worker = createWorker(ReceiveAddress, onMessage!, onError!, i);
                 workers.Add(worker);
-                worker.Start();
-            }
-        }
 
-        return Task.CompletedTask;
+                tasks.Add(Task.Run(() => worker.Start(), cancellationToken));
+            }
+
+            await Task.WhenAll(tasks)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            receiveLock.Release();
+        }
     }
 
     public async Task StopReceive(CancellationToken cancellationToken = default)
     {
         Log.DebugFormat("Stopping {0} workers for {1}", workers.Count, ReceiveAddress);
 
-        List<MessagePumpWorker> workersToStop;
-        lock (_workersLock)
-        {
-            workersToStop = workers.ToList();
-            workers.Clear();
-        }
+        await receiveLock.WaitAsync(cancellationToken)
+            .ConfigureAwait(false);
 
-        // Stop all workers, passing the cancellation token so in-flight messages can be cancelled
-        foreach (var worker in workersToStop)
+        try
         {
-            await worker.StopAsync(cancellationToken).ConfigureAwait(false);
+            List<MessagePumpWorker> workersToStop = [.. workers];
+            workers.Clear();
+
+            var tasks = new List<Task>(workersToStop.Count);
+
+            // Stop all workers, passing the cancellation token so in-flight messages can be cancelled
+            foreach (var worker in workersToStop)
+            {
+                tasks.Add(StopAndDisposeWorker(worker, cancellationToken));
+            }
+
+            await Task.WhenAll(tasks)
+                .ConfigureAwait(false);
+
+            Log.DebugFormat("All workers stopped for {0}", ReceiveAddress);
+        }
+        finally
+        {
+            receiveLock.Release();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        // Should already be done, so dispose is quick, no need for concurrent disposal
+        foreach (var worker in workers)
+        {
             await worker.DisposeAsync().ConfigureAwait(false);
         }
 
-        Log.DebugFormat("All workers stopped for {0}", ReceiveAddress);
+        receiveLock.Dispose();
+    }
+
+    static async Task StopAndDisposeWorker(MessagePumpWorker worker, CancellationToken cancellationToken)
+    {
+        await worker.StopAsync(cancellationToken).ConfigureAwait(false);
+        await worker.DisposeAsync().ConfigureAwait(false);
     }
 }
