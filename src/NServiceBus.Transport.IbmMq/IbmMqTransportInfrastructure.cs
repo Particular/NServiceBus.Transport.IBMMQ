@@ -11,6 +11,7 @@ class IbmMqTransportInfrastructure : TransportInfrastructure, IDisposable
     readonly MQQueueManager sendQueueManager;
     readonly Func<string, string>? queueNameFormatter;
     readonly int messageWaitInterval;
+    bool _disposed;
 
     public IbmMqTransportInfrastructure(
         IbmMqTransportOptions options,
@@ -43,12 +44,20 @@ class IbmMqTransportInfrastructure : TransportInfrastructure, IDisposable
             );
     }
 
-    public override Task Shutdown(CancellationToken cancellationToken = default)
+    public override async Task Shutdown(CancellationToken cancellationToken = default)
     {
         Log.Debug("Shutdown");
-        connectionPool.Dispose();
-        sendQueueManager.Disconnect();
-        return Task.CompletedTask;
+        var tasks = new List<Task>();
+        foreach (var receiver in Receivers.Values)
+        {
+            tasks.Add(((IAsyncDisposable)receiver).DisposeAsync().AsTask());
+        }
+
+        await Task.WhenAll(tasks)
+            .ConfigureAwait(false);
+
+
+        Dispose();
     }
 
     public override string ToTransportAddress(QueueAddress address)
@@ -58,9 +67,33 @@ class IbmMqTransportInfrastructure : TransportInfrastructure, IDisposable
 
     public void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+
         Log.Debug("Disposing");
         connectionPool.Dispose();
-        ((IDisposable)sendQueueManager).Dispose();
+
+        try
+        {
+            sendQueueManager.Disconnect();
+        }
+        catch (MQException ex)
+        {
+            Log.Warn("Failed to disconnect send queue manager", ex);
+        }
+
+        try
+        {
+            ((IDisposable)sendQueueManager).Dispose();
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Failed to dispose send queue manager", ex);
+        }
     }
 
     IbmMqHelper CreateHelper(MQQueueManager qm) =>
