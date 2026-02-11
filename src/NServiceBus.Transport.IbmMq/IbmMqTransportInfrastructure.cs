@@ -72,14 +72,12 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
             ))
             .AddSingleton<CreateQueueManagerFacade>(qm =>
                 new MqQueueManagerFacade(qm, queueNameFormatter))
+            .AddSingleton(new MQQueueManager(queueManagerName, connectionProperties))
             .AddSingleton(sp =>
             {
-                var sendConnection = new MQQueueManager(queueManagerName, connectionProperties);
+                var sendConnection = sp.GetRequiredService<MQQueueManager>();
                 var createFacade = sp.GetRequiredService<CreateQueueManagerFacade>();
-                return new IbmMqMessageDispatcher(
-                    LogManager.GetLogger<IbmMqMessageDispatcher>(),
-                    sendConnection,
-                    createFacade(sendConnection));
+                return new IbmMqMessageDispatcher(createFacade(sendConnection));
             });
 
         foreach (var rs in receiverSettings)
