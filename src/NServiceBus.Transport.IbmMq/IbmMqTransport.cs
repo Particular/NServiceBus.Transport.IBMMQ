@@ -76,7 +76,7 @@ public sealed class IbmMqTransport : TransportDefinition
 
         setupConnection.Disconnect();
 
-        var infrastructure = new IbmMqTransportInfrastructure(log, Options, connectionConfiguration, receivers, TransportTransactionMode);
+        var infrastructure = new IbmMqTransportInfrastructure(log, Options, connectionConfiguration, receivers, TransportTransactionMode, hostSettings.CriticalErrorAction);
         return Task.FromResult<TransportInfrastructure>(infrastructure);
     }
 

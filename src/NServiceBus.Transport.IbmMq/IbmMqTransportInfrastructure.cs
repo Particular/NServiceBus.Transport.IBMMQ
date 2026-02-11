@@ -15,7 +15,8 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         IbmMqTransportOptions options,
         ConnectionConfiguration connectionConfiguration,
         ReceiveSettings[] receiverSettings,
-        TransportTransactionMode transactionMode
+        TransportTransactionMode transactionMode,
+        Action<string, Exception, CancellationToken> criticalError
     )
     {
         this.log = log;
@@ -23,7 +24,7 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         ArgumentNullException.ThrowIfNull(receiverSettings);
 
         var services = new ServiceCollection();
-        ConfigureServices(services, options, connectionConfiguration, receiverSettings, transactionMode);
+        ConfigureServices(services, options, connectionConfiguration, receiverSettings, transactionMode, criticalError);
         serviceProvider = services.BuildServiceProvider();
 
         Dispatcher = serviceProvider.GetRequiredService<IMessageDispatcher>();
@@ -57,7 +58,8 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         IbmMqTransportOptions options,
         ConnectionConfiguration connectionConfiguration,
         ReceiveSettings[] receiverSettings,
-        TransportTransactionMode transactionMode)
+        TransportTransactionMode transactionMode,
+        Action<string, Exception, CancellationToken> criticalError)
     {
         var queueManagerName = connectionConfiguration.QueueManagerName;
         var connectionProperties = connectionConfiguration.ConnectionProperties;
@@ -70,7 +72,8 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
             .AddScoped(sp => new MessagePumpWorker(
                 LogManager.GetLogger<MessagePumpWorker>(),
                 sp.GetRequiredService<MessagePumpSettings>(),
-                sp.GetRequiredService<CreateQueueManager>()
+                sp.GetRequiredService<CreateQueueManager>(),
+                criticalError
             ))
             .AddSingleton<CreateQueueManagerFacade>(qm =>
                 new MqQueueManagerFacade(qm, queueNameFormatter))

@@ -8,7 +8,8 @@ sealed record MessagePumpSettings(int MessageWaitInterval, TransportTransactionM
 sealed class MessagePumpWorker(
     ILog log,
     MessagePumpSettings settings,
-    CreateQueueManager createConnection
+    CreateQueueManager createConnection,
+    Action<string, Exception, CancellationToken> criticalError
 ) : IAsyncDisposable
 {
     const int ReconnectBaseDelayMs = 1000;
@@ -202,7 +203,7 @@ sealed class MessagePumpWorker(
                         }
                         catch (Exception onErrorEx)
                         {
-                            log.DebugFormat("Worker {0} exception in error handling path: {1}", workerIndex, onErrorEx);
+                            criticalError($"Failed to execute recoverability policy for message with native ID: `{messageId}`", onErrorEx, cancellationToken);
 
                             if (transactionMode != TransportTransactionMode.None)
                             {
