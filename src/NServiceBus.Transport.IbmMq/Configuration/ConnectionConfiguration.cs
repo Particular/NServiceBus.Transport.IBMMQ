@@ -18,7 +18,7 @@ class ConnectionConfiguration
         MessageWaitInterval = options.MessageWaitInterval;
     }
 
-    public int MessageWaitInterval { get; }
+    public TimeSpan MessageWaitInterval { get; }
 
     public string QueueManagerName { get; }
 

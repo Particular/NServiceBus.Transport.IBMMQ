@@ -45,7 +45,7 @@ public class ConfigureIbmMqTransportInfrastructure : IConfigureTransportInfrastr
             s.Host = host;
             s.Password = password;
             s.User = user;
-            s.MessageWaitInterval = 1000;
+            s.MessageWaitInterval = TimeSpan.FromSeconds(1);
             s.QueueNameFormatter = Format;
 
         });

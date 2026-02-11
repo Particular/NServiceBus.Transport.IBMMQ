@@ -48,7 +48,7 @@ public class ConfigureEndpointIbmMqTransport : IConfigureEndpointTestExecution
                 s.Host = host;
                 s.Password = password;
                 s.User = user;
-                s.MessageWaitInterval = 1000;
+                s.MessageWaitInterval = TimeSpan.FromMilliseconds(1);
                 s.QueueNameFormatter = Format;
             }
         );

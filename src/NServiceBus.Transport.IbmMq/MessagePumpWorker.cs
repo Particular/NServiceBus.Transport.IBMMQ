@@ -3,7 +3,7 @@ namespace NServiceBus.Transport.IbmMq;
 using Logging;
 using IBM.WMQ;
 
-sealed record MessagePumpSettings(int MessageWaitInterval);
+sealed record MessagePumpSettings(TimeSpan MessageWaitInterval);
 
 sealed class MessagePumpWorker(
     ILog log,
@@ -13,7 +13,7 @@ sealed class MessagePumpWorker(
 {
     const int ReconnectBaseDelayMs = 1000;
     const int ReconnectMaxDelayMs = 60_000;
-    readonly int messageWaitInterval = settings.MessageWaitInterval;
+    readonly int messageWaitInterval = (int)settings.MessageWaitInterval.TotalMilliseconds;
     readonly CancellationTokenSource stopCts = new();
     readonly CancellationTokenSource cancellationCts = new();
     MQQueueManager? _connection = createConnection();
