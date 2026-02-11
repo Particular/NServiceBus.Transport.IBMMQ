@@ -20,6 +20,7 @@ endpointB.UseTransport(ibmmq);
 endpointB.UseSerialization<SystemJsonSerializer>();
 endpointB.PurgeOnStartup(true);
 endpointB.LimitMessageProcessingConcurrencyTo(2);
+endpointB.EnableInstallers();
 
 builder.UseNServiceBus(endpointB);
 

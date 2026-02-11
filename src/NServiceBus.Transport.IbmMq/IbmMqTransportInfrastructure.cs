@@ -9,7 +9,7 @@ class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDisposable, 
 
     readonly MQConnectionPool connectionPool;
     readonly MQQueueManager sendQueueManager;
-    readonly Func<string, string>? queueNameFormatter;
+    readonly Func<string, string> queueNameFormatter;
     readonly int messageWaitInterval;
     bool _disposed;
 
@@ -23,7 +23,6 @@ class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDisposable, 
         ArgumentNullException.ThrowIfNull(receiverSettings);
 
         MQQueueManager CreateQueueManager() => new(connectionConfiguration.QueueManagerName, connectionConfiguration.ConnectionProperties);
-
 
         Log.InfoFormat("Connecting to IBM MQ Queue Manager: {0}", connectionConfiguration.QueueManagerName);
 
@@ -117,7 +116,7 @@ class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDisposable, 
     }
 
     IbmMqHelper CreateHelper(MQQueueManager qm) =>
-        new(qm, queueNameFormatter);
+        new(Log, qm, queueNameFormatter);
 
     MessagePumpWorker CreateWorker(string queue, OnMessage onMsg, OnError onErr, int idx) =>
         new(messageWaitInterval, connectionPool, queue, onMsg, onErr, idx);
