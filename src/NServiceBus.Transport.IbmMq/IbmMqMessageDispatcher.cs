@@ -1,9 +1,8 @@
 namespace NServiceBus.Transport.IbmMq;
 
 using IBM.WMQ;
-using Logging;
 
-sealed class IbmMqMessageDispatcher(ILog log, MQQueueManager sendConnection, MqQueueManagerFacade facade) : IMessageDispatcher, IDisposable
+sealed class IbmMqMessageDispatcher(MqQueueManagerFacade facade) : IMessageDispatcher
 {
     public Task Dispatch(TransportOperations outgoingMessages, TransportTransaction transaction, CancellationToken cancellationToken = default)
     {
@@ -93,20 +92,5 @@ sealed class IbmMqMessageDispatcher(ILog log, MQQueueManager sendConnection, MqQ
 
         var message = IbmMqMessageConverter.ToNative(transportOperation.Message);
         topic.Put(message);
-    }
-
-    public void Dispose()
-    {
-        using (sendConnection)
-        {
-            try
-            {
-                sendConnection.Disconnect();
-            }
-            catch (MQException ex)
-            {
-                log.Warn("Failed to disconnect send connection", ex);
-            }
-        }
     }
 }
