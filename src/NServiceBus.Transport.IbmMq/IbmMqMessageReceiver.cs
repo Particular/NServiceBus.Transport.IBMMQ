@@ -116,7 +116,7 @@ sealed class IbmMqMessageReceiver(
     {
         log.DebugFormat("Stopping {0} workers for {1}", workers.Count, ReceiveAddress);
 
-        await receiveLock.WaitAsync(cancellationToken)
+        await receiveLock.WaitAsync(CancellationToken.None)
             .ConfigureAwait(false);
 
         try
