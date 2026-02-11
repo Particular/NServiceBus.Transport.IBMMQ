@@ -59,7 +59,7 @@ class IbmMqMessageDispatcher(IbmMqHelper ibmMqHelper) : IMessageDispatcher
     {
         if (!queues.TryGetValue(unicastTransportOperation.Destination, out var queue))
         {
-            queue = ibmMqHelper.EnsureQueue(unicastTransportOperation.Destination, MQC.MQOO_OUTPUT);
+            queue = ibmMqHelper.AccessSendQueue(unicastTransportOperation.Destination);
             queues[unicastTransportOperation.Destination] = queue;
         }
 

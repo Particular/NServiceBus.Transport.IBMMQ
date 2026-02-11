@@ -133,5 +133,5 @@ public class IbmMqTransportOptions
     /// <summary>
     /// Formatter for queue names. Can be used to sanitize queue names.
     /// </summary>
-    public Func<string, string>? QueueNameFormatter { get; set; } = s => s;
+    public Func<string, string> QueueNameFormatter { get; set; } = s => s;
 }

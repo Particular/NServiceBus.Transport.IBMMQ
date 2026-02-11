@@ -32,18 +32,29 @@ sealed class MessagePumpWorker(
         Log.DebugFormat("Worker {0} stopping for queue {1}", workerIndex, queueName);
 
         // If a cancellation token is provided, link it to message processing cancellation
-        // This allows StopReceive to control whether in-flight messages are cancelled
-        if (cancellationToken.CanBeCanceled)
+        // This allows StopReceive to control whether in-flight messages can be cancelled
+        CancellationTokenRegistration registration = default;
+        try
         {
-            var cancellationCtsClone = cancellationCts; // Capture to avoid closure issues
-            cancellationToken.Register(() => cancellationCtsClone.Cancel());
+            if (cancellationToken.CanBeCanceled)
+            {
+                var cancellationCtsClone = cancellationCts; // Capture to avoid closure issues
+                registration = cancellationToken.Register(() => cancellationCtsClone.Cancel());
+            }
+
+            await stopCts.CancelAsync()
+                .ConfigureAwait(false);
+
+            if (pumpTask != null)
+            {
+                await pumpTask
+                    .ConfigureAwait(false);
+            }
         }
-
-        await stopCts.CancelAsync().ConfigureAwait(false);
-
-        if (pumpTask != null)
+        finally
         {
-            await pumpTask.ConfigureAwait(false);
+            await registration.DisposeAsync()
+                .ConfigureAwait(false);
         }
     }
 

@@ -3,14 +3,15 @@ namespace NServiceBus.Transport.IbmMq;
 using IBM.WMQ;
 using NServiceBus.Logging;
 
-class IbmMqTransportInfrastructure : TransportInfrastructure, IDisposable
+class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDisposable, IDisposable
 {
     static readonly ILog Log = LogManager.GetLogger<IbmMqTransportInfrastructure>();
 
     readonly MQConnectionPool connectionPool;
     readonly MQQueueManager sendQueueManager;
-    readonly Func<string, string>? queueNameFormatter;
+    readonly Func<string, string> queueNameFormatter;
     readonly int messageWaitInterval;
+    bool _disposed;
 
     public IbmMqTransportInfrastructure(
         IbmMqTransportOptions options,
@@ -22,7 +23,6 @@ class IbmMqTransportInfrastructure : TransportInfrastructure, IDisposable
         ArgumentNullException.ThrowIfNull(receiverSettings);
 
         MQQueueManager CreateQueueManager() => new(connectionConfiguration.QueueManagerName, connectionConfiguration.ConnectionProperties);
-
 
         Log.InfoFormat("Connecting to IBM MQ Queue Manager: {0}", connectionConfiguration.QueueManagerName);
 
@@ -43,12 +43,10 @@ class IbmMqTransportInfrastructure : TransportInfrastructure, IDisposable
             );
     }
 
-    public override Task Shutdown(CancellationToken cancellationToken = default)
+    public override async Task Shutdown(CancellationToken cancellationToken = default)
     {
         Log.Debug("Shutdown");
-        connectionPool.Dispose();
-        sendQueueManager.Disconnect();
-        return Task.CompletedTask;
+        await DisposeAsync().ConfigureAwait(false);
     }
 
     public override string ToTransportAddress(QueueAddress address)
@@ -56,15 +54,69 @@ class IbmMqTransportInfrastructure : TransportInfrastructure, IDisposable
         return address.BaseAddress;
     }
 
+    public async ValueTask DisposeAsync()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+
+        Log.Debug("Disposing");
+
+        var tasks = new List<Task>();
+        foreach (var receiver in Receivers.Values)
+        {
+            if (receiver is IAsyncDisposable disposable)
+            {
+                tasks.Add(disposable.DisposeAsync().AsTask());
+            }
+        }
+
+        await Task.WhenAll(tasks).ConfigureAwait(false);
+
+        DisposeCore();
+    }
+
     public void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+
+        _disposed = true;
+
         Log.Debug("Disposing");
+        DisposeCore();
+    }
+
+    void DisposeCore()
+    {
         connectionPool.Dispose();
-        ((IDisposable)sendQueueManager).Dispose();
+
+        try
+        {
+            sendQueueManager.Disconnect();
+        }
+        catch (MQException ex)
+        {
+            Log.Warn("Failed to disconnect send queue manager", ex);
+        }
+
+        try
+        {
+            ((IDisposable)sendQueueManager).Dispose();
+        }
+        catch (Exception ex)
+        {
+            Log.Warn("Failed to dispose send queue manager", ex);
+        }
     }
 
     IbmMqHelper CreateHelper(MQQueueManager qm) =>
-        new(qm, queueNameFormatter);
+        new(Log, qm, queueNameFormatter);
 
     MessagePumpWorker CreateWorker(string queue, OnMessage onMsg, OnError onErr, int idx) =>
         new(messageWaitInterval, connectionPool, queue, onMsg, onErr, idx);
