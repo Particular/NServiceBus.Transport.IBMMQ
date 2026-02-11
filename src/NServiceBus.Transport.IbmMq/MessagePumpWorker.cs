@@ -170,28 +170,10 @@ sealed class MessagePumpWorker(
                     {
                         log.DebugFormat("Worker {0} error processing message from {1}\n{2}", workerIndex, queueName, ex);
 
-                        int immediateProcessingFailures;
-
+                        // For SendsAtomicWithReceive, backout to rollback the receive and any sends from onMessage
                         if (transactionMode == TransportTransactionMode.SendsAtomicWithReceive)
                         {
-                            // Backout to rollback any sends from onMessage along with the receive
                             _connection.Backout();
-
-                            // Re-get the message by its ID to consume it in a new unit of work
-                            var regetMessage = new MQMessage { MessageId = receivedMessage.MessageId };
-                            queue.Get(regetMessage, new MQGetMessageOptions
-                            {
-                                Options = MQC.MQGMO_FAIL_IF_QUIESCING | MQC.MQGMO_SYNCPOINT,
-                                MatchOptions = MQC.MQMO_MATCH_MSG_ID
-                            });
-
-                            // Each error cycle causes 2 backouts (onMessage fail + onError decision),
-                            // so divide by 2 to get the actual failure count
-                            immediateProcessingFailures = (receivedMessage.BackoutCount / 2) + 1;
-                        }
-                        else
-                        {
-                            immediateProcessingFailures = receivedMessage.BackoutCount + 1;
                         }
 
                         var errorContext = new ErrorContext(
@@ -200,7 +182,7 @@ sealed class MessagePumpWorker(
                             messageId,
                             messageBody,
                             transportTransaction,
-                            immediateProcessingFailures,
+                            receivedMessage.BackoutCount + 1,
                             queueName,
                             contextBag
                         );
@@ -209,7 +191,7 @@ sealed class MessagePumpWorker(
                         {
                             var result = await onError.Invoke(errorContext, cancellationToken).ConfigureAwait(false);
 
-                            if (transactionMode != TransportTransactionMode.None)
+                            if (transactionMode == TransportTransactionMode.ReceiveOnly)
                             {
                                 if (result is ErrorHandleResult.RetryRequired)
                                 {
@@ -229,7 +211,7 @@ sealed class MessagePumpWorker(
                         {
                             criticalError($"Failed to execute recoverability policy for message with native ID: `{messageId}`", onErrorEx, cancellationToken);
 
-                            if (transactionMode != TransportTransactionMode.None)
+                            if (transactionMode == TransportTransactionMode.ReceiveOnly)
                             {
                                 _connection.Backout();
                             }
