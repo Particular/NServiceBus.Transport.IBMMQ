@@ -170,13 +170,37 @@ sealed class MessagePumpWorker(
                     {
                         log.DebugFormat("Worker {0} error processing message from {1}\n{2}", workerIndex, queueName, ex);
 
+                        int immediateProcessingFailures;
+
+                        if (transactionMode == TransportTransactionMode.SendsAtomicWithReceive)
+                        {
+                            // Backout to rollback any sends from onMessage along with the receive
+                            _connection.Backout();
+
+                            // Re-get the message by its ID to consume it in a new unit of work
+                            var regetMessage = new MQMessage { MessageId = receivedMessage.MessageId };
+                            queue.Get(regetMessage, new MQGetMessageOptions
+                            {
+                                Options = MQC.MQGMO_FAIL_IF_QUIESCING | MQC.MQGMO_SYNCPOINT,
+                                MatchOptions = MQC.MQMO_MATCH_MSG_ID
+                            });
+
+                            // Each error cycle causes 2 backouts (onMessage fail + onError decision),
+                            // so divide by 2 to get the actual failure count
+                            immediateProcessingFailures = (receivedMessage.BackoutCount / 2) + 1;
+                        }
+                        else
+                        {
+                            immediateProcessingFailures = receivedMessage.BackoutCount + 1;
+                        }
+
                         var errorContext = new ErrorContext(
                             ex,
                             originalHeaders,
                             messageId,
                             messageBody,
                             transportTransaction,
-                            receivedMessage.BackoutCount + 1,
+                            immediateProcessingFailures,
                             queueName,
                             contextBag
                         );
