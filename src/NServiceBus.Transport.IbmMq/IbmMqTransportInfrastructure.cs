@@ -26,7 +26,7 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         ConfigureServices(services, options, connectionConfiguration, receiverSettings, transactionMode);
         serviceProvider = services.BuildServiceProvider();
 
-        Dispatcher = serviceProvider.GetRequiredService<IbmMqMessageDispatcher>();
+        Dispatcher = serviceProvider.GetRequiredService<IMessageDispatcher>();
         Receivers = serviceProvider.GetServices<IMessageReceiver>()
             .ToDictionary(r => r.Id);
     }
@@ -75,11 +75,20 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
             .AddSingleton<CreateQueueManagerFacade>(qm =>
                 new MqQueueManagerFacade(qm, queueNameFormatter))
             .AddSingleton(new MQQueueManager(queueManagerName, connectionProperties))
-            .AddSingleton(sp =>
+            .AddSingleton<IMessageDispatcher>(sp =>
             {
                 var sendConnection = sp.GetRequiredService<MQQueueManager>();
                 var createFacade = sp.GetRequiredService<CreateQueueManagerFacade>();
-                return new IbmMqMessageDispatcher(createFacade(sendConnection));
+                var sendFacade = createFacade(sendConnection);
+
+                return transactionMode switch
+                {
+                    TransportTransactionMode.None => new MessageDispatcher(sendFacade),
+                    TransportTransactionMode.ReceiveOnly => new MessageDispatcher(sendFacade),
+                    TransportTransactionMode.SendsAtomicWithReceive => new AtomicMessageDispatcher(sendFacade, createFacade),
+                    TransportTransactionMode.TransactionScope => throw new NotSupportedException("TransactionScope is not supported"),
+                    _ => throw new ArgumentOutOfRangeException(nameof(transactionMode), transactionMode, "Unsupported transaction mode")
+                };
             });
 
         foreach (var rs in receiverSettings)
