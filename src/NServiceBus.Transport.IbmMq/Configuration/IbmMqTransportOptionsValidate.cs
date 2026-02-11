@@ -18,6 +18,11 @@ class IbmMqTransportOptionsValidate
 
         // Message processing validation
         ValidateMessageProcessing(options);
+
+        if (options.QueueNameFormatter == null)
+        {
+            throw new ArgumentException("QueueNameFormatter must be assigned", nameof(options.QueueNameFormatter));
+        }
     }
 
     void ValidateConnection(IbmMqTransportOptions options)

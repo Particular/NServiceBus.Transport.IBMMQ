@@ -1,8 +1,13 @@
 namespace NServiceBus.Transport.IbmMq;
 
+using IBM.WMQ;
+using Logging;
+
 public class IbmMqTransport : TransportDefinition
 {
-    IbmMqTransportOptions Options { get; }
+    readonly ILog log = LogManager.GetLogger<IbmMqTransport>();
+
+    internal IbmMqTransportOptions Options { get; }
 
     /// <summary>
     /// Creates a new instance of IBM MQ transport with configuration
@@ -34,9 +39,36 @@ public class IbmMqTransport : TransportDefinition
         TransportTransactionMode.ReceiveOnly
     ];
 
-    public override Task<TransportInfrastructure> Initialize(HostSettings hostSettings, ReceiveSettings[] receivers, string[] sendingAddresses, CancellationToken cancellationToken = default)
+    public override Task<TransportInfrastructure> Initialize(
+        HostSettings hostSettings,
+        ReceiveSettings[] receivers,
+        string[] sendingAddresses,
+        CancellationToken cancellationToken = default
+    )
     {
         var connectionConfiguration = new ConnectionConfiguration(Options);
+
+        var queueManager = new MQQueueManager(Options.QueueManagerName, connectionConfiguration.ConnectionProperties);
+        var manager = new IbmMqHelper(log, queueManager, Options.QueueNameFormatter);
+
+        if (hostSettings.SetupInfrastructure)
+        {
+            foreach (var receiver in receivers)
+            {
+                log.DebugFormat("Creating queue {0}", receiver.ReceiveAddress.BaseAddress);
+                manager.CreateQueue(receiver.ReceiveAddress.BaseAddress);
+            }
+        }
+
+        foreach (var receiver in receivers)
+        {
+            if (receiver.PurgeOnStartup)
+            {
+                log.DebugFormat("Purging queue {0}", receiver.ReceiveAddress.BaseAddress);
+                manager.PurgeQueue(receiver.ReceiveAddress.BaseAddress);
+            }
+        }
+
         var infrastructure = new IbmMqTransportInfrastructure(Options, connectionConfiguration, receivers);
         return Task.FromResult<TransportInfrastructure>(infrastructure);
     }
