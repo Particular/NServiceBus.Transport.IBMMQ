@@ -111,10 +111,6 @@ sealed class MessagePumpWorker(
                 MQMessage receivedMessage = new();
 
                 var transportTransaction = new TransportTransaction();
-                if (transactionMode == TransportTransactionMode.SendsAtomicWithReceive)
-                {
-                    transportTransaction.Set(_connection);
-                }
 
                 try
                 {
@@ -122,6 +118,11 @@ sealed class MessagePumpWorker(
                     {
                         log.DebugFormat("Worker {0} creating queue connection {1}", workerIndex, queueName);
                         _connection = createConnection();
+                    }
+
+                    if (transactionMode == TransportTransactionMode.SendsAtomicWithReceive)
+                    {
+                        transportTransaction.Set(_connection);
                     }
 
                     queue ??= _connection.AccessQueue(queueName, MQC.MQOO_INPUT_AS_Q_DEF);
