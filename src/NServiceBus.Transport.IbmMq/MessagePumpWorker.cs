@@ -3,7 +3,7 @@ namespace NServiceBus.Transport.IbmMq;
 using Logging;
 using IBM.WMQ;
 
-sealed record MessagePumpSettings(int MessageWaitInterval);
+sealed record MessagePumpSettings(int MessageWaitInterval, TransportTransactionMode TransactionMode);
 
 sealed class MessagePumpWorker(
     ILog log,
@@ -14,6 +14,7 @@ sealed class MessagePumpWorker(
     const int ReconnectBaseDelayMs = 1000;
     const int ReconnectMaxDelayMs = 60_000;
     readonly int messageWaitInterval = settings.MessageWaitInterval;
+    readonly TransportTransactionMode transactionMode = settings.TransactionMode;
     readonly CancellationTokenSource stopCts = new();
     readonly CancellationTokenSource cancellationCts = new();
     MQQueueManager? _connection = createConnection();
@@ -88,12 +89,18 @@ sealed class MessagePumpWorker(
         {
             log.DebugFormat("Worker {0} started pumping messages from {1}", workerIndex, queueName);
 
+            var getOptionsFlags = MQC.MQGMO_WAIT
+                                 | MQC.MQGMO_FAIL_IF_QUIESCING
+                                 | MQC.MQGMO_PROPERTIES_IN_HANDLE;
+
+            if (transactionMode != TransportTransactionMode.None)
+            {
+                getOptionsFlags |= MQC.MQGMO_SYNCPOINT;
+            }
+
             MQGetMessageOptions getOptions = new()
             {
-                Options = MQC.MQGMO_WAIT
-                          | MQC.MQGMO_SYNCPOINT
-                          | MQC.MQGMO_FAIL_IF_QUIESCING
-                          | MQC.MQGMO_PROPERTIES_IN_HANDLE,
+                Options = getOptionsFlags,
                 WaitInterval = messageWaitInterval
             };
 
@@ -140,7 +147,11 @@ sealed class MessagePumpWorker(
 
                         await onMessage(messageContext, cancellationToken).ConfigureAwait(false);
 
-                        _connection.Commit();
+                        if (transactionMode != TransportTransactionMode.None)
+                        {
+                            _connection.Commit();
+                        }
+
                         reconnectAttempt = 0;
                     }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -166,13 +177,16 @@ sealed class MessagePumpWorker(
                         {
                             var result = await onError.Invoke(errorContext, cancellationToken).ConfigureAwait(false);
 
-                            if (result is ErrorHandleResult.RetryRequired)
+                            if (transactionMode != TransportTransactionMode.None)
                             {
-                                _connection.Backout();
-                            }
-                            else
-                            {
-                                _connection.Commit();
+                                if (result is ErrorHandleResult.RetryRequired)
+                                {
+                                    _connection.Backout();
+                                }
+                                else
+                                {
+                                    _connection.Commit();
+                                }
                             }
                         }
                         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -182,7 +196,11 @@ sealed class MessagePumpWorker(
                         catch (Exception onErrorEx)
                         {
                             log.DebugFormat("Worker {0} exception in error handling path: {1}", workerIndex, onErrorEx);
-                            _connection.Backout();
+
+                            if (transactionMode != TransportTransactionMode.None)
+                            {
+                                _connection.Backout();
+                            }
                         }
                     }
                 }

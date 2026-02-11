@@ -14,7 +14,8 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         ILog log,
         IbmMqTransportOptions options,
         ConnectionConfiguration connectionConfiguration,
-        ReceiveSettings[] receiverSettings
+        ReceiveSettings[] receiverSettings,
+        TransportTransactionMode transactionMode
     )
     {
         this.log = log;
@@ -22,7 +23,7 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         ArgumentNullException.ThrowIfNull(receiverSettings);
 
         var services = new ServiceCollection();
-        ConfigureServices(services, options, connectionConfiguration, receiverSettings);
+        ConfigureServices(services, options, connectionConfiguration, receiverSettings, transactionMode);
         serviceProvider = services.BuildServiceProvider();
 
         Dispatcher = serviceProvider.GetRequiredService<IbmMqMessageDispatcher>();
@@ -55,7 +56,8 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         IServiceCollection services,
         IbmMqTransportOptions options,
         ConnectionConfiguration connectionConfiguration,
-        ReceiveSettings[] receiverSettings)
+        ReceiveSettings[] receiverSettings,
+        TransportTransactionMode transactionMode)
     {
         var queueManagerName = connectionConfiguration.QueueManagerName;
         var connectionProperties = connectionConfiguration.ConnectionProperties;
@@ -64,7 +66,7 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
 
         services
             .AddSingleton<CreateQueueManager>(() => new MQQueueManager(queueManagerName, connectionProperties))
-            .AddSingleton(new MessagePumpSettings(messageWaitInterval))
+            .AddSingleton(new MessagePumpSettings(messageWaitInterval, transactionMode))
             .AddScoped(sp => new MessagePumpWorker(
                 LogManager.GetLogger<MessagePumpWorker>(),
                 sp.GetRequiredService<MessagePumpSettings>(),
