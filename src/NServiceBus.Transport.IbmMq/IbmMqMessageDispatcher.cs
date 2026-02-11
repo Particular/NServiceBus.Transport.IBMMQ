@@ -1,8 +1,9 @@
-﻿namespace NServiceBus.Transport.IbmMq;
+namespace NServiceBus.Transport.IbmMq;
 
 using IBM.WMQ;
+using Logging;
 
-class IbmMqMessageDispatcher(IbmMqHelper ibmMqHelper) : IMessageDispatcher
+sealed class IbmMqMessageDispatcher(ILog log, MQQueueManager sendConnection, MqQueueManagerFacade facade) : IMessageDispatcher, IDisposable
 {
     public Task Dispatch(TransportOperations outgoingMessages, TransportTransaction transaction, CancellationToken cancellationToken = default)
     {
@@ -37,8 +38,10 @@ class IbmMqMessageDispatcher(IbmMqHelper ibmMqHelper) : IMessageDispatcher
             {
                 foreach (var queue in queues.Values)
                 {
-                    queue.Close();
-                    ((IDisposable)queue).Dispose();
+                    using (queue)
+                    {
+                        queue.Close();
+                    }
                 }
             }
 
@@ -46,8 +49,10 @@ class IbmMqMessageDispatcher(IbmMqHelper ibmMqHelper) : IMessageDispatcher
             {
                 foreach (var topic in topics.Values)
                 {
-                    topic.Close();
-                    ((IDisposable)topic).Dispose();
+                    using (topic)
+                    {
+                        topic.Close();
+                    }
                 }
             }
         }
@@ -59,11 +64,11 @@ class IbmMqMessageDispatcher(IbmMqHelper ibmMqHelper) : IMessageDispatcher
     {
         if (!queues.TryGetValue(unicastTransportOperation.Destination, out var queue))
         {
-            queue = ibmMqHelper.AccessSendQueue(unicastTransportOperation.Destination);
+            queue = facade.AccessSendQueue(unicastTransportOperation.Destination);
             queues[unicastTransportOperation.Destination] = queue;
         }
 
-        MQMessage message = IbmMqMessageConverter.ToNative(unicastTransportOperation.Message);
+        var message = IbmMqMessageConverter.ToNative(unicastTransportOperation.Message);
 
         MQPutMessageOptions putOptions = new();
 
@@ -82,11 +87,26 @@ class IbmMqMessageDispatcher(IbmMqHelper ibmMqHelper) : IMessageDispatcher
     {
         if (!topics.TryGetValue(transportOperation.MessageType, out var topic))
         {
-            topic = ibmMqHelper.EnsureTopic(transportOperation.MessageType);
+            topic = facade.EnsureTopic(transportOperation.MessageType);
             topics[transportOperation.MessageType] = topic;
         }
 
         var message = IbmMqMessageConverter.ToNative(transportOperation.Message);
         topic.Put(message);
+    }
+
+    public void Dispose()
+    {
+        using (sendConnection)
+        {
+            try
+            {
+                sendConnection.Disconnect();
+            }
+            catch (MQException ex)
+            {
+                log.Warn("Failed to disconnect send connection", ex);
+            }
+        }
     }
 }
