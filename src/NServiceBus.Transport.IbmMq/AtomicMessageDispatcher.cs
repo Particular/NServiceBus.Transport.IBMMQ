@@ -7,7 +7,11 @@ sealed class AtomicMessageDispatcher(MqQueueManagerFacade sendFacade, CreateQueu
 {
     protected override DispatchContext ResolveContext(TransportTransaction transaction)
     {
-        var receiveConnection = transaction.Get<MQQueueManager>();
-        return new(createFacade(receiveConnection), MQC.MQPMO_FAIL_IF_QUIESCING | MQC.MQPMO_SYNCPOINT);
+        if (transaction.TryGet<MQQueueManager>(out var receiveConnection))
+        {
+            return new(createFacade(receiveConnection), MQC.MQPMO_FAIL_IF_QUIESCING | MQC.MQPMO_SYNCPOINT);
+        }
+
+        return base.ResolveContext(transaction);
     }
 }
