@@ -37,7 +37,8 @@ public sealed class IbmMqTransport : TransportDefinition
     public override IReadOnlyCollection<TransportTransactionMode> GetSupportedTransactionModes() =>
     [
         TransportTransactionMode.None,
-        TransportTransactionMode.ReceiveOnly
+        TransportTransactionMode.ReceiveOnly,
+        TransportTransactionMode.SendsAtomicWithReceive
     ];
 
     public override Task<TransportInfrastructure> Initialize(

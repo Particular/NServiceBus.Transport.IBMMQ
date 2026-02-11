@@ -110,6 +110,12 @@ sealed class MessagePumpWorker(
             {
                 MQMessage receivedMessage = new();
 
+                var transportTransaction = new TransportTransaction();
+                if (transactionMode == TransportTransactionMode.SendsAtomicWithReceive)
+                {
+                    transportTransaction.Set(_connection);
+                }
+
                 try
                 {
                     if (_connection == null)
@@ -140,7 +146,7 @@ sealed class MessagePumpWorker(
                             messageId,
                             messageHeaders,
                             messageBody,
-                            new TransportTransaction(),
+                            transportTransaction,
                             queueName,
                             contextBag
                         );
@@ -167,7 +173,7 @@ sealed class MessagePumpWorker(
                             originalHeaders,
                             messageId,
                             messageBody,
-                            new TransportTransaction(),
+                            transportTransaction,
                             receivedMessage.BackoutCount + 1,
                             queueName,
                             contextBag
