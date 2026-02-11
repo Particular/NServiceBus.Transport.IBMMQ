@@ -1,6 +1,7 @@
 ﻿namespace NServiceBus.Transport.IbmMq;
 
 using System.Collections.Generic;
+using IBM.WMQ;
 
 /// <summary>
 /// Configuration settings for IBM MQ transport
@@ -108,7 +109,7 @@ public class IbmMqTransportOptions
     /// Default: 5000ms (5 seconds)
     /// Valid range: 100-30000ms
     /// </summary>
-    public int MessageWaitInterval { get; set; } = 5000;
+    public TimeSpan MessageWaitInterval { get; set; } = TimeSpan.FromMilliseconds(5000);
 
     /// <summary>
     /// Maximum message size in bytes that can be received.
@@ -126,9 +127,9 @@ public class IbmMqTransportOptions
     /// - 819: ISO 8859-1 (Latin-1)
     /// - 437: US English
     /// - 1252: Windows Latin-1
-    /// Default: 1208 (UTF-8)
+    /// Default: CODESET_UTF / 1208 (UTF-8)
     /// </summary>
-    public int CharacterSet { get; set; } = 1208; // UTF-8
+    public int CharacterSet { get; set; } = MQC.CODESET_UTF;
 
     /// <summary>
     /// Formatter for queue names. Can be used to sanitize queue names.
