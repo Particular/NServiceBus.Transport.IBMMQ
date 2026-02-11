@@ -1,42 +1,37 @@
 namespace NServiceBus.Transport.IbmMq;
 
-using IBM.WMQ;
-using NServiceBus.Extensibility;
-using NServiceBus.Logging;
-using NServiceBus.Unicast.Messages;
+using Extensibility;
+using Logging;
+using Unicast.Messages;
 
-class IbmMqSubscriptionManager(
-    Func<MQQueueManager, IbmMqHelper> createHelper,
-    MQConnectionPool connectionPool,
+sealed class IbmMqSubscriptionManager(
+    ILog log,
+    CreateQueueManagerFacade createFacade,
+    CreateQueueManager createConnection,
     string receiveAddress
 ) : ISubscriptionManager
 {
-    readonly ILog Log = LogManager.GetLogger<IbmMqSubscriptionManager>();
 
     public Task SubscribeAll(MessageMetadata[] eventTypes, ContextBag context, CancellationToken cancellationToken = default)
     {
-        Log.DebugFormat("SubscribeAll");
-        var connection = connectionPool.Lease();
-        try
+        log.DebugFormat("SubscribeAll");
+        using var connection = createConnection();
+        var helper = createFacade(connection);
+        foreach (var eventType in eventTypes)
         {
-            var helper = createHelper(connection);
-            foreach (var eventType in eventTypes)
-            {
-                Log.DebugFormat("Subscribing to {0} => {1}", eventType.MessageType, receiveAddress);
-                using var topic = helper.EnsureSubscription(eventType.MessageType, receiveAddress);
-                topic.Close();
-            }
+            log.DebugFormat("Subscribing to {0} => {1}", eventType.MessageType, receiveAddress);
+            using var topic = helper.EnsureSubscription(eventType.MessageType, receiveAddress);
+            topic.Close();
         }
-        finally
-        {
-            connectionPool.Return(connection);
-        }
+
+        connection.Disconnect();
 
         return Task.CompletedTask;
     }
 
     public Task Unsubscribe(MessageMetadata eventType, ContextBag context, CancellationToken cancellationToken = default)
     {
-        return Task.CompletedTask;
+        // TODO
+        throw new NotImplementedException();
     }
 }

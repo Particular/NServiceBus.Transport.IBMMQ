@@ -2,28 +2,9 @@ namespace NServiceBus.Transport.IbmMq;
 
 using IBM.WMQ;
 using IBM.WMQ.PCF;
-using Logging;
 
-class IbmMqHelper(ILog log, MQQueueManager queueManager, Func<string, string> queueNameFormatter)
+class MqQueueManagerFacade(MQQueueManager queueManager, FormatQueueName queueNameFormatter)
 {
-    public void CreateQueue(string name)
-    {
-        name = queueNameFormatter(name);
-        if (name.Length > 48)
-        {
-            throw new ArgumentException($"Queue name '{name}' is longer than 48 characters.", nameof(name));
-        }
-
-        try
-        {
-            using var queue = CreateQueue(name, MQC.MQOO_INPUT_SHARED);
-        }
-        catch (PCFException e) when (e.ReasonCode == MQC.MQRCCF_OBJECT_ALREADY_EXISTS)
-        {
-            log.DebugFormat("Queue '{0}' already exists.", name);
-        }
-    }
-
     public MQQueue AccessSendQueue(string name)
     {
         name = queueNameFormatter(name);
@@ -33,60 +14,6 @@ class IbmMqHelper(ILog log, MQQueueManager queueManager, Func<string, string> qu
         }
 
         return queueManager.AccessQueue(name, MQC.MQOO_OUTPUT);
-    }
-
-    public void PurgeQueue(string name)
-    {
-        name = queueNameFormatter(name);
-
-        using var queue = queueManager.AccessQueue(name, MQC.MQOO_INPUT_EXCLUSIVE | MQC.MQOO_INQUIRE);
-        var gmo = new MQGetMessageOptions
-        {
-            Options = MQC.MQGMO_NO_WAIT | MQC.MQGMO_ACCEPT_TRUNCATED_MSG
-        };
-
-        int count = 0;
-        while (true)
-        {
-            try
-            {
-                var message = new MQMessage();
-                queue.Get(message, gmo);
-                message.ClearMessage();
-                ++count;
-            }
-            catch (MQException ex) when (ex.ReasonCode == MQC.MQRC_NO_MSG_AVAILABLE)
-            {
-                break;
-            }
-        }
-
-        queue.Close();
-
-        log.InfoFormat("Purged {0} messages from queue '{1}'", count, name);
-    }
-
-
-    MQQueue CreateQueue(string name, int openOptions)
-    {
-        var agent = new PCFMessageAgent(queueManager);
-        try
-        {
-            var request = new PCFMessage(MQC.MQCMD_CREATE_Q);
-            request.AddParameter(MQC.MQCA_Q_NAME, name);
-            request.AddParameter(MQC.MQIA_Q_TYPE, MQC.MQQT_LOCAL); // Local queue
-            request.AddParameter(MQC.MQIA_MAX_Q_DEPTH, 5000); // Max queue depth
-            request.AddParameter(MQC.MQIA_DEF_PERSISTENCE, MQC.MQPER_PERSISTENT); // Persistent messages
-
-            agent.Send(request);
-        }
-        finally
-        {
-            agent.Disconnect();
-        }
-
-        // Try accessing the queue again after creation
-        return queueManager.AccessQueue(name, openOptions);
     }
 
     public MQTopic EnsureTopic(Type eventType)

@@ -3,7 +3,7 @@ namespace NServiceBus.Transport.IbmMq;
 using System.Text.RegularExpressions;
 using IBM.WMQ;
 
-class IbmMqMessageConverter
+static class IbmMqMessageConverter
 {
     // IBM MQ silently discards string properties set to "" — they cannot be enumerated via
     // GetPropertyNames nor retrieved via GetStringProperty.  Work around this by:
@@ -60,7 +60,7 @@ class IbmMqMessageConverter
             var propertyNames = receivedMessage.GetPropertyNames("%");
             while (propertyNames.MoveNext())
             {
-                var escapedName = propertyNames.Current.ToString();
+                var escapedName = propertyNames.Current!.ToString();
                 if (escapedName != null)
                 {
                     var originalName = UnescapePropertyName(escapedName);
@@ -190,7 +190,7 @@ class IbmMqMessageConverter
     // - "Test_xABCD" -> escapes to "Test__xABCD" -> unescapes back to "Test_xABCD" ✓
     // - "Test.Name" -> escapes to "Test_x002EName" -> unescapes back to "Test.Name" ✓
     // - "Test__Value" -> escapes to "Test____Value" -> unescapes back to "Test__Value" ✓
-    internal static string EscapePropertyName(string name)
+    static string EscapePropertyName(string name)
     {
         // First, escape existing underscores by doubling them
         name = name.Replace("_", "__");
@@ -199,7 +199,7 @@ class IbmMqMessageConverter
         return Regex.Replace(name, @"[^a-zA-Z0-9_]", match => $"_x{(int)match.Value[0]:X4}");
     }
 
-    internal static string UnescapePropertyName(string name)
+    static string UnescapePropertyName(string name)
     {
         // First, replace _xHHHH patterns with the corresponding character
         // Use negative lookbehind (?<!_) to avoid matching _x that's part of __x

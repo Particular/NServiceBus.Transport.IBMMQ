@@ -1,57 +1,41 @@
 namespace NServiceBus.Transport.IbmMq;
 
 using IBM.WMQ;
-using NServiceBus.Logging;
+using Microsoft.Extensions.DependencyInjection;
+using Logging;
 
-class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDisposable, IDisposable
+sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDisposable
 {
-    static readonly ILog Log = LogManager.GetLogger<IbmMqTransportInfrastructure>();
-
-    readonly MQConnectionPool connectionPool;
-    readonly MQQueueManager sendQueueManager;
-    readonly Func<string, string> queueNameFormatter;
-    readonly int messageWaitInterval;
+    readonly ILog log;
+    readonly ServiceProvider serviceProvider;
     bool _disposed;
 
     public IbmMqTransportInfrastructure(
+        ILog log,
         IbmMqTransportOptions options,
         ConnectionConfiguration connectionConfiguration,
         ReceiveSettings[] receiverSettings
     )
     {
+        this.log = log;
         ArgumentNullException.ThrowIfNull(connectionConfiguration);
         ArgumentNullException.ThrowIfNull(receiverSettings);
 
-        MQQueueManager CreateQueueManager() => new(connectionConfiguration.QueueManagerName, connectionConfiguration.ConnectionProperties);
+        var services = new ServiceCollection();
+        ConfigureServices(services, options, connectionConfiguration, receiverSettings);
+        serviceProvider = services.BuildServiceProvider();
 
-        Log.InfoFormat("Connecting to IBM MQ Queue Manager: {0}", connectionConfiguration.QueueManagerName);
-
-        connectionPool = new MQConnectionPool(CreateQueueManager);
-        sendQueueManager = CreateQueueManager();
-        queueNameFormatter = options.QueueNameFormatter;
-        messageWaitInterval = connectionConfiguration.MessageWaitInterval;
-
-        Dispatcher = new IbmMqMessageDispatcher(CreateHelper(sendQueueManager));
-        Receivers = receiverSettings
-            .ToDictionary(
-                x => x.Id,
-                x =>
-                {
-                    var subMgr = new IbmMqSubscriptionManager(CreateHelper, connectionPool, x.ReceiveAddress.BaseAddress);
-                    return new IbmMqMessageReceiver(CreateWorker, subMgr, x) as IMessageReceiver;
-                }
-            );
+        Dispatcher = serviceProvider.GetRequiredService<IbmMqMessageDispatcher>();
+        Receivers = serviceProvider.GetServices<IMessageReceiver>()
+            .ToDictionary(r => r.Id);
     }
+
+    public override string ToTransportAddress(QueueAddress address) => address.BaseAddress;
 
     public override async Task Shutdown(CancellationToken cancellationToken = default)
     {
-        Log.Debug("Shutdown");
+        log.Debug("Shutdown");
         await DisposeAsync().ConfigureAwait(false);
-    }
-
-    public override string ToTransportAddress(QueueAddress address)
-    {
-        return address.BaseAddress;
     }
 
     public async ValueTask DisposeAsync()
@@ -63,61 +47,60 @@ class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDisposable, 
 
         _disposed = true;
 
-        Log.Debug("Disposing");
+        log.Debug("Disposing");
+        await serviceProvider.DisposeAsync().ConfigureAwait(false);
+    }
 
-        var tasks = new List<Task>();
-        foreach (var receiver in Receivers.Values)
-        {
-            if (receiver is IAsyncDisposable disposable)
+    static void ConfigureServices(
+        IServiceCollection services,
+        IbmMqTransportOptions options,
+        ConnectionConfiguration connectionConfiguration,
+        ReceiveSettings[] receiverSettings)
+    {
+        var queueManagerName = connectionConfiguration.QueueManagerName;
+        var connectionProperties = connectionConfiguration.ConnectionProperties;
+        var messageWaitInterval = connectionConfiguration.MessageWaitInterval;
+        FormatQueueName queueNameFormatter = options.QueueNameFormatter;
+
+        services
+            .AddSingleton<CreateQueueManager>(() => new MQQueueManager(queueManagerName, connectionProperties))
+            .AddSingleton(new MessagePumpSettings(messageWaitInterval))
+            .AddScoped(sp => new MessagePumpWorker(
+                LogManager.GetLogger<MessagePumpWorker>(),
+                sp.GetRequiredService<MessagePumpSettings>(),
+                sp.GetRequiredService<CreateQueueManager>()
+            ))
+            .AddSingleton<CreateQueueManagerFacade>(qm =>
+                new MqQueueManagerFacade(qm, queueNameFormatter))
+            .AddSingleton(sp =>
             {
-                tasks.Add(disposable.DisposeAsync().AsTask());
-            }
-        }
+                var sendConnection = new MQQueueManager(queueManagerName, connectionProperties);
+                var createFacade = sp.GetRequiredService<CreateQueueManagerFacade>();
+                return new IbmMqMessageDispatcher(
+                    LogManager.GetLogger<IbmMqMessageDispatcher>(),
+                    sendConnection,
+                    createFacade(sendConnection));
+            });
 
-        await Task.WhenAll(tasks).ConfigureAwait(false);
-
-        DisposeCore();
-    }
-
-    public void Dispose()
-    {
-        if (_disposed)
+        foreach (var rs in receiverSettings)
         {
-            return;
-        }
-
-        _disposed = true;
-
-        Log.Debug("Disposing");
-        DisposeCore();
-    }
-
-    void DisposeCore()
-    {
-        connectionPool.Dispose();
-
-        try
-        {
-            sendQueueManager.Disconnect();
-        }
-        catch (MQException ex)
-        {
-            Log.Warn("Failed to disconnect send queue manager", ex);
-        }
-
-        try
-        {
-            ((IDisposable)sendQueueManager).Dispose();
-        }
-        catch (Exception ex)
-        {
-            Log.Warn("Failed to dispose send queue manager", ex);
+            services
+                .AddKeyedSingleton<ISubscriptionManager>(rs.Id, (sp, _) =>
+                {
+                    var createFacade = sp.GetRequiredService<CreateQueueManagerFacade>();
+                    var createConnection = sp.GetRequiredService<CreateQueueManager>();
+                    return new IbmMqSubscriptionManager(
+                        LogManager.GetLogger<IbmMqSubscriptionManager>(),
+                        createFacade, createConnection, rs.ReceiveAddress.BaseAddress);
+                })
+                .AddSingleton<IMessageReceiver>(sp =>
+                {
+                    var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
+                    var subMgr = sp.GetRequiredKeyedService<ISubscriptionManager>(rs.Id);
+                    return new IbmMqMessageReceiver(
+                        LogManager.GetLogger<IbmMqMessageReceiver>(),
+                        scopeFactory, subMgr, rs);
+                });
         }
     }
-
-    IbmMqHelper CreateHelper(MQQueueManager qm) =>
-        new(Log, qm, queueNameFormatter);
-
-    MessagePumpWorker CreateWorker(string queue, OnMessage onMsg, OnError onErr, int idx) =>
-        new(messageWaitInterval, connectionPool, queue, onMsg, onErr, idx);
 }
