@@ -6,7 +6,7 @@ class MessageDispatcher(MqQueueManagerFacade sendFacade) : IMessageDispatcher
 {
     protected readonly record struct DispatchContext(MqQueueManagerFacade Facade, int PutOptions);
 
-    public Task Dispatch(TransportOperations outgoingMessages, TransportTransaction transaction, CancellationToken cancellationToken = default)
+    public virtual Task Dispatch(TransportOperations outgoingMessages, TransportTransaction transaction, CancellationToken cancellationToken = default)
     {
         var context = ResolveContext(transaction);
 
