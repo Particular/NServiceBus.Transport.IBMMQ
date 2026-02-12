@@ -15,7 +15,7 @@ public sealed class IbmMqTransport : TransportDefinition
     /// </summary>
     /// <param name="configure">Configuration object to customize</param>
     public IbmMqTransport(Action<IbmMqTransportOptions> configure)
-        : base(TransportTransactionMode.ReceiveOnly, true, true, true)
+        : base(TransportTransactionMode.ReceiveOnly, supportsDelayedDelivery: false, supportsPublishSubscribe: true, supportsTTBR: true)
     {
         ArgumentNullException.ThrowIfNull(configure);
 
@@ -28,7 +28,7 @@ public sealed class IbmMqTransport : TransportDefinition
     /// Internal constructor for creating transport with pre-configured settings
     /// </summary>
     internal IbmMqTransport(IbmMqTransportOptions options)
-        : base(TransportTransactionMode.ReceiveOnly, true, true, true)
+        : base(TransportTransactionMode.ReceiveOnly, supportsDelayedDelivery: false, supportsPublishSubscribe: true, supportsTTBR: true)
     {
         Options = options ?? throw new ArgumentNullException(nameof(options));
         new IbmMqTransportOptionsValidate().Validate(Options);
