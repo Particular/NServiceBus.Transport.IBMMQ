@@ -94,6 +94,10 @@ sealed class MessagePumpWorker(
     {
         MQQueue? queue = null;
 
+        // Log when cancellation is requested while blocked on a non-cancellable IBM MQ operation
+        var cancellationLogging = cancellationToken.Register(() =>
+            log.WarnFormat("Worker {0} cancellation requested, waiting for IBM MQ operation to complete on {1}", workerIndex, queueName));
+
         try
         {
             log.DebugFormat("Worker {0} started pumping messages from {1}", workerIndex, queueName);
@@ -255,6 +259,8 @@ sealed class MessagePumpWorker(
             {
                 ((IDisposable)queue).Dispose();
             }
+
+            await cancellationLogging.DisposeAsync().ConfigureAwait(false);
         }
     }
 
