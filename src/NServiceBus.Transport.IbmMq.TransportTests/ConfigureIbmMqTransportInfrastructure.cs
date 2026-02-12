@@ -56,7 +56,6 @@ public class ConfigureIbmMqTransportInfrastructure : IConfigureTransportInfrastr
     static string Format(string name)
     {
         name = name
-            .ToUpperInvariant()
             .Replace('-', '.');
 
         if (name.Length > 48)
