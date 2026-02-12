@@ -49,7 +49,7 @@ public sealed class IbmMqTransport : TransportDefinition
     )
     {
         var connectionConfiguration = new ConnectionConfiguration(Options);
-        FormatQueueName formatter = Options.QueueNameFormatter;
+        FormatQueueName formatter = name => IbmMqTransportInfrastructure.SanitizeMqName(Options.QueueNameFormatter(name));
 
         using var setupConnection = new MQQueueManager(Options.QueueManagerName, connectionConfiguration.ConnectionProperties);
 
