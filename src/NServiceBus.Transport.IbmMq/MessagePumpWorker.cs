@@ -4,7 +4,7 @@ using System.Collections.Concurrent;
 using Logging;
 using IBM.WMQ;
 
-sealed record MessagePumpSettings(int MessageWaitInterval, TransportTransactionMode TransactionMode);
+sealed record MessagePumpSettings(TimeSpan MessageWaitInterval, TransportTransactionMode TransactionMode);
 
 sealed class MessagePumpWorker(
     ILog log,
@@ -15,7 +15,7 @@ sealed class MessagePumpWorker(
 {
     const int ReconnectBaseDelayMs = 1000;
     const int ReconnectMaxDelayMs = 60_000;
-    readonly int messageWaitInterval = settings.MessageWaitInterval;
+    readonly int messageWaitInterval = (int)settings.MessageWaitInterval.TotalMilliseconds;
     readonly TransportTransactionMode transactionMode = settings.TransactionMode;
     readonly CancellationTokenSource stopCts = new();
     readonly CancellationTokenSource cancellationCts = new();
