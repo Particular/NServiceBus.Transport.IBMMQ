@@ -108,26 +108,57 @@ class MqQueueManagerFacade(MQQueueManager queueManager, FormatQueueName queueNam
 
     MQTopic AccessSubscription(Type eventType, string endpointName, int options)
     {
-        using var destinationQueue = AccessSendQueue(endpointName);
+        var queueName = queueNameFormatter(endpointName);
+        var subscriptionName = GenerateSubscriptionName(endpointName, eventType);
 
         int finalOptions = options
                            | MQC.MQSO_FAIL_IF_QUIESCING
                            | MQC.MQSO_DURABLE;
-        try
+
+        if (options == MQC.MQSO_CREATE)
         {
-            return queueManager.AccessTopic(
-                destinationQueue,
-                GenerateTopicString(eventType),
-                null,
-                finalOptions,
-                null,
-                endpointName
-            );
+            // For CREATE, destination queue must be opened with MQOO_OUTPUT per IBM MQ docs
+            var destinationQueue = queueManager.AccessQueue(queueName, MQC.MQOO_OUTPUT);
+            try
+            {
+                return queueManager.AccessTopic(
+                    destinationQueue,
+                    GenerateTopicString(eventType),
+                    null,
+                    finalOptions,
+                    null,
+                    subscriptionName
+                );
+            }
+            finally
+            {
+                destinationQueue.Close();
+            }
         }
-        finally
+
+        // For RESUME/other operations, no destination queue needed
+        return queueManager.AccessTopic(
+            null,
+            GenerateTopicString(eventType),
+            null,
+            finalOptions,
+            null,
+            subscriptionName
+        );
+    }
+
+    static string GenerateSubscriptionName(string endpointName, Type eventType)
+    {
+        var topicString = GenerateTopicString(eventType);
+        var name = $"{endpointName}:{topicString}";
+        if (name.Length <= 256)
         {
-            destinationQueue.Close();
+            return name;
         }
+
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(name)))[..16];
+        return $"{name[..(256 - 17)]}_{hash}";
     }
 
     static string GenerateTopicName(Type eventType)
