@@ -27,7 +27,7 @@ namespace NServiceBus.Transport.IbmMq.Tests.Configuration
                 Assert.That(options.CipherSpec, Is.Null);
                 Assert.That(options.SslPeerName, Is.Null);
                 Assert.That(options.KeyResetCount, Is.EqualTo(0));
-                Assert.That(options.MessageWaitInterval, Is.EqualTo(TimeSpan.FromSeconds(ExpectedMessageWaitInterval)));
+                Assert.That(options.MessageWaitInterval, Is.EqualTo(TimeSpan.FromMilliseconds(ExpectedMessageWaitInterval)));
                 Assert.That(options.MaxMessageLength, Is.EqualTo(4 * 1024 * 1024));
                 Assert.That(options.CharacterSet, Is.EqualTo(1208));
                 Assert.That(options.QueueNameFormatter, Is.Not.Null);
