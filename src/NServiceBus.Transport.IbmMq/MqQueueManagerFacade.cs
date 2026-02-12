@@ -3,17 +3,12 @@ namespace NServiceBus.Transport.IbmMq;
 using IBM.WMQ;
 using IBM.WMQ.PCF;
 
-class MqQueueManagerFacade(MQQueueManager queueManager, FormatQueueName queueNameFormatter, string topicPrefix)
+class MqQueueManagerFacade(MQQueueManager queueManager, SanitizeResourceName resourceNameFormatter, string topicPrefix)
 {
     public MQQueue AccessSendQueue(string name)
     {
-        name = queueNameFormatter(name);
-        if (name.Length > 48)
-        {
-            throw new ArgumentException($"Queue name '{name}' is longer than 48 characters.", nameof(name));
-        }
-
-        return queueManager.AccessQueue(name, MQC.MQOO_OUTPUT);
+        var formatted = resourceNameFormatter(name);
+        return queueManager.AccessQueue(formatted, MQC.MQOO_OUTPUT);
     }
 
     public MQTopic EnsureTopic(Type eventType)
@@ -146,7 +141,7 @@ class MqQueueManagerFacade(MQQueueManager queueManager, FormatQueueName queueNam
 
     MQTopic AccessSubscription(Type eventType, string endpointName, int options)
     {
-        var queueName = queueNameFormatter(endpointName);
+        var queueName = resourceNameFormatter(endpointName);
         var subscriptionName = GenerateSubscriptionName(topicPrefix, endpointName, eventType);
 
         int finalOptions = options
@@ -187,6 +182,7 @@ class MqQueueManagerFacade(MQQueueManager queueManager, FormatQueueName queueNam
 
     internal static string GenerateSubscriptionName(string topicPrefix, string endpointName, Type eventType)
     {
+        // https://docs.particular.net/transports/azure-service-bus/compatibility#conditions-sanitization-rules-must-be-aligned
         var topicString = GenerateTopicString(topicPrefix, eventType);
         var name = $"{endpointName}:{topicString}";
         if (name.Length <= 256)
@@ -201,6 +197,7 @@ class MqQueueManagerFacade(MQQueueManager queueManager, FormatQueueName queueNam
 
     internal static string GenerateTopicName(string topicPrefix, Type eventType)
     {
+        // https://docs.particular.net/transports/azure-service-bus/compatibility#conditions-sanitization-rules-must-be-aligned
         var fullName = (eventType.FullName ?? eventType.Name).Replace('+', '.').ToUpperInvariant();
         var name = $"{topicPrefix.ToUpperInvariant()}.{fullName}";
         if (name.Length <= 48)

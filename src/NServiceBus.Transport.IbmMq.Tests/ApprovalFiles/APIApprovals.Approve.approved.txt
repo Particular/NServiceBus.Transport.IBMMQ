@@ -1,7 +1,6 @@
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("NServiceBus.Transport.IbmMq.Tests")]
 namespace NServiceBus.Transport.IbmMq
 {
-    public delegate string FormatQueueName(string queueName);
     public sealed class IbmMqTransport : NServiceBus.Transport.TransportDefinition
     {
         public IbmMqTransport(System.Action<NServiceBus.Transport.IbmMq.IbmMqTransportOptions> configure) { }
@@ -23,10 +22,11 @@ namespace NServiceBus.Transport.IbmMq
         public string? Password { get; set; }
         public int Port { get; set; }
         public string? QueueManagerName { get; set; }
-        public NServiceBus.Transport.IbmMq.FormatQueueName QueueNameFormatter { get; set; }
+        public NServiceBus.Transport.IbmMq.SanitizeResourceName ResourceNameSanitizer { get; set; }
         public string? SslKeyRepository { get; set; }
         public string? SslPeerName { get; set; }
         public string TopicPrefix { get; set; }
         public string? User { get; set; }
     }
+    public delegate string SanitizeResourceName(string queueName);
 }

@@ -13,6 +13,6 @@ delegate MQQueueManager CreateQueueManager();
 delegate MqQueueManagerFacade CreateQueueManagerFacade(MQQueueManager queueManager);
 
 /// <summary>
-/// Formats queue names (e.g., for sanitization or transformation)
+/// Sanitizer topic and queue resource names
 /// </summary>
-public delegate string FormatQueueName(string queueName);
+public delegate string SanitizeResourceName(string queueName);
