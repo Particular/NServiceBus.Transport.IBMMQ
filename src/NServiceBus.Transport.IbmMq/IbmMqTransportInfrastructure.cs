@@ -65,7 +65,9 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         var queueManagerName = connectionConfiguration.QueueManagerName;
         var connectionProperties = connectionConfiguration.ConnectionProperties;
         var messageWaitInterval = connectionConfiguration.MessageWaitInterval;
-        FormatQueueName queueNameFormatter = options.QueueNameFormatter;
+        // IBM MQ queue names only allow A-Z, a-z, 0-9, '.', '/', '_', '%'.
+        // Wrap the user's formatter with sanitization to replace invalid characters.
+        FormatQueueName queueNameFormatter = name => SanitizeMqName(options.QueueNameFormatter(name));
 
         services
             .AddSingleton<CreateQueueManager>(() => new MQQueueManager(queueManagerName, connectionProperties))
@@ -117,4 +119,6 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
                 });
         }
     }
+
+    internal static string SanitizeMqName(string name) => name.Replace('-', '.');
 }
