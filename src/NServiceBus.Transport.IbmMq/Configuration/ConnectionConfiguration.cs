@@ -14,9 +14,12 @@ class ConnectionConfiguration
         ArgumentNullException.ThrowIfNull(options);
 
         QueueManagerName = options.QueueManagerName ?? string.Empty;
-        ConnectionProperties = BuildConnectionProperties(options);
+        ConnectionProperties = BuildConnectionProperties(options, out var applicationName);
+        ApplicationName = applicationName;
         MessageWaitInterval = options.MessageWaitInterval;
     }
+
+    public string ApplicationName { get; }
 
     public TimeSpan MessageWaitInterval { get; }
 
@@ -24,7 +27,7 @@ class ConnectionConfiguration
 
     public Hashtable ConnectionProperties { get; }
 
-    static Hashtable BuildConnectionProperties(IbmMqTransportOptions options)
+    static Hashtable BuildConnectionProperties(IbmMqTransportOptions options, out string applicationName)
     {
         var properties = new Hashtable
         {
@@ -36,8 +39,8 @@ class ConnectionConfiguration
 
         properties.Add(MQC.CONNECT_OPTIONS_PROPERTY, MQC.MQCNO_RECONNECT_DISABLED);
 
-        var appName = options.ApplicationName ?? Assembly.GetExecutingAssembly().GetName().Name ?? "NServiceBus.IbmMq";
-        properties.Add(MQC.APPNAME_PROPERTY, appName);
+        applicationName = options.ApplicationName ?? Assembly.GetExecutingAssembly().GetName().Name ?? "NServiceBus.IbmMq";
+        properties.Add(MQC.APPNAME_PROPERTY, applicationName);
 
         AddSslProperties(properties, options);
 
