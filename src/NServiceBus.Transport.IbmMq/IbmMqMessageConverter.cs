@@ -86,10 +86,12 @@ static class IbmMqMessageConverter
     {
         // Temporarily create a message using the same logic as IbmMqHelper.CreateMessage
         // but inline here since we don't have a QueueManager instance
+        var isNonDurable = outgoingTransportOperation.Message.Headers.ContainsKey(Headers.NonDurableMessage);
+
         MQMessage message = new()
         {
             MessageType = MQC.MQMT_DATAGRAM,
-            Persistence = MQC.MQPER_PERSISTENT,
+            Persistence = isNonDurable ? MQC.MQPER_NOT_PERSISTENT : MQC.MQPER_PERSISTENT,
             CharacterSet = MQC.CODESET_UTF // UTF-8
         };
 
