@@ -37,6 +37,35 @@ class MqQueueManagerFacade(MQQueueManager queueManager, FormatQueueName queueNam
         return topic;
     }
 
+    /// <summary>
+    /// Returns all event types in the type hierarchy that should be published to.
+    /// This enables polymorphic subscriptions: publishing MyEvent1 : IMyEvent publishes
+    /// to both the MyEvent1 and IMyEvent topics so interface subscribers receive the message.
+    /// </summary>
+    public static IEnumerable<Type> GetEventTypeHierarchy(Type eventType)
+    {
+        yield return eventType;
+
+        // Walk base classes (excluding object)
+        var baseType = eventType.BaseType;
+        while (baseType != null && baseType != typeof(object))
+        {
+            yield return baseType;
+            baseType = baseType.BaseType;
+        }
+
+        // Include all interfaces except NServiceBus marker interfaces
+        foreach (var iface in eventType.GetInterfaces())
+        {
+            if (iface == typeof(IEvent) || iface == typeof(IMessage))
+            {
+                continue;
+            }
+
+            yield return iface;
+        }
+    }
+
     MQTopic AccessTopic(string topicName) =>
         queueManager.AccessTopic(
             null,
