@@ -15,7 +15,7 @@ sealed class IbmMqMessageReceiver(
 {
 
     readonly List<(AsyncServiceScope Scope, MessagePumpWorker Worker)> workers = [];
-    readonly string formattedReceiveAddress = queueNameFormatter(receiveSettings.ReceiveAddress.BaseAddress);
+    readonly string formattedReceiveAddress = queueNameFormatter(ToTransportAddress(receiveSettings.ReceiveAddress));
 
     // Shared across all workers to coordinate SendsAtomicWithReceive error handling
     readonly ConcurrentDictionary<string, (Exception Exception, Extensibility.ContextBag ContextBag)>? failedMessages =
@@ -30,7 +30,7 @@ sealed class IbmMqMessageReceiver(
 
     public string Id => receiveSettings.Id;
 
-    public string ReceiveAddress => receiveSettings.ReceiveAddress.BaseAddress;
+    public string ReceiveAddress => ToTransportAddress(receiveSettings.ReceiveAddress);
 
     public async Task ChangeConcurrency(PushRuntimeSettings limitations, CancellationToken cancellationToken = default)
     {
@@ -177,5 +177,21 @@ sealed class IbmMqMessageReceiver(
     {
         await entry.Worker.StopAsync(cancellationToken).ConfigureAwait(false);
         await entry.Scope.DisposeAsync().ConfigureAwait(false);
+    }
+
+    internal static string ToTransportAddress(QueueAddress address)
+    {
+        var queue = address.BaseAddress;
+        if (!string.IsNullOrEmpty(address.Discriminator))
+        {
+            queue += "." + address.Discriminator;
+        }
+
+        if (!string.IsNullOrEmpty(address.Qualifier))
+        {
+            queue += "." + address.Qualifier;
+        }
+
+        return queue;
     }
 }
