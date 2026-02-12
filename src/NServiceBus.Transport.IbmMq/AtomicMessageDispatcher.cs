@@ -13,7 +13,7 @@ sealed class AtomicMessageDispatcher(MqQueueManagerFacade sendFacade, CreateQueu
         }
 
         var atomicContext = new DispatchContext(createFacade(receiveConnection), MQC.MQPMO_FAIL_IF_QUIESCING | MQC.MQPMO_SYNCPOINT);
-        var isolatedContext = base.ResolveContext(transaction);
+        var isolatedContext = ResolveContext(transaction);
 
         Dictionary<string, MQQueue>? atomicQueues = null;
         Dictionary<string, MQQueue>? isolatedQueues = null;
