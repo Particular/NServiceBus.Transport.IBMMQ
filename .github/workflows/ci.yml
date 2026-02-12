@@ -13,7 +13,7 @@ defaults:
     shell: pwsh
 jobs:
   build:
-    name: Build
+    name: Linux
     runs-on: ubuntu-latest
     services:
       ibm-mq:
