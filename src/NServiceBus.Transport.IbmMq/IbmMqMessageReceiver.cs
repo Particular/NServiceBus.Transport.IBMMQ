@@ -1,5 +1,6 @@
 namespace NServiceBus.Transport.IbmMq;
 
+using System.Collections.Concurrent;
 using Logging;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -7,11 +8,24 @@ sealed class IbmMqMessageReceiver(
     ILog log,
     IServiceScopeFactory scopeFactory,
     ISubscriptionManager subscriptions,
-    ReceiveSettings receiveSettings
+    ReceiveSettings receiveSettings,
+    MessagePumpSettings pumpSettings,
+    FormatQueueName queueNameFormatter
 ) : IMessageReceiver, IAsyncDisposable
 {
 
     readonly List<(AsyncServiceScope Scope, MessagePumpWorker Worker)> workers = [];
+    readonly string formattedReceiveAddress = queueNameFormatter(ToTransportAddress(receiveSettings.ReceiveAddress));
+
+    // Shared across all workers to coordinate SendsAtomicWithReceive error handling
+    readonly ConcurrentDictionary<string, (Exception Exception, Extensibility.ContextBag ContextBag)>? failedMessages =
+        pumpSettings.TransactionMode == TransportTransactionMode.SendsAtomicWithReceive
+            ? new() : null;
+
+    // Shared across all workers to track per-message failure counts for ReceiveOnly/None modes
+    readonly ConcurrentDictionary<string, int>? failureCounts =
+        pumpSettings.TransactionMode != TransportTransactionMode.SendsAtomicWithReceive
+            ? new() : null;
 
     int concurrency;
     OnMessage? onMessage;
@@ -21,7 +35,7 @@ sealed class IbmMqMessageReceiver(
 
     public string Id => receiveSettings.Id;
 
-    public string ReceiveAddress => receiveSettings.ReceiveAddress.BaseAddress;
+    public string ReceiveAddress => ToTransportAddress(receiveSettings.ReceiveAddress);
 
     public async Task ChangeConcurrency(PushRuntimeSettings limitations, CancellationToken cancellationToken = default)
     {
@@ -116,7 +130,7 @@ sealed class IbmMqMessageReceiver(
     {
         log.DebugFormat("Stopping {0} workers for {1}", workers.Count, ReceiveAddress);
 
-        await receiveLock.WaitAsync(cancellationToken)
+        await receiveLock.WaitAsync(CancellationToken.None)
             .ConfigureAwait(false);
 
         try
@@ -158,7 +172,7 @@ sealed class IbmMqMessageReceiver(
     {
         var scope = scopeFactory.CreateAsyncScope();
         var worker = scope.ServiceProvider.GetRequiredService<MessagePumpWorker>();
-        worker.Initialize(ReceiveAddress, onMessage!, onError!, index);
+        worker.Initialize(formattedReceiveAddress, onMessage!, onError!, index, failedMessages, failureCounts);
         return (scope, worker);
     }
 
@@ -168,5 +182,21 @@ sealed class IbmMqMessageReceiver(
     {
         await entry.Worker.StopAsync(cancellationToken).ConfigureAwait(false);
         await entry.Scope.DisposeAsync().ConfigureAwait(false);
+    }
+
+    internal static string ToTransportAddress(QueueAddress address)
+    {
+        var queue = address.BaseAddress;
+        if (!string.IsNullOrEmpty(address.Discriminator))
+        {
+            queue += "." + address.Discriminator;
+        }
+
+        if (!string.IsNullOrEmpty(address.Qualifier))
+        {
+            queue += "." + address.Qualifier;
+        }
+
+        return queue;
     }
 }

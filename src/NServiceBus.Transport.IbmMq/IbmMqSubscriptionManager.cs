@@ -31,7 +31,12 @@ sealed class IbmMqSubscriptionManager(
 
     public Task Unsubscribe(MessageMetadata eventType, ContextBag context, CancellationToken cancellationToken = default)
     {
-        // TODO
-        throw new NotImplementedException();
+        log.DebugFormat("Unsubscribing from {0} => {1}", eventType.MessageType, receiveAddress);
+        using var connection = createConnection();
+        var helper = createFacade(connection);
+        helper.RemoveSubscription(eventType.MessageType, receiveAddress);
+        connection.Disconnect();
+
+        return Task.CompletedTask;
     }
 }
