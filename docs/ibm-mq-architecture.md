@@ -233,6 +233,41 @@ For this reason NSB Headers need to be escaped on send/publish and unescaped whe
 **Key Takeaway**: MQMD is for MQ infrastructure; MQRFH2 is for your application. NServiceBus headers should go in MQRFH2.
 
 
+### Message Persistence (Non-Durable / Express Messages)
+
+The `Persistence` field in the MQMD controls whether a message survives a queue manager restart:
+
+| Constant | Value | Meaning |
+|----------|-------|---------|
+| `MQPER_PERSISTENT` | 1 | Written to disk/log, survives queue manager restart |
+| `MQPER_NOT_PERSISTENT` | 0 | Kept in memory only, lost on queue manager restart |
+| `MQPER_PERSISTENCE_AS_Q_DEF` | 2 | Inherits from queue's `DEFPSIST` attribute |
+
+NServiceBus signals non-durable (express) messages via the `Headers.NonDurableMessage` header. When present, the transport sets `MQPER_NOT_PERSISTENT` on the outgoing MQ message.
+
+#### IBM MQ vs MSMQ
+
+In MSMQ, queues are either **transactional** or **non-transactional**, and express messages can only be sent to non-transactional queues — the two concepts are coupled.
+
+IBM MQ separates these concerns:
+
+- **Persistence** is a per-message attribute on the MQMD
+- **Syncpoint** (transactions) is a per-operation flag on the PUT/GET options (`MQPMO_SYNCPOINT` / `MQGMO_SYNCPOINT`)
+
+Any queue accepts both persistent and non-persistent messages. Any PUT/GET can be inside or outside syncpoint. The two are orthogonal.
+
+#### Behavior with Transactions
+
+A non-persistent message put under syncpoint is held uncommitted in memory until `Commit()`. After commit, it is available to consumers but remains in memory only.
+
+| Scenario | Outcome |
+|----------|---------|
+| Application crash before commit | Transaction rolls back, message discarded (never committed) |
+| Application crash after commit | Message stays on queue (queue manager still running) |
+| Queue manager restart after commit | **Message lost** — it was never written to disk |
+
+This matches the NServiceBus `NonDurableMessage` contract: transactional guarantees apply for application-level failures, but the message is not guaranteed to survive infrastructure-level failures.
+
 ### MQMT_Datagram
 **MQMT_DATAGRAM** sets the message type to indicate it's a one-way message that doesn't expect a reply.
 
