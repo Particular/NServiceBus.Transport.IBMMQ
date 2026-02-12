@@ -97,7 +97,24 @@ class MqQueueManagerFacade(MQQueueManager queueManager, FormatQueueName queueNam
         }
     }
 
-    static string GenerateTopicName(Type eventType) => $"DEV.{eventType.Name.ToUpperInvariant()}";
+    static string GenerateTopicName(Type eventType)
+    {
+        var fullName = (eventType.FullName ?? eventType.Name).Replace('+', '.').ToUpperInvariant();
+        var name = $"DEV.{fullName}";
+        if (name.Length <= 48)
+        {
+            return name;
+        }
 
-    static string GenerateTopicString(Type eventType) => $"dev/{eventType.Name.ToLowerInvariant()}/";
+        // Hash-based truncation for names exceeding 48 chars
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(name)))[..8];
+        return $"{name[..(48 - 9)]}_{hash}";
+    }
+
+    static string GenerateTopicString(Type eventType)
+    {
+        var fullName = (eventType.FullName ?? eventType.Name).Replace('+', '/').ToLowerInvariant();
+        return $"dev/{fullName}/";
+    }
 }
