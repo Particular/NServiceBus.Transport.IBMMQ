@@ -19,7 +19,7 @@ namespace NServiceBus.Transport.IbmMq
         public string? Host { get; set; }
         public int KeyResetCount { get; set; }
         public int MaxMessageLength { get; set; }
-        public int MessageWaitInterval { get; set; }
+        public System.TimeSpan MessageWaitInterval { get; set; }
         public string? Password { get; set; }
         public int Port { get; set; }
         public string? QueueManagerName { get; set; }
