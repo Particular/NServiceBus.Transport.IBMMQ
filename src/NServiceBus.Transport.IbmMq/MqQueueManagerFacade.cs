@@ -55,6 +55,10 @@ class MqQueueManagerFacade(MQQueueManager queueManager, FormatQueueName queueNam
             command.AddParameter(MQC.MQCA_TOPIC_STRING, topicString); // The actual topic string used by publishers/subscribers
             agent.Send(command);
         }
+        catch (PCFException e) when (e.ReasonCode == MQC.MQRCCF_OBJECT_ALREADY_EXISTS)
+        {
+            // Topic already exists, nothing to do
+        }
         finally
         {
             agent.Disconnect();
