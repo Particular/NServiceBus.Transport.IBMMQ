@@ -3,7 +3,7 @@ namespace NServiceBus.Transport.IbmMq;
 using IBM.WMQ;
 using IBM.WMQ.PCF;
 
-class MqQueueManagerFacade(MQQueueManager queueManager, FormatQueueName queueNameFormatter)
+class MqQueueManagerFacade(MQQueueManager queueManager, FormatQueueName queueNameFormatter, string topicPrefix)
 {
     public MQQueue AccessSendQueue(string name)
     {
@@ -18,8 +18,8 @@ class MqQueueManagerFacade(MQQueueManager queueManager, FormatQueueName queueNam
 
     public MQTopic EnsureTopic(Type eventType)
     {
-        var topicName = GenerateTopicName(eventType);
-        var topicString = GenerateTopicString(eventType);
+        var topicName = GenerateTopicName(topicPrefix, eventType);
+        var topicString = GenerateTopicString(topicPrefix, eventType);
 
         MQTopic topic;
 
@@ -29,7 +29,17 @@ class MqQueueManagerFacade(MQQueueManager queueManager, FormatQueueName queueNam
         }
         catch (MQException ex) when (ex.ReasonCode == MQC.MQRC_UNKNOWN_OBJECT_NAME)
         {
-            CreateTopic(topicName, topicString);
+            try
+            {
+                CreateTopic(topicName, topicString);
+            }
+            catch (MQException createEx) when (createEx.ReasonCode == MQC.MQRC_NOT_AUTHORIZED)
+            {
+                throw new InvalidOperationException(
+                    $"Topic '{topicName}' does not exist and the current user is not authorized to create it. " +
+                    "Pre-create topics by running the endpoint with EnableInstallers using an account with administrative permissions, " +
+                    "or have an MQ administrator create the topic.", createEx);
+            }
 
             topic = AccessTopic(topicName);
         }
@@ -108,7 +118,7 @@ class MqQueueManagerFacade(MQQueueManager queueManager, FormatQueueName queueNam
 
     public void RemoveSubscription(Type eventType, string endpointName)
     {
-        var subscriptionName = GenerateSubscriptionName(endpointName, eventType);
+        var subscriptionName = GenerateSubscriptionName(topicPrefix, endpointName, eventType);
 
         var agent = new PCFMessageAgent(queueManager);
         try
@@ -121,6 +131,13 @@ class MqQueueManagerFacade(MQQueueManager queueManager, FormatQueueName queueNam
         {
             // Subscription doesn't exist, nothing to remove
         }
+        catch (MQException e) when (e.ReasonCode == MQC.MQRC_NOT_AUTHORIZED)
+        {
+            throw new InvalidOperationException(
+                $"Not authorized to delete subscription '{subscriptionName}'. " +
+                "Unsubscribe requires administrative permissions. " +
+                "Have an MQ administrator remove the subscription.", e);
+        }
         finally
         {
             agent.Disconnect();
@@ -130,7 +147,7 @@ class MqQueueManagerFacade(MQQueueManager queueManager, FormatQueueName queueNam
     MQTopic AccessSubscription(Type eventType, string endpointName, int options)
     {
         var queueName = queueNameFormatter(endpointName);
-        var subscriptionName = GenerateSubscriptionName(endpointName, eventType);
+        var subscriptionName = GenerateSubscriptionName(topicPrefix, endpointName, eventType);
 
         int finalOptions = options
                            | MQC.MQSO_FAIL_IF_QUIESCING
@@ -144,7 +161,7 @@ class MqQueueManagerFacade(MQQueueManager queueManager, FormatQueueName queueNam
             {
                 return queueManager.AccessTopic(
                     destinationQueue,
-                    GenerateTopicString(eventType),
+                    GenerateTopicString(topicPrefix, eventType),
                     null,
                     finalOptions,
                     null,
@@ -160,7 +177,7 @@ class MqQueueManagerFacade(MQQueueManager queueManager, FormatQueueName queueNam
         // For RESUME/other operations, no destination queue needed
         return queueManager.AccessTopic(
             null,
-            GenerateTopicString(eventType),
+            GenerateTopicString(topicPrefix, eventType),
             null,
             finalOptions,
             null,
@@ -168,9 +185,9 @@ class MqQueueManagerFacade(MQQueueManager queueManager, FormatQueueName queueNam
         );
     }
 
-    static string GenerateSubscriptionName(string endpointName, Type eventType)
+    internal static string GenerateSubscriptionName(string topicPrefix, string endpointName, Type eventType)
     {
-        var topicString = GenerateTopicString(eventType);
+        var topicString = GenerateTopicString(topicPrefix, eventType);
         var name = $"{endpointName}:{topicString}";
         if (name.Length <= 256)
         {
@@ -182,10 +199,10 @@ class MqQueueManagerFacade(MQQueueManager queueManager, FormatQueueName queueNam
         return $"{name[..(256 - 17)]}_{hash}";
     }
 
-    static string GenerateTopicName(Type eventType)
+    internal static string GenerateTopicName(string topicPrefix, Type eventType)
     {
         var fullName = (eventType.FullName ?? eventType.Name).Replace('+', '.').ToUpperInvariant();
-        var name = $"DEV.{fullName}";
+        var name = $"{topicPrefix.ToUpperInvariant()}.{fullName}";
         if (name.Length <= 48)
         {
             return name;
@@ -197,9 +214,9 @@ class MqQueueManagerFacade(MQQueueManager queueManager, FormatQueueName queueNam
         return $"{name[..(48 - 9)]}_{hash}";
     }
 
-    static string GenerateTopicString(Type eventType)
+    internal static string GenerateTopicString(string topicPrefix, Type eventType)
     {
         var fullName = (eventType.FullName ?? eventType.Name).Replace('+', '/').ToLowerInvariant();
-        return $"dev/{fullName}/";
+        return $"{topicPrefix.ToLowerInvariant()}/{fullName}/";
     }
 }
