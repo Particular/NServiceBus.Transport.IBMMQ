@@ -109,9 +109,10 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
                 {
                     var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
                     var subMgr = sp.GetRequiredKeyedService<ISubscriptionManager>(rs.Id);
+                    var pSettings = sp.GetRequiredService<MessagePumpSettings>();
                     return new IbmMqMessageReceiver(
                         LogManager.GetLogger<IbmMqMessageReceiver>(),
-                        scopeFactory, subMgr, rs);
+                        scopeFactory, subMgr, rs, pSettings, queueNameFormatter);
                 });
         }
     }

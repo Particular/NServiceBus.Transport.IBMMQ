@@ -1,5 +1,6 @@
 namespace NServiceBus.Transport.IbmMq;
 
+using System.Collections.Concurrent;
 using Logging;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -7,11 +8,19 @@ sealed class IbmMqMessageReceiver(
     ILog log,
     IServiceScopeFactory scopeFactory,
     ISubscriptionManager subscriptions,
-    ReceiveSettings receiveSettings
+    ReceiveSettings receiveSettings,
+    MessagePumpSettings pumpSettings,
+    FormatQueueName queueNameFormatter
 ) : IMessageReceiver, IAsyncDisposable
 {
 
     readonly List<(AsyncServiceScope Scope, MessagePumpWorker Worker)> workers = [];
+    readonly string formattedReceiveAddress = queueNameFormatter(receiveSettings.ReceiveAddress.BaseAddress);
+
+    // Shared across all workers to coordinate SendsAtomicWithReceive error handling
+    readonly ConcurrentDictionary<string, (Exception Exception, Extensibility.ContextBag ContextBag)>? failedMessages =
+        pumpSettings.TransactionMode == TransportTransactionMode.SendsAtomicWithReceive
+            ? new() : null;
 
     int concurrency;
     OnMessage? onMessage;
@@ -158,7 +167,7 @@ sealed class IbmMqMessageReceiver(
     {
         var scope = scopeFactory.CreateAsyncScope();
         var worker = scope.ServiceProvider.GetRequiredService<MessagePumpWorker>();
-        worker.Initialize(ReceiveAddress, onMessage!, onError!, index);
+        worker.Initialize(formattedReceiveAddress, onMessage!, onError!, index, failedMessages);
         return (scope, worker);
     }
 
