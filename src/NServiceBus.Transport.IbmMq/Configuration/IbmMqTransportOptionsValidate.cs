@@ -21,9 +21,9 @@ class IbmMqTransportOptionsValidate
 
         ValidateTopicPrefix(options);
 
-        if (options.QueueNameFormatter == null)
+        if (options.ResourceNameSanitizer == null)
         {
-            throw new ArgumentException("QueueNameFormatter must be assigned", nameof(options.QueueNameFormatter));
+            throw new ArgumentException("QueueNameFormatter must be assigned", nameof(options.ResourceNameSanitizer));
         }
     }
 

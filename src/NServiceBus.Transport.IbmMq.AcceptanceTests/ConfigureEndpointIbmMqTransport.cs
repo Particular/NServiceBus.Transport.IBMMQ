@@ -36,7 +36,7 @@ public class ConfigureEndpointIbmMqTransport : IConfigureEndpointTestExecution
                 s.User = parts[1];
                 s.Password = parts[2];
                 s.MessageWaitInterval = TimeSpan.FromMilliseconds(100);
-                s.QueueNameFormatter = Format;
+                s.ResourceNameSanitizer = Sanitize;
             }
         );
 
@@ -47,11 +47,11 @@ public class ConfigureEndpointIbmMqTransport : IConfigureEndpointTestExecution
 
     Task IConfigureEndpointTestExecution.Cleanup()
     {
-        PurgeQueue(Format(endpointName));
+        PurgeQueue(Sanitize(endpointName));
         return Task.CompletedTask;
     }
 
-    static string Format(string name)
+    static string Sanitize(string name)
     {
         name = name
             .Replace('-', '.');

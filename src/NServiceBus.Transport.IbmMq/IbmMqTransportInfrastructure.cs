@@ -65,7 +65,7 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         var queueManagerName = connectionConfiguration.QueueManagerName;
         var connectionProperties = connectionConfiguration.ConnectionProperties;
         var messageWaitInterval = connectionConfiguration.MessageWaitInterval;
-        FormatQueueName queueNameFormatter = options.QueueNameFormatter;
+        SanitizeResourceName resourceNameFormatter = options.ResourceNameSanitizer;
 
         services
             .AddSingleton<CreateQueueManager>(() => new MQQueueManager(queueManagerName, connectionProperties))
@@ -77,7 +77,7 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
                 criticalError
             ))
             .AddSingleton<CreateQueueManagerFacade>(qm =>
-                new MqQueueManagerFacade(qm, queueNameFormatter, options.TopicPrefix))
+                new MqQueueManagerFacade(qm, resourceNameFormatter, options.TopicPrefix))
             .AddSingleton(new MQQueueManager(queueManagerName, connectionProperties))
             .AddSingleton<IMessageDispatcher>(sp =>
             {
@@ -113,7 +113,7 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
                     var pSettings = sp.GetRequiredService<MessagePumpSettings>();
                     return new IbmMqMessageReceiver(
                         LogManager.GetLogger<IbmMqMessageReceiver>(),
-                        scopeFactory, subMgr, rs, pSettings, queueNameFormatter);
+                        scopeFactory, subMgr, rs, pSettings, resourceNameFormatter);
                 });
         }
     }
