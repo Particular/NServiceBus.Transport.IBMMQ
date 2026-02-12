@@ -40,6 +40,11 @@ jobs:
         uses: actions/setup-dotnet@v5.1.0
         with:
           dotnet-version: 10.0.x
+      - name: Setup least-privilege test user
+        shell: bash
+        run: |
+          CONTAINER=$(docker ps -q --filter "ancestor=icr.io/ibm-messaging/mq:latest" | head -1)
+          extra/setup-leastpriv-tests.sh docker "$CONTAINER"
       - name: Build
         run: dotnet build src/NServiceBus.Transport.IbmMq.slnx --configuration Release
       - name: Run tests
