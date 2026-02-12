@@ -91,7 +91,7 @@ class IbmMqTransportOptionsValidate
 
     void ValidateMessageProcessing(IbmMqTransportOptions options)
     {
-        if (options.MessageWaitInterval is < 100 or > 30000)
+        if (options.MessageWaitInterval.TotalMilliseconds is < 100 or > 30000)
         {
             throw new ArgumentException(
                 "MessageWaitInterval must be between 100 and 30000 milliseconds",
