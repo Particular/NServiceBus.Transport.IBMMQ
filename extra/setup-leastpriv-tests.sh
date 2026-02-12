@@ -57,8 +57,8 @@ echo "Using $RUNTIME with container: $CONTAINER"
 
 # --- Create the testapp OS user ---
 echo "Creating testapp OS user..."
-$RUNTIME exec "$CONTAINER" bash -c 'id testapp 2>/dev/null || useradd testapp'
-$RUNTIME exec "$CONTAINER" bash -c 'echo "testapp:testpass1" | chpasswd'
+$RUNTIME exec -u root "$CONTAINER" bash -c 'id testapp 2>/dev/null || useradd testapp'
+$RUNTIME exec -u root "$CONTAINER" bash -c 'echo "testapp:testpass1" | chpasswd'
 
 # --- Create test infrastructure as admin and grant app-level permissions ---
 echo "Creating test infrastructure and granting permissions..."
