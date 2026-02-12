@@ -1,19 +1,22 @@
 namespace NServiceBus.Transport.IbmMq;
 
+using System.Collections.Concurrent;
 using Logging;
 using IBM.WMQ;
 
-sealed record MessagePumpSettings(TimeSpan MessageWaitInterval);
+sealed record MessagePumpSettings(TimeSpan MessageWaitInterval, TransportTransactionMode TransactionMode);
 
 sealed class MessagePumpWorker(
     ILog log,
     MessagePumpSettings settings,
-    CreateQueueManager createConnection
+    CreateQueueManager createConnection,
+    Action<string, Exception, CancellationToken> criticalError
 ) : IAsyncDisposable
 {
     const int ReconnectBaseDelayMs = 1000;
     const int ReconnectMaxDelayMs = 60_000;
     readonly int messageWaitInterval = (int)settings.MessageWaitInterval.TotalMilliseconds;
+    readonly TransportTransactionMode transactionMode = settings.TransactionMode;
     readonly CancellationTokenSource stopCts = new();
     readonly CancellationTokenSource cancellationCts = new();
     MQQueueManager? _connection = createConnection();
@@ -24,12 +27,25 @@ sealed class MessagePumpWorker(
     OnError onError = null!;
     int workerIndex;
 
-    public void Initialize(string queueName, OnMessage onMessage, OnError onError, int workerIndex)
+    // Shared across all workers for the same receiver to track failed messages
+    // for SendsAtomicWithReceive error handling
+    ConcurrentDictionary<string, (Exception Exception, Extensibility.ContextBag ContextBag)>? failedMessages;
+
+    // Shared across all workers to track per-message failure counts for ReceiveOnly/None modes.
+    // Mirrors MSMQ transport's MsmqFailureInfoStorage pattern.
+    ConcurrentDictionary<string, int>? failureCounts;
+
+    public void Initialize(
+        string queueName, OnMessage onMessage, OnError onError, int workerIndex,
+        ConcurrentDictionary<string, (Exception Exception, Extensibility.ContextBag ContextBag)>? failedMessages = null,
+        ConcurrentDictionary<string, int>? failureCounts = null)
     {
         this.queueName = queueName;
         this.onMessage = onMessage;
         this.onError = onError;
         this.workerIndex = workerIndex;
+        this.failedMessages = failedMessages;
+        this.failureCounts = failureCounts;
     }
 
     public void Start()
@@ -84,16 +100,26 @@ sealed class MessagePumpWorker(
     {
         MQQueue? queue = null;
 
+        // Log when cancellation is requested while blocked on a non-cancellable IBM MQ operation
+        var cancellationLogging = cancellationToken.Register(() =>
+            log.WarnFormat("Worker {0} cancellation requested, waiting for IBM MQ operation to complete on {1}", workerIndex, queueName));
+
         try
         {
             log.DebugFormat("Worker {0} started pumping messages from {1}", workerIndex, queueName);
 
+            var getOptionsFlags = MQC.MQGMO_WAIT
+                                 | MQC.MQGMO_FAIL_IF_QUIESCING
+                                 | MQC.MQGMO_PROPERTIES_IN_HANDLE;
+
+            if (transactionMode != TransportTransactionMode.None)
+            {
+                getOptionsFlags |= MQC.MQGMO_SYNCPOINT;
+            }
+
             MQGetMessageOptions getOptions = new()
             {
-                Options = MQC.MQGMO_WAIT
-                          | MQC.MQGMO_SYNCPOINT
-                          | MQC.MQGMO_FAIL_IF_QUIESCING
-                          | MQC.MQGMO_PROPERTIES_IN_HANDLE,
+                Options = getOptionsFlags,
                 WaitInterval = messageWaitInterval
             };
 
@@ -102,6 +128,8 @@ sealed class MessagePumpWorker(
             while (!stopCts.IsCancellationRequested)
             {
                 MQMessage receivedMessage = new();
+
+                var transportTransaction = new TransportTransaction();
 
                 try
                 {
@@ -118,29 +146,56 @@ sealed class MessagePumpWorker(
                     Dictionary<string, string> messageHeaders = [];
                     Dictionary<string, string> originalHeaders = [];
 
-                    // TODO: Compare with other transports if ContextBag is shared once between MessageContext and ErrorContext
                     var contextBag = new Extensibility.ContextBag();
 
                     try
                     {
                         queue.Get(receivedMessage, getOptions);
                         messageBody = IbmMqMessageConverter.FromNative(receivedMessage, messageHeaders, ref messageId);
-                        originalHeaders = new Dictionary<string, string>(messageHeaders); // Snapshot headers before onMessage, which may mutate the dictionary
+                        originalHeaders = new Dictionary<string, string>(messageHeaders);
 
                         log.DebugFormat("Worker {0} received message {1}", workerIndex, messageId);
+
+                        // For SendsAtomicWithReceive, check if this message previously failed
+                        // and needs error handling instead of reprocessing
+                        if (transactionMode == TransportTransactionMode.SendsAtomicWithReceive
+                            && failedMessages != null
+                            && failedMessages.TryRemove(messageId, out var failedEntry))
+                        {
+                            log.DebugFormat("Worker {0} handling previously failed message {1}", workerIndex, messageId);
+
+                            int failures = (receivedMessage.BackoutCount + 1) / 2;
+                            await HandleSendsAtomicWithReceiveOnError(
+                                failedEntry.Exception, originalHeaders, messageId, messageBody,
+                                failures, failedEntry.ContextBag, cancellationToken
+                            ).ConfigureAwait(false);
+
+                            reconnectAttempt = 0;
+                            continue;
+                        }
+
+                        if (transactionMode == TransportTransactionMode.SendsAtomicWithReceive)
+                        {
+                            transportTransaction.Set(_connection);
+                        }
 
                         var messageContext = new MessageContext(
                             messageId,
                             messageHeaders,
                             messageBody,
-                            new TransportTransaction(),
+                            transportTransaction,
                             queueName,
                             contextBag
                         );
 
                         await onMessage(messageContext, cancellationToken).ConfigureAwait(false);
 
-                        _connection.Commit();
+                        if (transactionMode != TransportTransactionMode.None)
+                        {
+                            _connection.Commit();
+                        }
+
+                        failureCounts?.TryRemove(messageId, out _);
                         reconnectAttempt = 0;
                     }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -151,47 +206,30 @@ sealed class MessagePumpWorker(
                     {
                         log.DebugFormat("Worker {0} error processing message from {1}\n{2}", workerIndex, queueName, ex);
 
-                        var errorContext = new ErrorContext(
-                            ex,
-                            originalHeaders,
-                            messageId,
-                            messageBody,
-                            new TransportTransaction(),
-                            receivedMessage.BackoutCount + 1,
-                            queueName,
-                            contextBag
-                        );
-
-                        try
+                        if (transactionMode == TransportTransactionMode.SendsAtomicWithReceive
+                            && failedMessages != null)
                         {
-                            var result = await onError.Invoke(errorContext, cancellationToken).ConfigureAwait(false);
-
-                            if (result is ErrorHandleResult.RetryRequired)
-                            {
-                                _connection.Backout();
-                            }
-                            else
-                            {
-                                _connection.Commit();
-                            }
-                        }
-                        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-                        {
-                            throw;
-                        }
-                        catch (Exception onErrorEx)
-                        {
-                            log.DebugFormat("Worker {0} exception in error handling path: {1}", workerIndex, onErrorEx);
+                            // Store the exception and context for when the message is re-delivered after backout.
+                            // Backout rolls back both the receive and any sends from onMessage.
+                            // Failure count is derived from BackoutCount on re-delivery.
+                            failedMessages[messageId] = (ex, contextBag);
                             _connection.Backout();
+                        }
+                        else
+                        {
+                            await HandleReceiveOnlyError(
+                                ex, originalHeaders, messageId, messageBody,
+                                transportTransaction, contextBag, cancellationToken
+                            ).ConfigureAwait(false);
                         }
                     }
                 }
                 catch (MQException ex) when (ex.ReasonCode == MQC.MQRC_NO_MSG_AVAILABLE)
                 {
-                    log.Debug("MQRC_NO_MSG_AVAILABLE");
+                    //log.Debug("MQRC_NO_MSG_AVAILABLE");
                     await Task.Yield();
                 }
-                catch (MQException ex) // when (ex.ReasonCode is MQC.MQRC_CONNECTION_BROKEN or MQC.MQRC_Q_MGR_NOT_AVAILABLE)
+                catch (MQException ex)
                 {
                     log.ErrorFormat("Worker {0} MQ error processing message from {1} - Reason: {2}, CompCode: {3}, Message: {4}", workerIndex, queueName, ex.Reason, ex.CompCode, ex.Message);
 
@@ -220,7 +258,6 @@ sealed class MessagePumpWorker(
         catch (Exception e)
         {
             log.Fatal("Message pump worker failure", e);
-            // TODO: Signal critical error
             throw;
         }
         finally
@@ -228,6 +265,108 @@ sealed class MessagePumpWorker(
             if (queue != null)
             {
                 ((IDisposable)queue).Dispose();
+            }
+
+            await cancellationLogging.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    async Task HandleSendsAtomicWithReceiveOnError(
+        Exception ex, Dictionary<string, string> originalHeaders,
+        string messageId, byte[] messageBody,
+        int failures, Extensibility.ContextBag contextBag,
+        CancellationToken cancellationToken)
+    {
+        // Use a clean transport transaction (no MQQueueManager) so any sends
+        // from onError go through the independent send connection
+        var errorTransaction = new TransportTransaction();
+
+        var errorContext = new ErrorContext(
+            ex,
+            originalHeaders,
+            messageId,
+            messageBody,
+            errorTransaction,
+            failures,
+            queueName,
+            contextBag
+        );
+
+        try
+        {
+            var result = await onError.Invoke(errorContext, cancellationToken).ConfigureAwait(false);
+
+            if (result is ErrorHandleResult.RetryRequired)
+            {
+                _connection!.Backout();
+            }
+            else
+            {
+                _connection!.Commit();
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception onErrorEx)
+        {
+            criticalError($"Failed to execute recoverability policy for message with native ID: `{messageId}`", onErrorEx, cancellationToken);
+            _connection!.Backout();
+        }
+    }
+
+    async Task HandleReceiveOnlyError(
+        Exception ex, Dictionary<string, string> originalHeaders,
+        string messageId, byte[] messageBody,
+        TransportTransaction transportTransaction,
+        Extensibility.ContextBag contextBag, CancellationToken cancellationToken)
+    {
+        int failures = failureCounts?.AddOrUpdate(messageId, 1, (_, count) => count + 1) ?? 1;
+
+        var errorContext = new ErrorContext(
+            ex,
+            originalHeaders,
+            messageId,
+            messageBody,
+            transportTransaction,
+            failures,
+            queueName,
+            contextBag
+        );
+
+        try
+        {
+            var result = await onError.Invoke(errorContext, cancellationToken).ConfigureAwait(false);
+
+            if (transactionMode == TransportTransactionMode.ReceiveOnly)
+            {
+                if (result is ErrorHandleResult.RetryRequired)
+                {
+                    _connection!.Backout();
+                }
+                else
+                {
+                    failureCounts?.TryRemove(messageId, out _);
+                    _connection!.Commit();
+                }
+            }
+            else
+            {
+                failureCounts?.TryRemove(messageId, out _);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception onErrorEx)
+        {
+            criticalError($"Failed to execute recoverability policy for message with native ID: `{messageId}`", onErrorEx, cancellationToken);
+
+            if (transactionMode == TransportTransactionMode.ReceiveOnly)
+            {
+                _connection!.Backout();
             }
         }
     }

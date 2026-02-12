@@ -82,7 +82,7 @@ static class IbmMqMessageConverter
     // - Proper property name escaping for all special characters
     // Note: IbmMqHelper needs a QueueManager, but we only use static methods for message creation
     // This is a temporary adapter until we can refactor to pass the QueueManager
-    public static MQMessage ToNative(OutgoingMessage outgoingMessage)
+    public static MQMessage ToNative(IOutgoingTransportOperation outgoingTransportOperation)
     {
         // Temporarily create a message using the same logic as IbmMqHelper.CreateMessage
         // but inline here since we don't have a QueueManager instance
@@ -93,13 +93,17 @@ static class IbmMqMessageConverter
             CharacterSet = MQC.CODESET_UTF // UTF-8
         };
 
-        SetExpiry(outgoingMessage, message);
+        var outgoingMessage = outgoingTransportOperation.Message;
+        SetExpiry(outgoingTransportOperation, message);
         SetReplyToQueueName(outgoingMessage, message);
         SetMessageId(outgoingMessage, message);
         SetCorrelationId(outgoingMessage, message);
 
         // Use IbmMqHelper's property setting logic (includes empty header manifests)
-        var pd = new MQPropertyDescriptor { Options = MQC.MQPD_SUPPORT_OPTIONAL };
+        var pd = new MQPropertyDescriptor
+        {
+            Options = MQC.MQPD_SUPPORT_OPTIONAL
+        };
         var allNames = new List<string>(outgoingMessage.Headers.Count);
         var emptyNames = new List<string>();
 
@@ -108,7 +112,7 @@ static class IbmMqMessageConverter
             var escapedKey = EscapePropertyName(header.Key);
             allNames.Add(escapedKey);
 
-            if (header.Value.Length == 0)
+            if (string.IsNullOrEmpty(header.Value))
             {
                 emptyNames.Add(escapedKey);
             }
@@ -164,19 +168,13 @@ static class IbmMqMessageConverter
         }
     }
 
-    static void SetExpiry(OutgoingMessage outgoingMessage, MQMessage message)
+    static void SetExpiry(IOutgoingTransportOperation outgoingTransportOperation, MQMessage message)
     {
-        if (outgoingMessage.Headers.TryGetValue(Headers.TimeToBeReceived, out var timeToBeReceived) && !string.IsNullOrEmpty(timeToBeReceived))
+        if (outgoingTransportOperation?.Properties?.DiscardIfNotReceivedBefore != null)
         {
-            if (TimeSpan.TryParse(timeToBeReceived, out var ttbrValue))
-            {
-                var expiryInTenthsOfSeconds = (int)(ttbrValue.TotalSeconds * 10);
-                message.Expiry = expiryInTenthsOfSeconds;
-            }
-            else
-            {
-                throw new InvalidOperationException($"Invalid TimeToBeReceived format: {timeToBeReceived}");
-            }
+            var ttbrValue = outgoingTransportOperation.Properties.DiscardIfNotReceivedBefore.MaxTime;
+            var expiryInTenthsOfSeconds = (int)(ttbrValue.TotalSeconds * 10);
+            message.Expiry = expiryInTenthsOfSeconds;
         }
         else
         {

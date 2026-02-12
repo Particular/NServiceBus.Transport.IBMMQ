@@ -15,7 +15,7 @@ public sealed class IbmMqTransport : TransportDefinition
     /// </summary>
     /// <param name="configure">Configuration object to customize</param>
     public IbmMqTransport(Action<IbmMqTransportOptions> configure)
-        : base(TransportTransactionMode.ReceiveOnly, true, true, true)
+        : base(TransportTransactionMode.ReceiveOnly, supportsDelayedDelivery: false, supportsPublishSubscribe: true, supportsTTBR: true)
     {
         ArgumentNullException.ThrowIfNull(configure);
 
@@ -28,7 +28,7 @@ public sealed class IbmMqTransport : TransportDefinition
     /// Internal constructor for creating transport with pre-configured settings
     /// </summary>
     internal IbmMqTransport(IbmMqTransportOptions options)
-        : base(TransportTransactionMode.ReceiveOnly, true, true, true)
+        : base(TransportTransactionMode.ReceiveOnly, supportsDelayedDelivery: false, supportsPublishSubscribe: true, supportsTTBR: true)
     {
         Options = options ?? throw new ArgumentNullException(nameof(options));
         new IbmMqTransportOptionsValidate().Validate(Options);
@@ -37,7 +37,8 @@ public sealed class IbmMqTransport : TransportDefinition
     public override IReadOnlyCollection<TransportTransactionMode> GetSupportedTransactionModes() =>
     [
         TransportTransactionMode.None,
-        TransportTransactionMode.ReceiveOnly
+        TransportTransactionMode.ReceiveOnly,
+        TransportTransactionMode.SendsAtomicWithReceive
     ];
 
     public override Task<TransportInfrastructure> Initialize(
@@ -56,8 +57,22 @@ public sealed class IbmMqTransport : TransportDefinition
         {
             foreach (var receiver in receivers)
             {
-                var queueName = formatter(receiver.ReceiveAddress.BaseAddress);
+                var queueName = formatter(IbmMqMessageReceiver.ToTransportAddress(receiver.ReceiveAddress));
                 log.DebugFormat("Creating queue {0}", queueName);
+                CreateQueue(setupConnection, queueName);
+
+                if (receiver.ErrorQueue != null)
+                {
+                    var errorQueueName = formatter(receiver.ErrorQueue);
+                    log.DebugFormat("Creating error queue {0}", errorQueueName);
+                    CreateQueue(setupConnection, errorQueueName);
+                }
+            }
+
+            foreach (var sendingAddress in sendingAddresses)
+            {
+                var queueName = formatter(sendingAddress);
+                log.DebugFormat("Creating send queue {0}", queueName);
                 CreateQueue(setupConnection, queueName);
             }
         }
@@ -66,7 +81,7 @@ public sealed class IbmMqTransport : TransportDefinition
         {
             if (receiver.PurgeOnStartup)
             {
-                var queueName = formatter(receiver.ReceiveAddress.BaseAddress);
+                var queueName = formatter(IbmMqMessageReceiver.ToTransportAddress(receiver.ReceiveAddress));
                 log.DebugFormat("Purging queue {0}", queueName);
                 var count = PurgeQueue(setupConnection, queueName);
                 log.InfoFormat("Purged {0} messages from queue '{1}'", count, queueName);
@@ -75,7 +90,7 @@ public sealed class IbmMqTransport : TransportDefinition
 
         setupConnection.Disconnect();
 
-        var infrastructure = new IbmMqTransportInfrastructure(log, Options, connectionConfiguration, receivers);
+        var infrastructure = new IbmMqTransportInfrastructure(log, Options, connectionConfiguration, receivers, TransportTransactionMode, hostSettings.CriticalErrorAction);
         return Task.FromResult<TransportInfrastructure>(infrastructure);
     }
 

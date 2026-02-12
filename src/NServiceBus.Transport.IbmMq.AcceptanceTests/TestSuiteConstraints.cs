@@ -10,11 +10,11 @@ public partial class TestSuiteConstraints
 
     public bool SupportsNativePubSub => true;
 
-    public bool SupportsDelayedDelivery => true;
+    public bool SupportsDelayedDelivery => false;
 
     public bool SupportsOutbox => true;
 
-    public bool SupportsPurgeOnStartup => false;
+    public bool SupportsPurgeOnStartup => true;
 
     public IConfigureEndpointTestExecution CreateTransportConfiguration() => new ConfigureEndpointIbmMqTransport();
 

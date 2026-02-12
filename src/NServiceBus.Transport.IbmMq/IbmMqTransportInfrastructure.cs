@@ -14,7 +14,9 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         ILog log,
         IbmMqTransportOptions options,
         ConnectionConfiguration connectionConfiguration,
-        ReceiveSettings[] receiverSettings
+        ReceiveSettings[] receiverSettings,
+        TransportTransactionMode transactionMode,
+        Action<string, Exception, CancellationToken> criticalError
     )
     {
         this.log = log;
@@ -22,15 +24,16 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         ArgumentNullException.ThrowIfNull(receiverSettings);
 
         var services = new ServiceCollection();
-        ConfigureServices(services, options, connectionConfiguration, receiverSettings);
+        ConfigureServices(services, options, connectionConfiguration, receiverSettings, transactionMode, criticalError);
         serviceProvider = services.BuildServiceProvider();
 
-        Dispatcher = serviceProvider.GetRequiredService<IbmMqMessageDispatcher>();
+        Dispatcher = serviceProvider.GetRequiredService<IMessageDispatcher>();
         Receivers = serviceProvider.GetServices<IMessageReceiver>()
             .ToDictionary(r => r.Id);
     }
 
-    public override string ToTransportAddress(QueueAddress address) => address.BaseAddress;
+    public override string ToTransportAddress(QueueAddress address) =>
+        IbmMqMessageReceiver.ToTransportAddress(address);
 
     public override async Task Shutdown(CancellationToken cancellationToken = default)
     {
@@ -55,7 +58,9 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         IServiceCollection services,
         IbmMqTransportOptions options,
         ConnectionConfiguration connectionConfiguration,
-        ReceiveSettings[] receiverSettings)
+        ReceiveSettings[] receiverSettings,
+        TransportTransactionMode transactionMode,
+        Action<string, Exception, CancellationToken> criticalError)
     {
         var queueManagerName = connectionConfiguration.QueueManagerName;
         var connectionProperties = connectionConfiguration.ConnectionProperties;
@@ -64,22 +69,30 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
 
         services
             .AddSingleton<CreateQueueManager>(() => new MQQueueManager(queueManagerName, connectionProperties))
-            .AddSingleton(new MessagePumpSettings(messageWaitInterval))
+            .AddSingleton(new MessagePumpSettings(messageWaitInterval, transactionMode))
             .AddScoped(sp => new MessagePumpWorker(
                 LogManager.GetLogger<MessagePumpWorker>(),
                 sp.GetRequiredService<MessagePumpSettings>(),
-                sp.GetRequiredService<CreateQueueManager>()
+                sp.GetRequiredService<CreateQueueManager>(),
+                criticalError
             ))
             .AddSingleton<CreateQueueManagerFacade>(qm =>
                 new MqQueueManagerFacade(qm, queueNameFormatter))
-            .AddSingleton(sp =>
+            .AddSingleton(new MQQueueManager(queueManagerName, connectionProperties))
+            .AddSingleton<IMessageDispatcher>(sp =>
             {
-                var sendConnection = new MQQueueManager(queueManagerName, connectionProperties);
+                var sendConnection = sp.GetRequiredService<MQQueueManager>();
                 var createFacade = sp.GetRequiredService<CreateQueueManagerFacade>();
-                return new IbmMqMessageDispatcher(
-                    LogManager.GetLogger<IbmMqMessageDispatcher>(),
-                    sendConnection,
-                    createFacade(sendConnection));
+                var sendFacade = createFacade(sendConnection);
+
+                return transactionMode switch
+                {
+                    TransportTransactionMode.None => new MessageDispatcher(sendFacade),
+                    TransportTransactionMode.ReceiveOnly => new MessageDispatcher(sendFacade),
+                    TransportTransactionMode.SendsAtomicWithReceive => new AtomicMessageDispatcher(sendFacade, createFacade),
+                    TransportTransactionMode.TransactionScope => throw new NotSupportedException("TransactionScope is not supported"),
+                    _ => throw new ArgumentOutOfRangeException(nameof(transactionMode), transactionMode, "Unsupported transaction mode")
+                };
             });
 
         foreach (var rs in receiverSettings)
@@ -97,9 +110,10 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
                 {
                     var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
                     var subMgr = sp.GetRequiredKeyedService<ISubscriptionManager>(rs.Id);
+                    var pSettings = sp.GetRequiredService<MessagePumpSettings>();
                     return new IbmMqMessageReceiver(
                         LogManager.GetLogger<IbmMqMessageReceiver>(),
-                        scopeFactory, subMgr, rs);
+                        scopeFactory, subMgr, rs, pSettings, queueNameFormatter);
                 });
         }
     }
