@@ -6,12 +6,14 @@ namespace NServiceBus.Transport.IbmMq.Tests.Configuration
     [TestFixture]
     class IbmMqTransportOptionsTests
     {
+        const int ExpectedMessageWaitInterval = 5000;
+
         [Test]
         public void Default_values_are_set_correctly()
         {
             var options = new IbmMqTransportOptions();
 
-            Assert.Multiple(() =>
+            using (Assert.EnterMultipleScope())
             {
                 Assert.That(options.QueueManagerName, Is.EqualTo(string.Empty));
                 Assert.That(options.Host, Is.EqualTo("localhost"));
@@ -25,11 +27,11 @@ namespace NServiceBus.Transport.IbmMq.Tests.Configuration
                 Assert.That(options.CipherSpec, Is.Null);
                 Assert.That(options.SslPeerName, Is.Null);
                 Assert.That(options.KeyResetCount, Is.EqualTo(0));
-                Assert.That(options.MessageWaitInterval, Is.EqualTo(5000));
+                Assert.That(options.MessageWaitInterval, Is.EqualTo(TimeSpan.FromDays(ExpectedMessageWaitInterval)));
                 Assert.That(options.MaxMessageLength, Is.EqualTo(4 * 1024 * 1024));
                 Assert.That(options.CharacterSet, Is.EqualTo(1208));
                 Assert.That(options.QueueNameFormatter, Is.Not.Null);
-            });
+            }
         }
 
         [Test]
@@ -212,7 +214,7 @@ namespace NServiceBus.Transport.IbmMq.Tests.Configuration
         [TestCase(30001)]
         public void Validation_fails_for_invalid_message_wait_interval(int interval)
         {
-            Assert.That(() => new IbmMqTransport(o => o.MessageWaitInterval = interval),
+            Assert.That(() => new IbmMqTransport(o => o.MessageWaitInterval = TimeSpan.FromMilliseconds(interval)),
                 Throws.TypeOf<ArgumentException>()
                     .With.Message.Contains("MessageWaitInterval must be between 100 and 30000"));
         }
@@ -222,7 +224,7 @@ namespace NServiceBus.Transport.IbmMq.Tests.Configuration
         [TestCase(30000)]
         public void Validation_passes_for_valid_message_wait_interval(int interval)
         {
-            Assert.DoesNotThrow(() => new IbmMqTransport(o => o.MessageWaitInterval = interval));
+            Assert.DoesNotThrow(() => new IbmMqTransport(o => o.MessageWaitInterval = TimeSpan.FromMilliseconds(interval)));
         }
 
         [TestCase(1023)]
