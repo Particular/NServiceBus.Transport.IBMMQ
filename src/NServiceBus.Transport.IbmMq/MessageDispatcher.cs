@@ -66,7 +66,7 @@ class MessageDispatcher(MqQueueManagerFacade sendFacade) : IMessageDispatcher
     protected virtual DispatchContext ResolveContext(TransportTransaction transaction) =>
         new(sendFacade, MQC.MQPMO_FAIL_IF_QUIESCING);
 
-    static void DispatchUnicast(UnicastTransportOperation operation, Dictionary<string, MQQueue> queues, DispatchContext context)
+    protected static void DispatchUnicast(UnicastTransportOperation operation, Dictionary<string, MQQueue> queues, DispatchContext context)
     {
         if (!queues.TryGetValue(operation.Destination, out var queue))
         {
@@ -78,7 +78,7 @@ class MessageDispatcher(MqQueueManagerFacade sendFacade) : IMessageDispatcher
         queue.Put(message, new MQPutMessageOptions { Options = context.PutOptions });
     }
 
-    static void DispatchMulticast(MulticastTransportOperation operation, Dictionary<Type, MQTopic> topics, DispatchContext context)
+    protected static void DispatchMulticast(MulticastTransportOperation operation, Dictionary<Type, MQTopic> topics, DispatchContext context)
     {
         if (!topics.TryGetValue(operation.MessageType, out var topic))
         {
