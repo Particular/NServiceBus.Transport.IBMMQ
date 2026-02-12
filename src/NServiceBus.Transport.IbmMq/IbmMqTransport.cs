@@ -60,6 +60,20 @@ public sealed class IbmMqTransport : TransportDefinition
                 var queueName = formatter(receiver.ReceiveAddress.BaseAddress);
                 log.DebugFormat("Creating queue {0}", queueName);
                 CreateQueue(setupConnection, queueName);
+
+                if (receiver.ErrorQueue != null)
+                {
+                    var errorQueueName = formatter(receiver.ErrorQueue);
+                    log.DebugFormat("Creating error queue {0}", errorQueueName);
+                    CreateQueue(setupConnection, errorQueueName);
+                }
+            }
+
+            foreach (var sendingAddress in sendingAddresses)
+            {
+                var queueName = formatter(sendingAddress);
+                log.DebugFormat("Creating send queue {0}", queueName);
+                CreateQueue(setupConnection, queueName);
             }
         }
 
