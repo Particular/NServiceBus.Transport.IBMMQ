@@ -74,7 +74,7 @@ class MessageDispatcher(MqQueueManagerFacade sendFacade) : IMessageDispatcher
             queues[operation.Destination] = queue;
         }
 
-        var message = IbmMqMessageConverter.ToNative(operation.Message);
+        var message = IbmMqMessageConverter.ToNative(operation);
         queue.Put(message, new MQPutMessageOptions { Options = context.PutOptions });
     }
 
@@ -92,7 +92,7 @@ class MessageDispatcher(MqQueueManagerFacade sendFacade) : IMessageDispatcher
                 topics[eventType] = topic;
             }
 
-            var message = IbmMqMessageConverter.ToNative(operation.Message);
+            var message = IbmMqMessageConverter.ToNative(operation);
             topic.Put(message, putOptions);
         }
     }

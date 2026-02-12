@@ -226,7 +226,7 @@ sealed class MessagePumpWorker(
                 }
                 catch (MQException ex) when (ex.ReasonCode == MQC.MQRC_NO_MSG_AVAILABLE)
                 {
-                    log.Debug("MQRC_NO_MSG_AVAILABLE");
+                    //log.Debug("MQRC_NO_MSG_AVAILABLE");
                     await Task.Yield();
                 }
                 catch (MQException ex)
