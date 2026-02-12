@@ -32,7 +32,8 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
             .ToDictionary(r => r.Id);
     }
 
-    public override string ToTransportAddress(QueueAddress address) => address.BaseAddress;
+    public override string ToTransportAddress(QueueAddress address) =>
+        IbmMqMessageReceiver.ToTransportAddress(address);
 
     public override async Task Shutdown(CancellationToken cancellationToken = default)
     {

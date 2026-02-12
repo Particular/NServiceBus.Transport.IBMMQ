@@ -57,7 +57,7 @@ public sealed class IbmMqTransport : TransportDefinition
         {
             foreach (var receiver in receivers)
             {
-                var queueName = formatter(receiver.ReceiveAddress.BaseAddress);
+                var queueName = formatter(IbmMqMessageReceiver.ToTransportAddress(receiver.ReceiveAddress));
                 log.DebugFormat("Creating queue {0}", queueName);
                 CreateQueue(setupConnection, queueName);
 
@@ -81,7 +81,7 @@ public sealed class IbmMqTransport : TransportDefinition
         {
             if (receiver.PurgeOnStartup)
             {
-                var queueName = formatter(receiver.ReceiveAddress.BaseAddress);
+                var queueName = formatter(IbmMqMessageReceiver.ToTransportAddress(receiver.ReceiveAddress));
                 log.DebugFormat("Purging queue {0}", queueName);
                 var count = PurgeQueue(setupConnection, queueName);
                 log.InfoFormat("Purged {0} messages from queue '{1}'", count, queueName);
