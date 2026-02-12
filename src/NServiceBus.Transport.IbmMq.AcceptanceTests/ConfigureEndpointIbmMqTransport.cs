@@ -54,7 +54,6 @@ public class ConfigureEndpointIbmMqTransport : IConfigureEndpointTestExecution
     static string Format(string name)
     {
         name = name
-            .ToUpperInvariant()
             .Replace('-', '.');
 
         if (name.Length <= 48)
