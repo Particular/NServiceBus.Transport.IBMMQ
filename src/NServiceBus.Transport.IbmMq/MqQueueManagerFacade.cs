@@ -106,6 +106,27 @@ class MqQueueManagerFacade(MQQueueManager queueManager, FormatQueueName queueNam
         }
     }
 
+    public void RemoveSubscription(Type eventType, string endpointName)
+    {
+        var subscriptionName = GenerateSubscriptionName(endpointName, eventType);
+
+        var agent = new PCFMessageAgent(queueManager);
+        try
+        {
+            var command = new PCFMessage(MQC.MQCMD_DELETE_SUBSCRIPTION);
+            command.AddParameter(MQC.MQCACF_SUB_NAME, subscriptionName);
+            agent.Send(command);
+        }
+        catch (PCFException e) when (e.ReasonCode == MQC.MQRCCF_SUB_NAME_ERROR)
+        {
+            // Subscription doesn't exist, nothing to remove
+        }
+        finally
+        {
+            agent.Disconnect();
+        }
+    }
+
     MQTopic AccessSubscription(Type eventType, string endpointName, int options)
     {
         var queueName = queueNameFormatter(endpointName);
