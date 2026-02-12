@@ -132,6 +132,8 @@ public class IbmMqTransportOptions
 
     /// <summary>
     /// Formatter for queue names. Can be used to sanitize queue names.
+    /// IBM MQ queue names only allow A-Z, a-z, 0-9, '.', '/', '_', '%'.
+    /// Wrap the user's formatter with sanitization to replace invalid characters.
     /// </summary>
-    public FormatQueueName QueueNameFormatter { get; set; } = s => s;
+    public FormatQueueName QueueNameFormatter { get; set; } = s => s.Replace('-', '.');
 }
