@@ -88,6 +88,9 @@ public sealed class IbmMqTransport : TransportDefinition
             }
         }
 
+        WriteStartupDiagnostics(hostSettings.StartupDiagnostic, Options, connectionConfiguration, receivers, TransportTransactionMode);
+        WriteBrokerDiagnostics(log, hostSettings.StartupDiagnostic, setupConnection);
+
         setupConnection.Disconnect();
 
         var infrastructure = new IbmMqTransportInfrastructure(log, Options, connectionConfiguration, receivers, TransportTransactionMode, hostSettings.CriticalErrorAction);
@@ -149,5 +152,48 @@ public sealed class IbmMqTransport : TransportDefinition
         queue.Close();
 
         return count;
+    }
+
+    static void WriteStartupDiagnostics(
+        StartupDiagnosticEntries diagnostics,
+        IbmMqTransportOptions options,
+        ConnectionConfiguration connectionConfiguration,
+        ReceiveSettings[] receivers,
+        TransportTransactionMode transactionMode)
+    {
+        FormatQueueName formatter = options.QueueNameFormatter;
+
+        diagnostics.Add("IBM MQ transport", new
+        {
+            TransactionMode = transactionMode.ToString(),
+            options.Host,
+            options.Port,
+            options.Channel,
+            Connections = options.Connections.Count > 0 ? string.Join(",", options.Connections) : null,
+            options.QueueManagerName,
+            connectionConfiguration.ApplicationName,
+            options.TopicPrefix,
+            MessageWaitInterval = options.MessageWaitInterval.ToString(),
+            options.MaxMessageLength,
+            options.CharacterSet,
+            SslEnabled = !string.IsNullOrWhiteSpace(options.CipherSpec),
+            Receivers = receivers.Select(r => formatter(IbmMqMessageReceiver.ToTransportAddress(r.ReceiveAddress))).ToArray()
+        });
+    }
+
+    static void WriteBrokerDiagnostics(ILog log, StartupDiagnosticEntries diagnostics, MQQueueManager connection)
+    {
+        try
+        {
+            diagnostics.Add("IBM MQ broker", new
+            {
+                QueueManagerName = connection.Name.Trim(),
+                connection.CommandLevel
+            });
+        }
+        catch (Exception ex)
+        {
+            log.Warn("Unable to query IBM MQ broker diagnostics.", ex);
+        }
     }
 }
