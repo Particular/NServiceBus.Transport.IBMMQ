@@ -31,15 +31,21 @@ sealed class MessagePumpWorker(
     // for SendsAtomicWithReceive error handling
     ConcurrentDictionary<string, (Exception Exception, Extensibility.ContextBag ContextBag)>? failedMessages;
 
+    // Shared across all workers to track per-message failure counts for ReceiveOnly/None modes.
+    // Mirrors MSMQ transport's MsmqFailureInfoStorage pattern.
+    ConcurrentDictionary<string, int>? failureCounts;
+
     public void Initialize(
         string queueName, OnMessage onMessage, OnError onError, int workerIndex,
-        ConcurrentDictionary<string, (Exception Exception, Extensibility.ContextBag ContextBag)>? failedMessages = null)
+        ConcurrentDictionary<string, (Exception Exception, Extensibility.ContextBag ContextBag)>? failedMessages = null,
+        ConcurrentDictionary<string, int>? failureCounts = null)
     {
         this.queueName = queueName;
         this.onMessage = onMessage;
         this.onError = onError;
         this.workerIndex = workerIndex;
         this.failedMessages = failedMessages;
+        this.failureCounts = failureCounts;
     }
 
     public void Start()
@@ -189,6 +195,7 @@ sealed class MessagePumpWorker(
                             _connection.Commit();
                         }
 
+                        failureCounts?.TryRemove(messageId, out _);
                         reconnectAttempt = 0;
                     }
                     catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -212,7 +219,7 @@ sealed class MessagePumpWorker(
                         {
                             await HandleReceiveOnlyError(
                                 ex, originalHeaders, messageId, messageBody,
-                                receivedMessage, transportTransaction, contextBag, cancellationToken
+                                transportTransaction, contextBag, cancellationToken
                             ).ConfigureAwait(false);
                         }
                     }
@@ -312,16 +319,18 @@ sealed class MessagePumpWorker(
     async Task HandleReceiveOnlyError(
         Exception ex, Dictionary<string, string> originalHeaders,
         string messageId, byte[] messageBody,
-        MQMessage receivedMessage, TransportTransaction transportTransaction,
+        TransportTransaction transportTransaction,
         Extensibility.ContextBag contextBag, CancellationToken cancellationToken)
     {
+        int failures = failureCounts?.AddOrUpdate(messageId, 1, (_, count) => count + 1) ?? 1;
+
         var errorContext = new ErrorContext(
             ex,
             originalHeaders,
             messageId,
             messageBody,
             transportTransaction,
-            receivedMessage.BackoutCount + 1,
+            failures,
             queueName,
             contextBag
         );
@@ -338,8 +347,13 @@ sealed class MessagePumpWorker(
                 }
                 else
                 {
+                    failureCounts?.TryRemove(messageId, out _);
                     _connection!.Commit();
                 }
+            }
+            else
+            {
+                failureCounts?.TryRemove(messageId, out _);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
