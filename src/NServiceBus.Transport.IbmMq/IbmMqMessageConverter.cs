@@ -108,7 +108,7 @@ static class IbmMqMessageConverter
             var escapedKey = EscapePropertyName(header.Key);
             allNames.Add(escapedKey);
 
-            if (header.Value.Length == 0)
+            if (string.IsNullOrEmpty(header.Value))
             {
                 emptyNames.Add(escapedKey);
             }
