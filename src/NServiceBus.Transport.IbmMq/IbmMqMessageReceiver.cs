@@ -22,6 +22,11 @@ sealed class IbmMqMessageReceiver(
         pumpSettings.TransactionMode == TransportTransactionMode.SendsAtomicWithReceive
             ? new() : null;
 
+    // Shared across all workers to track per-message failure counts for ReceiveOnly/None modes
+    readonly ConcurrentDictionary<string, int>? failureCounts =
+        pumpSettings.TransactionMode != TransportTransactionMode.SendsAtomicWithReceive
+            ? new() : null;
+
     int concurrency;
     OnMessage? onMessage;
     OnError? onError;
@@ -167,7 +172,7 @@ sealed class IbmMqMessageReceiver(
     {
         var scope = scopeFactory.CreateAsyncScope();
         var worker = scope.ServiceProvider.GetRequiredService<MessagePumpWorker>();
-        worker.Initialize(formattedReceiveAddress, onMessage!, onError!, index, failedMessages);
+        worker.Initialize(formattedReceiveAddress, onMessage!, onError!, index, failedMessages, failureCounts);
         return (scope, worker);
     }
 
