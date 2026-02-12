@@ -80,13 +80,20 @@ class MessageDispatcher(MqQueueManagerFacade sendFacade) : IMessageDispatcher
 
     protected static void DispatchMulticast(MulticastTransportOperation operation, Dictionary<Type, MQTopic> topics, DispatchContext context)
     {
-        if (!topics.TryGetValue(operation.MessageType, out var topic))
-        {
-            topic = context.Facade.EnsureTopic(operation.MessageType);
-            topics[operation.MessageType] = topic;
-        }
+        var putOptions = new MQPutMessageOptions { Options = context.PutOptions };
 
-        var message = IbmMqMessageConverter.ToNative(operation.Message);
-        topic.Put(message, new MQPutMessageOptions { Options = context.PutOptions });
+        // Publish to all types in the hierarchy to support polymorphic subscriptions.
+        // E.g. publishing MyEvent1 : IMyEvent publishes to both MyEvent1 and IMyEvent topics.
+        foreach (var eventType in MqQueueManagerFacade.GetEventTypeHierarchy(operation.MessageType))
+        {
+            if (!topics.TryGetValue(eventType, out var topic))
+            {
+                topic = context.Facade.EnsureTopic(eventType);
+                topics[eventType] = topic;
+            }
+
+            var message = IbmMqMessageConverter.ToNative(operation.Message);
+            topic.Put(message, putOptions);
+        }
     }
 }
