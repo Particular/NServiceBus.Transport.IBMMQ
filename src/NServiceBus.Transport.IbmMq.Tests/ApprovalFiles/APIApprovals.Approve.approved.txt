@@ -1,3 +1,4 @@
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("NServiceBus.Transport.IbmMq.Tests")]
 namespace NServiceBus.Transport.IbmMq
 {
     public delegate string FormatQueueName(string queueName);
@@ -25,6 +26,7 @@ namespace NServiceBus.Transport.IbmMq
         public NServiceBus.Transport.IbmMq.FormatQueueName QueueNameFormatter { get; set; }
         public string? SslKeyRepository { get; set; }
         public string? SslPeerName { get; set; }
+        public string TopicPrefix { get; set; }
         public string? User { get; set; }
     }
 }
