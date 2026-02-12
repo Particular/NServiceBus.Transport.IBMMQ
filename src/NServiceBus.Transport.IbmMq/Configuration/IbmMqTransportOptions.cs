@@ -132,6 +132,14 @@ public class IbmMqTransportOptions
     public int CharacterSet { get; set; } = MQC.CODESET_UTF;
 
     /// <summary>
+    /// Prefix used for topic object names and topic strings.
+    /// Topic admin names will be "{PREFIX}.{TYPE}" (uppercase), topic strings will be "{prefix}/{type}/" (lowercase).
+    /// Default: "DEV" (matching IBM MQ developer container defaults which pre-authorize DEV.** objects).
+    /// Must contain only valid MQ characters: A-Z, a-z, 0-9, '.', '/', '_', '%'.
+    /// </summary>
+    public string TopicPrefix { get; set; } = "DEV";
+
+    /// <summary>
     /// Formatter for queue names. Can be used to sanitize queue names.
     /// IBM MQ queue names only allow A-Z, a-z, 0-9, '.', '/', '_', '%'.
     /// Wrap the user's formatter with sanitization to replace invalid characters.

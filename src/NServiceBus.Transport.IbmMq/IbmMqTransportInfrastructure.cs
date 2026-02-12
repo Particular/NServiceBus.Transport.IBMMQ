@@ -77,7 +77,7 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
                 criticalError
             ))
             .AddSingleton<CreateQueueManagerFacade>(qm =>
-                new MqQueueManagerFacade(qm, queueNameFormatter))
+                new MqQueueManagerFacade(qm, queueNameFormatter, options.TopicPrefix))
             .AddSingleton(new MQQueueManager(queueManagerName, connectionProperties))
             .AddSingleton<IMessageDispatcher>(sp =>
             {
