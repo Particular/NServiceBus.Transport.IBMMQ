@@ -14,7 +14,7 @@ public partial class TestSuiteConstraints
 
     public bool SupportsOutbox => true;
 
-    public bool SupportsPurgeOnStartup => false;
+    public bool SupportsPurgeOnStartup => true;
 
     public IConfigureEndpointTestExecution CreateTransportConfiguration() => new ConfigureEndpointIbmMqTransport();
 
