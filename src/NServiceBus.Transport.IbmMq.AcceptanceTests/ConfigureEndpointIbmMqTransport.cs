@@ -1,5 +1,7 @@
-﻿using System;
+using System;
 using System.Collections;
+using System.IO.Hashing;
+using System.Text;
 using System.Threading.Tasks;
 using IBM.WMQ;
 using NServiceBus;
@@ -51,15 +53,17 @@ public class ConfigureEndpointIbmMqTransport : IConfigureEndpointTestExecution
 
     static string Format(string name)
     {
-        // IBM MQ queue names only allow A-Z, a-z, 0-9, '.', '/', '_', '%'
-        name = name.Replace('-', '.');
-
-        if (name.Length > 48)
+        if (name.Length <= 48)
         {
-            var hash = name.GetHashCode().ToString("X8");
-            name = name.Substring(0, 48 - 9) + "_" + hash; // 39 chars + "_" + 8 char hash = 48
+            return name;
         }
-        return name;
+
+        var nameBytes = Encoding.UTF8.GetBytes(name);
+        var hashHex = Convert.ToHexString(XxHash32.Hash(nameBytes));
+
+        int prefixLength = 48 - hashHex.Length;
+        var prefix = name[..Math.Min(prefixLength, name.Length)];
+        return $"{prefix}{hashHex}";
     }
 
     static void PurgeQueue(string queueName)
