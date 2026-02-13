@@ -11,7 +11,6 @@ using NServiceBus.Transport.IbmMq;
 // ReSharper disable once CheckNamespace
 public class ConfigureEndpointIbmMqTransport : IConfigureEndpointTestExecution
 {
-    static readonly string ConnectionDetails = Environment.GetEnvironmentVariable("IbmMq_ConnectionDetails") ?? "localhost;admin;passw0rd";
     static readonly Hashtable ConnectionProperties = BuildConnectionProperties();
 
     string endpointName = string.Empty;
@@ -27,14 +26,7 @@ public class ConfigureEndpointIbmMqTransport : IConfigureEndpointTestExecution
 
         var transport = new IbmMqTransport(s =>
             {
-                var parts = ConnectionDetails.Split(';');
-                if (parts.Length > 3 && int.TryParse(parts[3], out var port))
-                {
-                    s.Port = port;
-                }
-                s.Host = parts[0];
-                s.User = parts[1];
-                s.Password = parts[2];
+                TestConnectionDetails.Apply(s);
                 s.MessageWaitInterval = TimeSpan.FromMilliseconds(100);
                 s.ResourceNameSanitizer = Sanitize;
             }
@@ -73,7 +65,7 @@ public class ConfigureEndpointIbmMqTransport : IConfigureEndpointTestExecution
     {
         try
         {
-            using var queueManager = new MQQueueManager("QM1", ConnectionProperties);
+            using var queueManager = new MQQueueManager(TestConnectionDetails.QueueManagerName, ConnectionProperties);
             using var queue = queueManager.AccessQueue(queueName, MQC.MQOO_INPUT_AS_Q_DEF);
             var gmo = new MQGetMessageOptions { Options = MQC.MQGMO_NO_WAIT | MQC.MQGMO_ACCEPT_TRUNCATED_MSG };
 
@@ -102,18 +94,14 @@ public class ConfigureEndpointIbmMqTransport : IConfigureEndpointTestExecution
 
     static Hashtable BuildConnectionProperties()
     {
-        var parts = ConnectionDetails.Split(';');
-        var host = parts.Length > 0 ? parts[0] : "localhost";
-        var port = parts.Length > 3 && int.TryParse(parts[3], out var p) ? p : 1414;
-
         return new Hashtable
         {
             { MQC.TRANSPORT_PROPERTY, MQC.TRANSPORT_MQSERIES_MANAGED },
-            { MQC.HOST_NAME_PROPERTY, host },
-            { MQC.PORT_PROPERTY, port },
-            { MQC.CHANNEL_PROPERTY, "DEV.ADMIN.SVRCONN" },
-            { MQC.USER_ID_PROPERTY, parts.Length > 1 ? parts[1] : "admin" },
-            { MQC.PASSWORD_PROPERTY, parts.Length > 2 ? parts[2] : "passw0rd" }
+            { MQC.HOST_NAME_PROPERTY, TestConnectionDetails.Host },
+            { MQC.PORT_PROPERTY, TestConnectionDetails.Port },
+            { MQC.CHANNEL_PROPERTY, TestConnectionDetails.Channel },
+            { MQC.USER_ID_PROPERTY, TestConnectionDetails.User },
+            { MQC.PASSWORD_PROPERTY, TestConnectionDetails.Password }
         };
     }
 }

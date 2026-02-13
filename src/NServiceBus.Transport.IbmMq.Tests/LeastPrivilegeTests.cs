@@ -23,8 +23,8 @@ using NUnit.Framework;
 [Category("Integration")]
 public class LeastPrivilegeTests
 {
-    const string QueueManagerName = "QM1";
-    const string AdminChannel = "DEV.ADMIN.SVRCONN";
+    static string QueueManagerName => TestConnectionDetails.QueueManagerName;
+    static string AdminChannel => TestConnectionDetails.Channel;
     const string AppChannel = "DEV.APP.SVRCONN";
     const string AppUser = "testapp";
     const string AppPassword = "testpass1";
@@ -33,15 +33,10 @@ public class LeastPrivilegeTests
     const string TopicName = "TEST.LEASTPRIV.TOPIC";
     const string TopicString = "test/leastpriv/topic";
 
-    static readonly string ConnectionDetails =
-        Environment.GetEnvironmentVariable("IbmMq_ConnectionDetails") ?? "localhost;admin;passw0rd";
-
-    static string AdminHost => ConnectionDetails.Split(';')[0];
-    static string AdminUser => ConnectionDetails.Split(';').Length > 1 ? ConnectionDetails.Split(';')[1] : "admin";
-    static string AdminPassword => ConnectionDetails.Split(';').Length > 2 ? ConnectionDetails.Split(';')[2] : "passw0rd";
-
-    static int AdminPort => ConnectionDetails.Split(';').Length > 3
-        && int.TryParse(ConnectionDetails.Split(';')[3], out var p) ? p : 1414;
+    static string AdminHost => TestConnectionDetails.Host;
+    static string AdminUser => TestConnectionDetails.User;
+    static string AdminPassword => TestConnectionDetails.Password;
+    static int AdminPort => TestConnectionDetails.Port;
 
     [OneTimeSetUp]
     public void OneTimeSetUp()

@@ -21,4 +21,8 @@
       <ProjectReference Include="..\NServiceBus.Transport.IbmMq\NServiceBus.Transport.IbmMq.csproj" />
     </ItemGroup>
 
+    <ItemGroup>
+        <Compile Include="..\Testing\TestConnectionDetails.cs" />
+    </ItemGroup>
+
 </Project>
