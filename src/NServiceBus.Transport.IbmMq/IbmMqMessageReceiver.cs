@@ -10,12 +10,12 @@ sealed class IbmMqMessageReceiver(
     ISubscriptionManager subscriptions,
     ReceiveSettings receiveSettings,
     MessagePumpSettings pumpSettings,
-    FormatQueueName queueNameFormatter
+    SanitizeResourceName resourceNameFormatter
 ) : IMessageReceiver, IAsyncDisposable
 {
 
     readonly List<(AsyncServiceScope Scope, MessagePumpWorker Worker)> workers = [];
-    readonly string formattedReceiveAddress = queueNameFormatter(ToTransportAddress(receiveSettings.ReceiveAddress));
+    readonly string formattedReceiveAddress = resourceNameFormatter(ToTransportAddress(receiveSettings.ReceiveAddress));
 
     // Shared across all workers to coordinate SendsAtomicWithReceive error handling
     readonly ConcurrentDictionary<string, (Exception Exception, Extensibility.ContextBag ContextBag)>? failedMessages =

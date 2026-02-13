@@ -46,15 +46,18 @@ public class ConfigureIbmMqTransportInfrastructure : IConfigureTransportInfrastr
             s.Password = password;
             s.User = user;
             s.MessageWaitInterval = TimeSpan.FromMilliseconds(100);
-            s.QueueNameFormatter = Format;
+            s.ResourceNameSanitizer = Sanitize;
 
         });
 
         return transport;
     }
 
-    static string Format(string name)
+    static string Sanitize(string name)
     {
+        name = name
+            .Replace('-', '.');
+
         if (name.Length > 48)
         {
             var hash = name.GetHashCode().ToString("X8");
