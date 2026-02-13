@@ -30,7 +30,7 @@ namespace NServiceBus.Transport.IbmMq.Tests.Configuration
                 Assert.That(options.MessageWaitInterval, Is.EqualTo(TimeSpan.FromMilliseconds(ExpectedMessageWaitInterval)));
                 Assert.That(options.MaxMessageLength, Is.EqualTo(4 * 1024 * 1024));
                 Assert.That(options.CharacterSet, Is.EqualTo(1208));
-                Assert.That(options.QueueNameFormatter, Is.Not.Null);
+                Assert.That(options.ResourceNameSanitizer, Is.Not.Null);
             }
         }
 
@@ -39,7 +39,7 @@ namespace NServiceBus.Transport.IbmMq.Tests.Configuration
         {
             var options = new IbmMqTransportOptions();
 
-            Assert.That(options.QueueNameFormatter!("MY.QUEUE"), Is.EqualTo("MY.QUEUE"));
+            Assert.That(options.ResourceNameSanitizer!("MY.QUEUE"), Is.EqualTo("MY.QUEUE"));
         }
 
         [Test]

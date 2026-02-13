@@ -49,7 +49,6 @@ public sealed class IbmMqTransport : TransportDefinition
     )
     {
         var connectionConfiguration = new ConnectionConfiguration(Options);
-        FormatQueueName formatter = Options.QueueNameFormatter;
 
         using var setupConnection = new MQQueueManager(Options.QueueManagerName, connectionConfiguration.ConnectionProperties);
 
@@ -57,13 +56,13 @@ public sealed class IbmMqTransport : TransportDefinition
         {
             foreach (var receiver in receivers)
             {
-                var queueName = formatter(IbmMqMessageReceiver.ToTransportAddress(receiver.ReceiveAddress));
+                var queueName = SanitizeQueueName(IbmMqMessageReceiver.ToTransportAddress(receiver.ReceiveAddress));
                 log.DebugFormat("Creating queue {0}", queueName);
                 CreateQueue(setupConnection, queueName);
 
                 if (receiver.ErrorQueue != null)
                 {
-                    var errorQueueName = formatter(receiver.ErrorQueue);
+                    var errorQueueName = SanitizeQueueName(receiver.ErrorQueue);
                     log.DebugFormat("Creating error queue {0}", errorQueueName);
                     CreateQueue(setupConnection, errorQueueName);
                 }
@@ -71,7 +70,7 @@ public sealed class IbmMqTransport : TransportDefinition
 
             foreach (var sendingAddress in sendingAddresses)
             {
-                var queueName = formatter(sendingAddress);
+                var queueName = SanitizeQueueName(sendingAddress);
                 log.DebugFormat("Creating send queue {0}", queueName);
                 CreateQueue(setupConnection, queueName);
             }
@@ -81,7 +80,7 @@ public sealed class IbmMqTransport : TransportDefinition
         {
             if (receiver.PurgeOnStartup)
             {
-                var queueName = formatter(IbmMqMessageReceiver.ToTransportAddress(receiver.ReceiveAddress));
+                var queueName = SanitizeQueueName(IbmMqMessageReceiver.ToTransportAddress(receiver.ReceiveAddress));
                 log.DebugFormat("Purging queue {0}", queueName);
                 var count = PurgeQueue(setupConnection, queueName);
                 log.InfoFormat("Purged {0} messages from queue '{1}'", count, queueName);
@@ -96,11 +95,6 @@ public sealed class IbmMqTransport : TransportDefinition
 
     static void CreateQueue(MQQueueManager queueManager, string name)
     {
-        if (name.Length > 48)
-        {
-            throw new ArgumentException($"Queue name '{name}' is longer than 48 characters.", nameof(name));
-        }
-
         var agent = new PCFMessageAgent(queueManager);
         try
         {
@@ -150,4 +144,6 @@ public sealed class IbmMqTransport : TransportDefinition
 
         return count;
     }
+
+    string SanitizeQueueName(string name) => Options.ResourceNameSanitizer(name);
 }
