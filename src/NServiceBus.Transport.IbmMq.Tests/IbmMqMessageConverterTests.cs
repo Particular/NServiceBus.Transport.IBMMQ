@@ -162,6 +162,18 @@ public class IbmMqMessageConverterTests
         }
 
         [Test]
+        public void Persistence_is_non_persistent_when_NonDurableMessage_header_is_set()
+        {
+            var headers = new Dictionary<string, string>
+            {
+                { Headers.NonDurableMessage, null }
+            };
+            var operation = CreateOperation(headers: headers);
+            var mqMessage = IbmMqMessageConverter.ToNative(operation);
+            Assert.That(mqMessage.Persistence, Is.EqualTo(MQC.MQPER_NOT_PERSISTENT));
+        }
+
+        [Test]
         public void CharacterSet_is_UTF8()
         {
             var operation = CreateOperation();
