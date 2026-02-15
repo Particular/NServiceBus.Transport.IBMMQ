@@ -35,6 +35,16 @@ class ConnectionConfiguration
             [MQC.TRANSPORT_PROPERTY] = MQC.TRANSPORT_MQSERIES_MANAGED
         };
 
+        if (options.Connections.Count > 0)
+        {
+            properties.Add(MQC.CONNECTION_NAME_PROPERTY, string.Join(",", options.Connections));
+        }
+        else
+        {
+            properties.Add(MQC.HOST_NAME_PROPERTY, options.Host);
+            properties.Add(MQC.PORT_PROPERTY, options.Port);
+        }
+
         properties.Add(MQC.CHANNEL_PROPERTY, options.Channel);
 
         properties.Add(MQC.CONNECT_OPTIONS_PROPERTY, MQC.MQCNO_RECONNECT_DISABLED);
@@ -46,6 +56,7 @@ class ConnectionConfiguration
 
         if (!string.IsNullOrWhiteSpace(options.User))
         {
+            properties.Add(MQC.USE_MQCSP_AUTHENTICATION_PROPERTY, true);
             properties.Add(MQC.USER_ID_PROPERTY, options.User);
         }
 
