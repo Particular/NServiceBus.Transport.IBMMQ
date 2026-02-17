@@ -2,8 +2,8 @@ namespace NServiceBus.Transport.IbmMq;
 
 using IBM.WMQ;
 
-sealed class AtomicMessageDispatcher(MqQueueManagerFacade sendFacade, CreateQueueManagerFacade createFacade)
-    : MessageDispatcher(sendFacade)
+sealed class AtomicMessageDispatcher(MqQueueManagerFacade sendFacade, TopicTopology topology, CreateQueueManagerFacade createFacade)
+    : MessageDispatcher(sendFacade, topology)
 {
     public override Task Dispatch(TransportOperations outgoingMessages, TransportTransaction transaction, CancellationToken cancellationToken = default)
     {
@@ -17,8 +17,8 @@ sealed class AtomicMessageDispatcher(MqQueueManagerFacade sendFacade, CreateQueu
 
         Dictionary<string, MQQueue>? atomicQueues = null;
         Dictionary<string, MQQueue>? isolatedQueues = null;
-        Dictionary<Type, MQTopic>? atomicTopics = null;
-        Dictionary<Type, MQTopic>? isolatedTopics = null;
+        Dictionary<string, MQTopic>? atomicTopics = null;
+        Dictionary<string, MQTopic>? isolatedTopics = null;
 
         try
         {
@@ -61,7 +61,7 @@ sealed class AtomicMessageDispatcher(MqQueueManagerFacade sendFacade, CreateQueu
         return Task.CompletedTask;
     }
 
-    static void CloseAll<TKey>(Dictionary<TKey, MQQueue>? queues) where TKey : notnull
+    static void CloseAll(Dictionary<string, MQQueue>? queues)
     {
         if (queues == null)
         {
@@ -77,7 +77,7 @@ sealed class AtomicMessageDispatcher(MqQueueManagerFacade sendFacade, CreateQueu
         }
     }
 
-    static void CloseAll<TKey>(Dictionary<TKey, MQTopic>? topics) where TKey : notnull
+    static void CloseAll(Dictionary<string, MQTopic>? topics)
     {
         if (topics == null)
         {

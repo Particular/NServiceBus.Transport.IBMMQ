@@ -13,7 +13,7 @@
     </Folder>
     <Folder Name="/NServiceBus.Transport.IbmMq/Tests/">
         <Project
-                Path="../../src/NServiceBus.Transport.IbmMq.AcceptanceTests/NServiceBus.Transport.IbmMq.AcceptanceTests.csproj"/>
+                Path="../../src/NServiceBus.Transport.IbmMq.AcceptanceTests.PublisherFanOut/NServiceBus.Transport.IbmMq.AcceptanceTests.PublisherFanOut.csproj"/>
         <Project Path="../../src/NServiceBus.Transport.IbmMq.Tests/NServiceBus.Transport.IbmMq.Tests.csproj"/>
         <Project
                 Path="../../src/NServiceBus.Transport.IbmMq.TransportTests/NServiceBus.Transport.IbmMq.TransportTests.csproj"/>

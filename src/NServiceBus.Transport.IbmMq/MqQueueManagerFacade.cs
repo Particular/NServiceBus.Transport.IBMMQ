@@ -3,7 +3,7 @@ namespace NServiceBus.Transport.IbmMq;
 using IBM.WMQ;
 using IBM.WMQ.PCF;
 
-class MqQueueManagerFacade(MQQueueManager queueManager, SanitizeResourceName resourceNameFormatter, string topicPrefix)
+class MqQueueManagerFacade(MQQueueManager queueManager, SanitizeResourceName resourceNameFormatter)
 {
     public MQQueue AccessSendQueue(string name)
     {
@@ -11,73 +11,30 @@ class MqQueueManagerFacade(MQQueueManager queueManager, SanitizeResourceName res
         return queueManager.AccessQueue(formatted, MQC.MQOO_OUTPUT);
     }
 
-    public MQTopic EnsureTopic(Type eventType)
+    public MQTopic EnsureTopic(string topicName, string topicString)
     {
-        var topicName = GenerateTopicName(topicPrefix, eventType);
-        var topicString = GenerateTopicString(topicPrefix, eventType);
-
-        MQTopic topic;
-
         try
         {
-            topic = AccessTopic(topicName);
+            CreateTopic(topicName, topicString);
         }
-        catch (MQException ex) when (ex.ReasonCode == MQC.MQRC_UNKNOWN_OBJECT_NAME)
+        catch (MQException ex) when (ex.ReasonCode == MQC.MQRC_NOT_AUTHORIZED)
         {
-            try
-            {
-                CreateTopic(topicName, topicString);
-            }
-            catch (MQException createEx) when (createEx.ReasonCode == MQC.MQRC_NOT_AUTHORIZED)
-            {
-                throw new InvalidOperationException(
-                    $"Topic '{topicName}' does not exist and the current user is not authorized to create it. " +
-                    "Pre-create topics by running the endpoint with EnableInstallers using an account with administrative permissions, " +
-                    "or have an MQ administrator create the topic.", createEx);
-            }
-
-            topic = AccessTopic(topicName);
+            throw new InvalidOperationException(
+                $"Topic '{topicName}' does not exist and the current user is not authorized to create it. " +
+                "Pre-create topics by running the endpoint with EnableInstallers using an account with administrative permissions, " +
+                "or have an MQ administrator create the topic.", ex);
         }
 
-        return topic;
-    }
-
-    /// <summary>
-    /// Returns all event types in the type hierarchy that should be published to.
-    /// This enables polymorphic subscriptions: publishing MyEvent1 : IMyEvent publishes
-    /// to both the MyEvent1 and IMyEvent topics so interface subscribers receive the message.
-    /// </summary>
-    public static IEnumerable<Type> GetEventTypeHierarchy(Type eventType)
-    {
-        yield return eventType;
-
-        // Walk base classes (excluding object)
-        var baseType = eventType.BaseType;
-        while (baseType != null && baseType != typeof(object))
-        {
-            yield return baseType;
-            baseType = baseType.BaseType;
-        }
-
-        // Include all interfaces except NServiceBus marker interfaces
-        foreach (var iface in eventType.GetInterfaces())
-        {
-            if (iface == typeof(IEvent) || iface == typeof(IMessage))
-            {
-                continue;
-            }
-
-            yield return iface;
-        }
-    }
-
-    MQTopic AccessTopic(string topicName) =>
-        queueManager.AccessTopic(
+        // Open by topic string for publishing, not by admin object name.
+        // This ensures correct routing regardless of whether an existing
+        // topic object has a different topic string configuration.
+        return queueManager.AccessTopic(
+            topicString,
             null,
-            topicName,
             MQC.MQTOPIC_OPEN_AS_PUBLICATION,
             MQC.MQOO_OUTPUT
         );
+    }
 
     void CreateTopic(string topicName, string topicString)
     {
@@ -99,22 +56,20 @@ class MqQueueManagerFacade(MQQueueManager queueManager, SanitizeResourceName res
         }
     }
 
-    public MQTopic EnsureSubscription(Type eventType, string endpointName)
+    public MQTopic EnsureSubscription(string topicString, string subscriptionName, string endpointName)
     {
         try
         {
-            return AccessSubscription(eventType, endpointName, MQC.MQSO_RESUME);
+            return AccessSubscription(topicString, subscriptionName, endpointName, MQC.MQSO_RESUME);
         }
         catch (MQException ex) when (ex.ReasonCode == MQC.MQRC_NO_SUBSCRIPTION)
         {
-            return AccessSubscription(eventType, endpointName, MQC.MQSO_CREATE);
+            return AccessSubscription(topicString, subscriptionName, endpointName, MQC.MQSO_CREATE);
         }
     }
 
-    public void RemoveSubscription(Type eventType, string endpointName)
+    public void RemoveSubscription(string subscriptionName)
     {
-        var subscriptionName = GenerateSubscriptionName(topicPrefix, endpointName, eventType);
-
         var agent = new PCFMessageAgent(queueManager);
         try
         {
@@ -139,10 +94,9 @@ class MqQueueManagerFacade(MQQueueManager queueManager, SanitizeResourceName res
         }
     }
 
-    MQTopic AccessSubscription(Type eventType, string endpointName, int options)
+    MQTopic AccessSubscription(string topicString, string subscriptionName, string endpointName, int options)
     {
         var queueName = resourceNameFormatter(endpointName);
-        var subscriptionName = GenerateSubscriptionName(topicPrefix, endpointName, eventType);
 
         int finalOptions = options
                            | MQC.MQSO_FAIL_IF_QUIESCING
@@ -156,7 +110,7 @@ class MqQueueManagerFacade(MQQueueManager queueManager, SanitizeResourceName res
             {
                 return queueManager.AccessTopic(
                     destinationQueue,
-                    GenerateTopicString(topicPrefix, eventType),
+                    topicString,
                     null,
                     finalOptions,
                     null,
@@ -172,48 +126,11 @@ class MqQueueManagerFacade(MQQueueManager queueManager, SanitizeResourceName res
         // For RESUME/other operations, no destination queue needed
         return queueManager.AccessTopic(
             null,
-            GenerateTopicString(topicPrefix, eventType),
+            topicString,
             null,
             finalOptions,
             null,
             subscriptionName
         );
-    }
-
-    internal static string GenerateSubscriptionName(string topicPrefix, string endpointName, Type eventType)
-    {
-        // https://docs.particular.net/transports/azure-service-bus/compatibility#conditions-sanitization-rules-must-be-aligned
-        var topicString = GenerateTopicString(topicPrefix, eventType);
-        var name = $"{endpointName}:{topicString}";
-        if (name.Length <= 256)
-        {
-            return name;
-        }
-
-        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(name)))[..16];
-        return $"{name[..(256 - 17)]}_{hash}";
-    }
-
-    internal static string GenerateTopicName(string topicPrefix, Type eventType)
-    {
-        // https://docs.particular.net/transports/azure-service-bus/compatibility#conditions-sanitization-rules-must-be-aligned
-        var fullName = (eventType.FullName ?? eventType.Name).Replace('+', '.').ToUpperInvariant();
-        var name = $"{topicPrefix.ToUpperInvariant()}.{fullName}";
-        if (name.Length <= 48)
-        {
-            return name;
-        }
-
-        // Hash-based truncation for names exceeding 48 chars
-        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(name)))[..8];
-        return $"{name[..(48 - 9)]}_{hash}";
-    }
-
-    internal static string GenerateTopicString(string topicPrefix, Type eventType)
-    {
-        var fullName = (eventType.FullName ?? eventType.Name).Replace('+', '/').ToLowerInvariant();
-        return $"{topicPrefix.ToLowerInvariant()}/{fullName}/";
     }
 }
