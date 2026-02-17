@@ -7,15 +7,15 @@ using System.Reflection;
 /// One topic per concrete event type. Supports full polymorphism via subscriber-side fan-out —
 /// subscribing to a base class or interface also subscribes to all concrete descendants.
 /// </summary>
-sealed class TopicPerEventTopology(string topicPrefix) : TopicTopology
+sealed class TopicPerEventTopology : TopicTopology
 {
     readonly ConcurrentDictionary<Type, IReadOnlyList<string>> subscriptionCache = new();
 
     internal override IReadOnlyList<TopicDestination> GetPublishDestinations(Type eventType) =>
     [
         new TopicDestination(
-            TopicNaming.GenerateTopicName(topicPrefix, eventType),
-            TopicNaming.GenerateTopicString(topicPrefix, eventType))
+            Naming.GenerateTopicName(eventType),
+            Naming.GenerateTopicString(eventType))
     ];
 
     internal override IReadOnlyList<string> GetSubscriptionTopicStrings(Type eventType) =>
@@ -25,7 +25,7 @@ sealed class TopicPerEventTopology(string topicPrefix) : TopicTopology
     {
         var topicStrings = new List<string>
         {
-            TopicNaming.GenerateTopicString(topicPrefix, eventType)
+            Naming.GenerateTopicString(eventType)
         };
 
         foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
@@ -49,14 +49,14 @@ sealed class TopicPerEventTopology(string topicPrefix) : TopicTopology
             {
                 if (type != eventType && eventType.IsAssignableFrom(type))//&& IsConcrete(type)
                 {
-                    topicStrings.Add(TopicNaming.GenerateTopicString(topicPrefix, type));
+                    topicStrings.Add(Naming.GenerateTopicString(type));
                 }
             }
         }
 
         if (topicStrings.Count == 0)
         {
-            topicStrings.Add(TopicNaming.GenerateTopicString(topicPrefix, eventType));
+            topicStrings.Add(Naming.GenerateTopicString(eventType));
         }
 
         return topicStrings;

@@ -67,6 +67,7 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         var messageWaitInterval = connectionConfiguration.MessageWaitInterval;
         SanitizeResourceName resourceNameFormatter = options.ResourceNameSanitizer;
         var topology = options.Topology;
+        topology.Naming = options.TopicNaming;
 
         services
             .AddSingleton(topology)

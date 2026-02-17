@@ -25,13 +25,21 @@ namespace NServiceBus.Transport.IbmMq
         public NServiceBus.Transport.IbmMq.SanitizeResourceName ResourceNameSanitizer { get; set; }
         public string? SslKeyRepository { get; set; }
         public string? SslPeerName { get; set; }
+        public NServiceBus.Transport.IbmMq.TopicNaming TopicNaming { get; set; }
         public NServiceBus.Transport.IbmMq.TopicTopology Topology { get; set; }
         public string? User { get; set; }
     }
     public delegate string SanitizeResourceName(string queueName);
+    public class TopicNaming
+    {
+        public TopicNaming(string topicPrefix = "DEV") { }
+        public virtual string GenerateSubscriptionName(string endpointName, string topicString) { }
+        public virtual string GenerateTopicName(System.Type eventType) { }
+        public virtual string GenerateTopicString(System.Type eventType) { }
+    }
     public abstract class TopicTopology
     {
         protected TopicTopology() { }
-        public static NServiceBus.Transport.IbmMq.TopicTopology Flat(string topicPrefix = "DEV") { }
+        public static NServiceBus.Transport.IbmMq.TopicTopology TopicPerEvent() { }
     }
 }
