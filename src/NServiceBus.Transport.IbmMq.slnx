@@ -5,4 +5,5 @@
     <Project Path="TransportTests/NServiceBus.Transport.IbmMq.TransportTests.csproj" />
   </Folder>
   <Project Path="Transport/NServiceBus.Transport.IbmMq.csproj" />
+  <Project Path="CommandLine/NServiceBus.Transport.IbmMq.CommandLine.csproj" />
 </Solution>
