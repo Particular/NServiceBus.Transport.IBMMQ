@@ -4,10 +4,10 @@ using System.Collections.Concurrent;
 using System.Reflection;
 
 /// <summary>
-/// Flat topology: one topic per concrete event type. Supports full polymorphism via subscriber-side fan-out —
+/// One topic per concrete event type. Supports full polymorphism via subscriber-side fan-out —
 /// subscribing to a base class or interface also subscribes to all concrete descendants.
 /// </summary>
-sealed class FlatTopicTopology(string topicPrefix) : TopicTopology
+sealed class TopicPerEventTopology(string topicPrefix) : TopicTopology
 {
     readonly ConcurrentDictionary<Type, IReadOnlyList<string>> subscriptionCache = new();
 

@@ -1,12 +1,10 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
+        <SignAssembly>true</SignAssembly>
+        <RootNamespace>NServiceBus.Transport.IbmMq.AcceptanceTests</RootNamespace>
     </PropertyGroup>
-
-    <ItemGroup>
-        <ProjectReference Include="..\NServiceBus.Transport.IbmMq\NServiceBus.Transport.IbmMq.csproj" />
-    </ItemGroup>
 
     <ItemGroup>
         <PackageReference Include="GitHubActionsTestLogger" Version="3.0.1" />
@@ -17,9 +15,12 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="NServiceBus.Testing" Version="10.0.0" />
-        <PackageReference Include="Particular.Approvals" Version="2.0.1" />
-        <PackageReference Include="PublicApiGenerator" Version="11.5.4" />
+        <PackageReference Include="NServiceBus.AcceptanceTests.Sources" Version="10.0.0" GeneratePathProperty="true" />
+        <PackageReference Include="System.IO.Hashing" Version="10.0.2" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Transport\NServiceBus.Transport.IbmMq.csproj" />
     </ItemGroup>
 
     <ItemGroup>

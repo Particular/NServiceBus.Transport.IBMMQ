@@ -133,9 +133,9 @@ public class IbmMqTransportOptions
 
     /// <summary>
     /// Controls how events are mapped to IBM MQ topics for pub/sub.
-    /// Default: <see cref="TopicTopology.Flat"/> (flat topology, one topic per concrete event type).
+    /// Default: <see cref="TopicTopology.TopicPerEvent"/> (flat topology, one topic per concrete event type).
     /// </summary>
-    public TopicTopology Topology { get; set; } = TopicTopology.Flat();
+    public TopicTopology Topology { get; set; } = TopicTopology.TopicPerEvent();
 
     /// <summary>
     /// Sanitizer for queue and topic resource names.

@@ -3,9 +3,9 @@ namespace NServiceBus.Transport.IbmMq.Tests.Topology;
 using NUnit.Framework;
 
 [TestFixture]
-public class FlatTopicTopologyTests
+public class TopicPerEventTopologyTests
 {
-    readonly TopicTopology topology = TopicTopology.Flat();
+    readonly TopicTopology topology = TopicTopology.TopicPerEvent();
 
     [Test]
     public void Publish_returns_single_destination_for_concrete_type()
@@ -70,7 +70,7 @@ public class FlatTopicTopologyTests
     [Test]
     public void Custom_prefix_is_used()
     {
-        var topo = TopicTopology.Flat("PROD");
+        var topo = TopicTopology.TopicPerEvent("PROD");
         var destinations = topo.GetPublishDestinations(typeof(ConcreteEvent));
 
         Assert.That(destinations[0].TopicName, Does.StartWith("PROD."));
