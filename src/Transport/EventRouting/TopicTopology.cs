@@ -11,7 +11,7 @@ public abstract class TopicTopology
     /// interface also subscribes to all concrete descendants found in loaded assemblies.
     /// </summary>
     /// <param name="topicPrefix">Prefix for topic names and strings. Default: "DEV".</param>
-    public static TopicTopology Flat(string topicPrefix = "DEV") => new FlatTopicTopology(topicPrefix);
+    public static TopicTopology TopicPerEvent(string topicPrefix = "DEV") => new TopicPerEventTopology(topicPrefix);
 
     internal abstract IReadOnlyList<TopicDestination> GetPublishDestinations(Type eventType);
 
