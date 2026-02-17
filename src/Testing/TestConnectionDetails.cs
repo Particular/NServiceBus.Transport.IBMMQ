@@ -17,7 +17,7 @@ static class TestConnectionDetails
     public static string Channel => Query["channel"] ?? "DEV.ADMIN.SVRCONN";
     public static string TopicPrefix => Query["topicprefix"] ?? "DEV";
 
-    public static TopicTopology CreateTopology() => TopicTopology.TopicPerEvent(TopicPrefix);
+    public static TopicNaming CreateTopicNaming() => new ShortenedTopicNaming(TopicPrefix);
 
     public static void Apply(IbmMqTransportOptions options)
     {

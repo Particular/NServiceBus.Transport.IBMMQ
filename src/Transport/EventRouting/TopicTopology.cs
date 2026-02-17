@@ -10,13 +10,14 @@ public abstract class TopicTopology
     /// Supports full polymorphism via subscriber-side fan-out — subscribing to a base class or
     /// interface also subscribes to all concrete descendants found in loaded assemblies.
     /// </summary>
-    /// <param name="topicPrefix">Prefix for topic names and strings. Default: "DEV".</param>
-    public static TopicTopology TopicPerEvent(string topicPrefix = "DEV") => new TopicPerEventTopology(topicPrefix);
+    public static TopicTopology TopicPerEvent() => new TopicPerEventTopology();
+
+    internal TopicNaming Naming { get; set; } = new();
 
     internal abstract IReadOnlyList<TopicDestination> GetPublishDestinations(Type eventType);
 
     internal abstract IReadOnlyList<string> GetSubscriptionTopicStrings(Type eventType);
 
     internal virtual string GenerateSubscriptionName(string endpointName, string topicString) =>
-        TopicNaming.GenerateSubscriptionName(endpointName, topicString);
+        Naming.GenerateSubscriptionName(endpointName, topicString);
 }

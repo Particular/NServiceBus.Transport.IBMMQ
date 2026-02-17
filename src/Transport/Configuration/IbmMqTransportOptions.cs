@@ -138,7 +138,14 @@ public class IbmMqTransportOptions
     public TopicTopology Topology { get; set; } = TopicTopology.TopicPerEvent();
 
     /// <summary>
-    /// Sanitizer for queue and topic resource names.
+    /// Controls how event types are mapped to IBM MQ topic names and topic strings.
+    /// Subclass <see cref="IbmMq.TopicNaming"/> to customize naming conventions for your environment.
+    /// Default: <see cref="IbmMq.TopicNaming"/> with prefix "DEV".
+    /// </summary>
+    public TopicNaming TopicNaming { get; set; } = new();
+
+    /// <summary>
+    /// Sanitizer for queue resource names.
     /// Override to customize sanitization (e.g., replacing invalid characters, truncating long names).
     /// </summary>
     public SanitizeResourceName ResourceNameSanitizer { get; set; } = s => s;

@@ -1,37 +1,47 @@
 namespace NServiceBus.Transport.IbmMq;
 
-static class TopicNaming
+/// <summary>
+/// Controls how event types are mapped to IBM MQ topic names and topic strings.
+/// Subclass to customize naming conventions for your environment.
+/// </summary>
+public class TopicNaming(string topicPrefix = "DEV")
 {
-    internal static string GenerateTopicName(string topicPrefix, Type eventType)
+    /// <summary>
+    /// Generates the administrative topic object name for an event type.
+    /// Names are upper-cased with '.' as separator, prefixed with the topic prefix.
+    /// Throws if the generated name exceeds the IBM MQ 48-character limit.
+    /// Override this method to implement custom shortening strategies.
+    /// </summary>
+    public virtual string GenerateTopicName(Type eventType)
     {
         var fullName = (eventType.FullName ?? eventType.Name).Replace('+', '.').ToUpperInvariant();
         var name = $"{topicPrefix.ToUpperInvariant()}.{fullName}";
-        if (name.Length <= 48)
+
+        if (name.Length > 48)
         {
-            return name;
+            throw new InvalidOperationException(
+                $"Generated topic name '{name}' is {name.Length} characters, which exceeds the IBM MQ 48-character limit. " +
+                $"Override {nameof(GenerateTopicName)} in a custom {nameof(TopicNaming)} subclass to implement a shortening strategy.");
         }
 
-        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(name)))[..8];
-        return $"{name[..(48 - 9)]}_{hash}";
+        return name;
     }
 
-    internal static string GenerateTopicString(string topicPrefix, Type eventType)
+    /// <summary>
+    /// Generates the topic string used for publishing and subscribing.
+    /// Strings are lower-cased and use '/' as separator.
+    /// </summary>
+    public virtual string GenerateTopicString(Type eventType)
     {
         var fullName = (eventType.FullName ?? eventType.Name).Replace('+', '/').ToLowerInvariant();
         return $"{topicPrefix.ToLowerInvariant()}/{fullName}/";
     }
 
-    internal static string GenerateSubscriptionName(string endpointName, string topicString)
+    /// <summary>
+    /// Generates the durable subscription name for an endpoint subscribing to a topic.
+    /// </summary>
+    public virtual string GenerateSubscriptionName(string endpointName, string topicString)
     {
-        var name = $"{endpointName}:{topicString}";
-        if (name.Length <= 256)
-        {
-            return name;
-        }
-
-        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(name)))[..16];
-        return $"{name[..(256 - 17)]}_{hash}";
+        return $"{endpointName}:{topicString}";
     }
 }

@@ -24,6 +24,11 @@ class IbmMqTransportOptionsValidate
             throw new ArgumentException("Topology must be assigned", nameof(options.Topology));
         }
 
+        if (options.TopicNaming == null)
+        {
+            throw new ArgumentException("TopicNaming must be assigned", nameof(options.TopicNaming));
+        }
+
         if (options.ResourceNameSanitizer == null)
         {
             throw new ArgumentException("QueueNameFormatter must be assigned", nameof(options.ResourceNameSanitizer));

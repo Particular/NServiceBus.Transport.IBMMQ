@@ -5,7 +5,14 @@ using NUnit.Framework;
 [TestFixture]
 public class TopicPerEventTopologyTests
 {
-    readonly TopicTopology topology = TopicTopology.TopicPerEvent();
+    readonly TopicNaming naming = new ShortenedTopicNaming();
+    readonly TopicTopology topology;
+
+    public TopicPerEventTopologyTests()
+    {
+        topology = TopicTopology.TopicPerEvent();
+        topology.Naming = naming;
+    }
 
     [Test]
     public void Publish_returns_single_destination_for_concrete_type()
@@ -20,7 +27,7 @@ public class TopicPerEventTopologyTests
     {
         var destinations = topology.GetPublishDestinations(typeof(ConcreteEvent));
 
-        Assert.That(destinations[0].TopicName, Is.EqualTo(TopicNaming.GenerateTopicName("DEV", typeof(ConcreteEvent))));
+        Assert.That(destinations[0].TopicName, Is.EqualTo(naming.GenerateTopicName(typeof(ConcreteEvent))));
     }
 
     [Test]
@@ -28,7 +35,7 @@ public class TopicPerEventTopologyTests
     {
         var destinations = topology.GetPublishDestinations(typeof(ConcreteEvent));
 
-        Assert.That(destinations[0].TopicString, Is.EqualTo(TopicNaming.GenerateTopicString("DEV", typeof(ConcreteEvent))));
+        Assert.That(destinations[0].TopicString, Is.EqualTo(naming.GenerateTopicString(typeof(ConcreteEvent))));
     }
 
     [Test]
@@ -37,7 +44,7 @@ public class TopicPerEventTopologyTests
         var topicStrings = topology.GetSubscriptionTopicStrings(typeof(ConcreteEvent));
 
         Assert.That(topicStrings, Has.Count.EqualTo(1));
-        Assert.That(topicStrings[0], Is.EqualTo(TopicNaming.GenerateTopicString("DEV", typeof(ConcreteEvent))));
+        Assert.That(topicStrings[0], Is.EqualTo(naming.GenerateTopicString(typeof(ConcreteEvent))));
     }
 
     [Test]
@@ -45,8 +52,8 @@ public class TopicPerEventTopologyTests
     {
         var topicStrings = topology.GetSubscriptionTopicStrings(typeof(BaseEvent));
 
-        Assert.That(topicStrings, Does.Contain(TopicNaming.GenerateTopicString("DEV", typeof(BaseEvent))));
-        Assert.That(topicStrings, Does.Contain(TopicNaming.GenerateTopicString("DEV", typeof(ConcreteEvent))));
+        Assert.That(topicStrings, Does.Contain(naming.GenerateTopicString(typeof(BaseEvent))));
+        Assert.That(topicStrings, Does.Contain(naming.GenerateTopicString(typeof(ConcreteEvent))));
     }
 
     [Test]
@@ -54,8 +61,8 @@ public class TopicPerEventTopologyTests
     {
         var topicStrings = topology.GetSubscriptionTopicStrings(typeof(IMyEvent));
 
-        Assert.That(topicStrings, Does.Contain(TopicNaming.GenerateTopicString("DEV", typeof(BaseEvent))));
-        Assert.That(topicStrings, Does.Contain(TopicNaming.GenerateTopicString("DEV", typeof(ConcreteEvent))));
+        Assert.That(topicStrings, Does.Contain(naming.GenerateTopicString(typeof(BaseEvent))));
+        Assert.That(topicStrings, Does.Contain(naming.GenerateTopicString(typeof(ConcreteEvent))));
     }
 
     [Test]
@@ -64,13 +71,16 @@ public class TopicPerEventTopologyTests
         var topicStrings = topology.GetSubscriptionTopicStrings(typeof(IOrphanEvent));
 
         Assert.That(topicStrings, Has.Count.EqualTo(1));
-        Assert.That(topicStrings[0], Is.EqualTo(TopicNaming.GenerateTopicString("DEV", typeof(IOrphanEvent))));
+        Assert.That(topicStrings[0], Is.EqualTo(naming.GenerateTopicString(typeof(IOrphanEvent))));
     }
 
     [Test]
     public void Custom_prefix_is_used()
     {
-        var topo = TopicTopology.TopicPerEvent("PROD");
+        var customNaming = new ShortenedTopicNaming("PROD");
+        var topo = TopicTopology.TopicPerEvent();
+        topo.Naming = customNaming;
+
         var destinations = topo.GetPublishDestinations(typeof(ConcreteEvent));
 
         Assert.That(destinations[0].TopicName, Does.StartWith("PROD."));
