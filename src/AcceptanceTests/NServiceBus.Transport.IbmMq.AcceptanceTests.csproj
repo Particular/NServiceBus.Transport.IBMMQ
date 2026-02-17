@@ -1,9 +1,9 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
         <SignAssembly>true</SignAssembly>
-<!--        <AssemblyOriginatorKeyFile>..\NServiceBusTests.snk</AssemblyOriginatorKeyFile>-->
+        <RootNamespace>NServiceBus.Transport.IbmMq.AcceptanceTests</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>
@@ -20,11 +20,12 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\NServiceBus.Transport.IbmMq\NServiceBus.Transport.IbmMq.csproj" />
+      <ProjectReference Include="..\Transport\NServiceBus.Transport.IbmMq.csproj" />
     </ItemGroup>
 
     <ItemGroup>
         <Compile Include="..\Testing\TestConnectionDetails.cs" />
+        <Compile Include="..\Testing\ShortenedTopicNaming.cs" />
     </ItemGroup>
 
 </Project>

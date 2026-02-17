@@ -66,8 +66,11 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         var connectionProperties = connectionConfiguration.ConnectionProperties;
         var messageWaitInterval = connectionConfiguration.MessageWaitInterval;
         SanitizeResourceName resourceNameFormatter = options.ResourceNameSanitizer;
+        var topology = options.Topology;
+        topology.Naming = options.TopicNaming;
 
         services
+            .AddSingleton(topology)
             .AddSingleton<CreateQueueManager>(() => new MQQueueManager(queueManagerName, connectionProperties))
             .AddSingleton(new MessagePumpSettings(messageWaitInterval, transactionMode))
             .AddScoped(sp => new MessagePumpWorker(
@@ -77,19 +80,20 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
                 criticalError
             ))
             .AddSingleton<CreateQueueManagerFacade>(qm =>
-                new MqQueueManagerFacade(qm, resourceNameFormatter, options.TopicPrefix))
+                new MqQueueManagerFacade(qm, resourceNameFormatter))
             .AddSingleton(new MQQueueManager(queueManagerName, connectionProperties))
             .AddSingleton<IMessageDispatcher>(sp =>
             {
                 var sendConnection = sp.GetRequiredService<MQQueueManager>();
                 var createFacade = sp.GetRequiredService<CreateQueueManagerFacade>();
                 var sendFacade = createFacade(sendConnection);
+                var topo = sp.GetRequiredService<TopicTopology>();
 
                 return transactionMode switch
                 {
-                    TransportTransactionMode.None => new MessageDispatcher(sendFacade),
-                    TransportTransactionMode.ReceiveOnly => new MessageDispatcher(sendFacade),
-                    TransportTransactionMode.SendsAtomicWithReceive => new AtomicMessageDispatcher(sendFacade, createFacade),
+                    TransportTransactionMode.None => new MessageDispatcher(sendFacade, topo),
+                    TransportTransactionMode.ReceiveOnly => new MessageDispatcher(sendFacade, topo),
+                    TransportTransactionMode.SendsAtomicWithReceive => new AtomicMessageDispatcher(sendFacade, topo, createFacade),
                     TransportTransactionMode.TransactionScope => throw new NotSupportedException("TransactionScope is not supported"),
                     _ => throw new ArgumentOutOfRangeException(nameof(transactionMode), transactionMode, "Unsupported transaction mode")
                 };
@@ -102,9 +106,10 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
                 {
                     var createFacade = sp.GetRequiredService<CreateQueueManagerFacade>();
                     var createConnection = sp.GetRequiredService<CreateQueueManager>();
+                    var topo = sp.GetRequiredService<TopicTopology>();
                     return new IbmMqSubscriptionManager(
                         LogManager.GetLogger<IbmMqSubscriptionManager>(),
-                        createFacade, createConnection, rs.ReceiveAddress.BaseAddress);
+                        topo, createFacade, createConnection, rs.ReceiveAddress.BaseAddress);
                 })
                 .AddSingleton<IMessageReceiver>(sp =>
                 {

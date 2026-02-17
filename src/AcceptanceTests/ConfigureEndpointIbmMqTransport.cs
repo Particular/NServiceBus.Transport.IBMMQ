@@ -28,6 +28,7 @@ public class ConfigureEndpointIbmMqTransport : IConfigureEndpointTestExecution
             {
                 TestConnectionDetails.Apply(s);
                 s.MessageWaitInterval = TimeSpan.FromMilliseconds(100);
+                s.TopicNaming = TestConnectionDetails.CreateTopicNaming();
                 s.ResourceNameSanitizer = Sanitize;
             }
         );

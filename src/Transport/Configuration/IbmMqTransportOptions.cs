@@ -132,15 +132,20 @@ public class IbmMqTransportOptions
     public int CharacterSet { get; set; } = MQC.CODESET_UTF;
 
     /// <summary>
-    /// Prefix used for topic object names and topic strings.
-    /// Topic admin names will be "{PREFIX}.{TYPE}" (uppercase), topic strings will be "{prefix}/{type}/" (lowercase).
-    /// Default: "DEV" (matching IBM MQ developer container defaults which pre-authorize DEV.** objects).
-    /// Must contain only valid MQ characters: A-Z, a-z, 0-9, '.', '/', '_', '%'.
+    /// Controls how events are mapped to IBM MQ topics for pub/sub.
+    /// Default: <see cref="TopicTopology.TopicPerEvent"/> (flat topology, one topic per concrete event type).
     /// </summary>
-    public string TopicPrefix { get; set; } = "DEV";
+    public TopicTopology Topology { get; set; } = TopicTopology.TopicPerEvent();
 
     /// <summary>
-    /// Sanitizer for queue and topic resource names.
+    /// Controls how event types are mapped to IBM MQ topic names and topic strings.
+    /// Subclass <see cref="IbmMq.TopicNaming"/> to customize naming conventions for your environment.
+    /// Default: <see cref="IbmMq.TopicNaming"/> with prefix "DEV".
+    /// </summary>
+    public TopicNaming TopicNaming { get; set; } = new();
+
+    /// <summary>
+    /// Sanitizer for queue resource names.
     /// Override to customize sanitization (e.g., replacing invalid characters, truncating long names).
     /// </summary>
     public SanitizeResourceName ResourceNameSanitizer { get; set; } = s => s;

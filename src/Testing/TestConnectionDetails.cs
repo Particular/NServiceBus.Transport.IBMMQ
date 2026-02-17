@@ -15,6 +15,9 @@ static class TestConnectionDetails
     public static string Password => Uri.UnescapeDataString(ConnectionUri.UserInfo.Split(':')[1]);
     public static string QueueManagerName => ConnectionUri.AbsolutePath.Trim('/') is { Length: > 0 } path ? Uri.UnescapeDataString(path) : "QM1";
     public static string Channel => Query["channel"] ?? "DEV.ADMIN.SVRCONN";
+    public static string TopicPrefix => Query["topicprefix"] ?? "DEV";
+
+    public static TopicNaming CreateTopicNaming() => new ShortenedTopicNaming(TopicPrefix);
 
     public static void Apply(IbmMqTransportOptions options)
     {
@@ -28,10 +31,6 @@ static class TestConnectionDetails
         if (Query["appname"] is { } appName)
         {
             options.ApplicationName = appName;
-        }
-        if (Query["topicprefix"] is { } topicPrefix)
-        {
-            options.TopicPrefix = topicPrefix;
         }
         if (Query["sslkeyrepo"] is { } sslKeyRepo)
         {
