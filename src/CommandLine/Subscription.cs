@@ -5,30 +5,27 @@ using IBM.WMQ.PCF;
 
 static class Subscription
 {
-    public static void Create(CommandRunner runner, string topicString, string subscriptionName, string endpointQueue)
+    public static void Create(MQQueueManager queueManager, string topicString, string subscriptionName, string endpointQueue)
     {
         try
         {
-            AccessSubscription(runner, topicString, subscriptionName, endpointQueue, MQC.MQSO_RESUME);
-
+            Resume(queueManager, topicString, subscriptionName);
             Console.WriteLine($"Subscription '{subscriptionName}' already exists, skipping creation.");
         }
         catch (MQException ex) when (ex.ReasonCode == MQC.MQRC_NO_SUBSCRIPTION)
         {
-            AccessSubscription(runner, topicString, subscriptionName, endpointQueue, MQC.MQSO_CREATE);
-
+            CreateDurable(queueManager, topicString, subscriptionName, endpointQueue);
             Console.WriteLine($"Subscription '{subscriptionName}' created successfully.");
         }
     }
 
-    public static void Delete(CommandRunner runner, string subscriptionName)
+    public static void Delete(MQQueueManager queueManager, string subscriptionName)
     {
-        var agent = new PCFMessageAgent(runner.QueueManager);
+        var agent = new PCFMessageAgent(queueManager);
         try
         {
             var command = new PCFMessage(MQC.MQCMD_DELETE_SUBSCRIPTION);
             command.AddParameter(MQC.MQCACF_SUB_NAME, subscriptionName);
-
             agent.Send(command);
 
             Console.WriteLine($"Subscription '{subscriptionName}' deleted successfully.");
@@ -43,41 +40,39 @@ static class Subscription
         }
     }
 
-    static void AccessSubscription(CommandRunner runner, string topicString, string subscriptionName, string endpointQueue, int options)
+    static void Resume(MQQueueManager queueManager, string topicString, string subscriptionName)
     {
-        int finalOptions = options
-                           | MQC.MQSO_FAIL_IF_QUIESCING
-                           | MQC.MQSO_DURABLE;
+        int options = MQC.MQSO_RESUME | MQC.MQSO_FAIL_IF_QUIESCING | MQC.MQSO_DURABLE;
 
-        if (options == MQC.MQSO_CREATE)
-        {
-            var destinationQueue = runner.QueueManager.AccessQueue(endpointQueue, MQC.MQOO_OUTPUT);
-            try
-            {
-                using var topic = runner.QueueManager.AccessTopic(
-                    destinationQueue,
-                    topicString,
-                    null,
-                    finalOptions,
-                    null,
-                    subscriptionName
-                );
-            }
-            finally
-            {
-                destinationQueue.Close();
-            }
-
-            return;
-        }
-
-        using var resumedTopic = runner.QueueManager.AccessTopic(
+        using var topic = queueManager.AccessTopic(
             null,
             topicString,
             null,
-            finalOptions,
+            options,
             null,
             subscriptionName
         );
+    }
+
+    static void CreateDurable(MQQueueManager queueManager, string topicString, string subscriptionName, string endpointQueue)
+    {
+        int options = MQC.MQSO_CREATE | MQC.MQSO_FAIL_IF_QUIESCING | MQC.MQSO_DURABLE;
+
+        var destinationQueue = queueManager.AccessQueue(endpointQueue, MQC.MQOO_OUTPUT);
+        try
+        {
+            using var topic = queueManager.AccessTopic(
+                destinationQueue,
+                topicString,
+                null,
+                options,
+                null,
+                subscriptionName
+            );
+        }
+        finally
+        {
+            destinationQueue.Close();
+        }
     }
 }

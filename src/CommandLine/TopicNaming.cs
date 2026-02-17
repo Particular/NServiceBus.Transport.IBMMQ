@@ -1,20 +1,18 @@
 namespace NServiceBus.Transport.IbmMq.CommandLine;
 
-/// <summary>
-/// Generates IBM MQ topic names and strings from .NET type names.
-/// Mirrors the naming logic from the transport's TopicNaming class.
-/// </summary>
 static class TopicNaming
 {
+    const int MaxTopicNameLength = 48;
+
     public static string GenerateTopicName(string eventTypeName, string topicPrefix)
     {
         var fullName = eventTypeName.Replace('+', '.').ToUpperInvariant();
         var name = $"{topicPrefix.ToUpperInvariant()}.{fullName}";
 
-        if (name.Length > 48)
+        if (name.Length > MaxTopicNameLength)
         {
             throw new InvalidOperationException(
-                $"Generated topic name '{name}' is {name.Length} characters, which exceeds the IBM MQ 48-character limit. " +
+                $"Generated topic name '{name}' is {name.Length} characters, which exceeds the IBM MQ {MaxTopicNameLength}-character limit. " +
                 "Use a shorter event type name or a shorter topic prefix.");
         }
 
