@@ -3,6 +3,7 @@
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
         <SignAssembly>true</SignAssembly>
+        <AssemblyOriginatorKeyFile>..\NServiceBusTests.snk</AssemblyOriginatorKeyFile>
         <RootNamespace>NServiceBus.Transport.IbmMq.AcceptanceTests</RootNamespace>
     </PropertyGroup>
 
