@@ -14,6 +14,7 @@ public class ConfigureIbmMqTransportInfrastructure : IConfigureTransportInfrastr
         {
             TestConnectionDetails.Apply(s);
             s.MessageWaitInterval = TimeSpan.FromMilliseconds(100);
+            s.Topology = TestConnectionDetails.CreateTopology();
             s.ResourceNameSanitizer = Sanitize;
         });
 
