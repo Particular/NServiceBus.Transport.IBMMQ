@@ -5,15 +5,14 @@ using IBM.WMQ.PCF;
 
 static class Topic
 {
-    public static void Create(CommandRunner runner, string topicName, string topicString)
+    public static void Create(MQQueueManager queueManager, string topicName, string topicString)
     {
-        var agent = new PCFMessageAgent(runner.QueueManager);
+        var agent = new PCFMessageAgent(queueManager);
         try
         {
             var command = new PCFMessage(MQC.MQCMD_CREATE_TOPIC);
             command.AddParameter(MQC.MQCA_TOPIC_NAME, topicName);
             command.AddParameter(MQC.MQCA_TOPIC_STRING, topicString);
-
             agent.Send(command);
 
             Console.WriteLine($"Topic '{topicName}' (string: '{topicString}') created successfully.");

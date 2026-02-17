@@ -5,9 +5,9 @@ using IBM.WMQ.PCF;
 
 static class Queue
 {
-    public static Task Create(CommandRunner runner, string name, int maxDepth = 5000)
+    public static void Create(MQQueueManager queueManager, string name, int maxDepth = 5000)
     {
-        var agent = new PCFMessageAgent(runner.QueueManager);
+        var agent = new PCFMessageAgent(queueManager);
         try
         {
             var request = new PCFMessage(MQC.MQCMD_CREATE_Q);
@@ -15,7 +15,6 @@ static class Queue
             request.AddParameter(MQC.MQIA_Q_TYPE, MQC.MQQT_LOCAL);
             request.AddParameter(MQC.MQIA_MAX_Q_DEPTH, maxDepth);
             request.AddParameter(MQC.MQIA_DEF_PERSISTENCE, MQC.MQPER_PERSISTENT);
-
             agent.Send(request);
 
             Console.WriteLine($"Queue '{name}' created successfully.");
@@ -28,18 +27,15 @@ static class Queue
         {
             agent.Disconnect();
         }
-
-        return Task.CompletedTask;
     }
 
-    public static Task Delete(CommandRunner runner, string name)
+    public static void Delete(MQQueueManager queueManager, string name)
     {
-        var agent = new PCFMessageAgent(runner.QueueManager);
+        var agent = new PCFMessageAgent(queueManager);
         try
         {
             var request = new PCFMessage(MQC.MQCMD_DELETE_Q);
             request.AddParameter(MQC.MQCA_Q_NAME, name);
-
             agent.Send(request);
 
             Console.WriteLine($"Queue '{name}' deleted successfully.");
@@ -52,7 +48,5 @@ static class Queue
         {
             agent.Disconnect();
         }
-
-        return Task.CompletedTask;
     }
 }
