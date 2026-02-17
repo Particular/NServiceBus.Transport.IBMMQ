@@ -165,7 +165,7 @@ public sealed class IbmMqTransport : TransportDefinition
             Connections = options.Connections.Count > 0 ? string.Join(",", options.Connections) : null,
             options.QueueManagerName,
             connectionConfiguration.ApplicationName,
-            options.TopicPrefix,
+            Topology = options.Topology?.GetType().ToString(),
             MessageWaitInterval = options.MessageWaitInterval.ToString(),
             options.MaxMessageLength,
             options.CharacterSet,

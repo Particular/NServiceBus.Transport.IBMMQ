@@ -6,6 +6,7 @@ using Unicast.Messages;
 
 sealed class IbmMqSubscriptionManager(
     ILog log,
+    TopicTopology topology,
     CreateQueueManagerFacade createFacade,
     CreateQueueManager createConnection,
     string receiveAddress
@@ -19,9 +20,13 @@ sealed class IbmMqSubscriptionManager(
         var helper = createFacade(connection);
         foreach (var eventType in eventTypes)
         {
-            log.DebugFormat("Subscribing to {0} => {1}", eventType.MessageType, receiveAddress);
-            using var topic = helper.EnsureSubscription(eventType.MessageType, receiveAddress);
-            topic.Close();
+            foreach (var topicString in topology.GetSubscriptionTopicStrings(eventType.MessageType))
+            {
+                var subscriptionName = topology.GenerateSubscriptionName(receiveAddress, topicString);
+                log.DebugFormat("Subscribing to {0} topic={1} sub={2}", eventType.MessageType, topicString, subscriptionName);
+                using var topic = helper.EnsureSubscription(topicString, subscriptionName, receiveAddress);
+                topic.Close();
+            }
         }
 
         connection.Disconnect();
@@ -34,7 +39,13 @@ sealed class IbmMqSubscriptionManager(
         log.DebugFormat("Unsubscribing from {0} => {1}", eventType.MessageType, receiveAddress);
         using var connection = createConnection();
         var helper = createFacade(connection);
-        helper.RemoveSubscription(eventType.MessageType, receiveAddress);
+
+        foreach (var topicString in topology.GetSubscriptionTopicStrings(eventType.MessageType))
+        {
+            var subscriptionName = topology.GenerateSubscriptionName(receiveAddress, topicString);
+            helper.RemoveSubscription(subscriptionName);
+        }
+
         connection.Disconnect();
 
         return Task.CompletedTask;

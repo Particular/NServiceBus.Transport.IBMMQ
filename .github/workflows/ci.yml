@@ -25,6 +25,7 @@ jobs:
           LICENSE: accept
           MQ_QMGR_NAME: QM1
           MQ_ADMIN_PASSWORD: passw0rd
+          MQ_APP_PASSWORD: testpass1
         options: >-
           --health-cmd "dspmq"
           --health-interval 10s

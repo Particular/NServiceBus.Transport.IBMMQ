@@ -19,7 +19,15 @@ class IbmMqTransportOptionsValidate
         // Message processing validation
         ValidateMessageProcessing(options);
 
-        ValidateTopicPrefix(options);
+        if (options.Topology == null)
+        {
+            throw new ArgumentException("Topology must be assigned", nameof(options.Topology));
+        }
+
+        if (options.TopicNaming == null)
+        {
+            throw new ArgumentException("TopicNaming must be assigned", nameof(options.TopicNaming));
+        }
 
         if (options.ResourceNameSanitizer == null)
         {
@@ -112,26 +120,6 @@ class IbmMqTransportOptionsValidate
             throw new ArgumentException(
                 "CharacterSet must be a positive CCSID value",
                 nameof(options.CharacterSet));
-        }
-    }
-
-    static void ValidateTopicPrefix(IbmMqTransportOptions options)
-    {
-        if (string.IsNullOrWhiteSpace(options.TopicPrefix))
-        {
-            throw new ArgumentException(
-                "TopicPrefix must not be null, empty, or whitespace",
-                nameof(options.TopicPrefix));
-        }
-
-        foreach (var c in options.TopicPrefix)
-        {
-            if (!char.IsLetterOrDigit(c) && c != '.' && c != '/' && c != '_' && c != '%')
-            {
-                throw new ArgumentException(
-                    $"TopicPrefix contains invalid character '{c}'. Only A-Z, a-z, 0-9, '.', '/', '_', '%' are allowed.",
-                    nameof(options.TopicPrefix));
-            }
         }
     }
 

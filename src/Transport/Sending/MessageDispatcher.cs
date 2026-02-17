@@ -2,7 +2,7 @@ namespace NServiceBus.Transport.IbmMq;
 
 using IBM.WMQ;
 
-class MessageDispatcher(MqQueueManagerFacade sendFacade) : IMessageDispatcher
+class MessageDispatcher(MqQueueManagerFacade sendFacade, TopicTopology topology) : IMessageDispatcher
 {
     protected readonly record struct DispatchContext(MqQueueManagerFacade Facade, int PutOptions);
 
@@ -11,7 +11,7 @@ class MessageDispatcher(MqQueueManagerFacade sendFacade) : IMessageDispatcher
         var context = ResolveContext(transaction);
 
         Dictionary<string, MQQueue>? queues = null;
-        Dictionary<Type, MQTopic>? topics = null;
+        Dictionary<string, MQTopic>? topics = null;
 
         try
         {
@@ -78,18 +78,16 @@ class MessageDispatcher(MqQueueManagerFacade sendFacade) : IMessageDispatcher
         queue.Put(message, new MQPutMessageOptions { Options = context.PutOptions });
     }
 
-    protected static void DispatchMulticast(MulticastTransportOperation operation, Dictionary<Type, MQTopic> topics, DispatchContext context)
+    protected void DispatchMulticast(MulticastTransportOperation operation, Dictionary<string, MQTopic> topics, DispatchContext context)
     {
         var putOptions = new MQPutMessageOptions { Options = context.PutOptions };
 
-        // Publish to all types in the hierarchy to support polymorphic subscriptions.
-        // E.g. publishing MyEvent1 : IMyEvent publishes to both MyEvent1 and IMyEvent topics.
-        foreach (var eventType in MqQueueManagerFacade.GetEventTypeHierarchy(operation.MessageType))
+        foreach (var destination in topology.GetPublishDestinations(operation.MessageType))
         {
-            if (!topics.TryGetValue(eventType, out var topic))
+            if (!topics.TryGetValue(destination.TopicName, out var topic))
             {
-                topic = context.Facade.EnsureTopic(eventType);
-                topics[eventType] = topic;
+                topic = context.Facade.EnsureTopic(destination.TopicName, destination.TopicString);
+                topics[destination.TopicName] = topic;
             }
 
             var message = IbmMqMessageConverter.ToNative(operation);
