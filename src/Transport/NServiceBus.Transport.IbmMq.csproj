@@ -2,18 +2,25 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <SignAssembly>true</SignAssembly>
+    <AssemblyOriginatorKeyFile>..\NServiceBus.snk</AssemblyOriginatorKeyFile>
+    <Description>IBM MQ transport for NServiceBus</Description>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="NServiceBus" Version="10.1.0" />
     <PackageReference Include="IBMMQDotnetClient" Version="9.4.2" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.2" />
+    <PackageReference Include="NServiceBus" Version="10.1.0" />
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="NServiceBus.Transport.IbmMq.Tests" />
+    <PackageReference Include="Particular.Packaging" Version="4.5.0" PrivateAssets="All" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="NServiceBus.Transport.IbmMq.Tests" Key="$(NServiceBusTestsKey)" />
   </ItemGroup>
 
 </Project>
