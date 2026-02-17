@@ -4,6 +4,9 @@ using IBM.WMQ;
 using IBM.WMQ.PCF;
 using Logging;
 
+/// <summary>
+/// IBM MQ transport for NServiceBus.
+/// </summary>
 public sealed class IbmMqTransport : TransportDefinition
 {
     readonly ILog log = LogManager.GetLogger<IbmMqTransport>();
@@ -34,6 +37,7 @@ public sealed class IbmMqTransport : TransportDefinition
         new IbmMqTransportOptionsValidate().Validate(Options);
     }
 
+    /// <inheritdoc />
     public override IReadOnlyCollection<TransportTransactionMode> GetSupportedTransactionModes() =>
     [
         TransportTransactionMode.None,
@@ -41,6 +45,7 @@ public sealed class IbmMqTransport : TransportDefinition
         TransportTransactionMode.SendsAtomicWithReceive
     ];
 
+    /// <inheritdoc />
     public override Task<TransportInfrastructure> Initialize(
         HostSettings hostSettings,
         ReceiveSettings[] receivers,
