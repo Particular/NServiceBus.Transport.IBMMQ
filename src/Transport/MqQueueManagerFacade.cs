@@ -5,6 +5,14 @@ using IBM.WMQ.PCF;
 
 class MqQueueManagerFacade(MQQueueManager queueManager, SanitizeResourceName resourceNameFormatter)
 {
+    public void Disconnect()
+    {
+        using (queueManager)
+        {
+            queueManager.Disconnect();
+        }
+    }
+
     public MQQueue AccessSendQueue(string name)
     {
         var formatted = resourceNameFormatter(name);
