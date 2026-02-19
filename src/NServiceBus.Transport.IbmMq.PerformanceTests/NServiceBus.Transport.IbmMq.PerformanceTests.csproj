@@ -19,4 +19,8 @@
     <ProjectReference Include="..\Transport\NServiceBus.Transport.IbmMq.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Include="..\Testing\ShortenedTopicNaming.cs" />
+  </ItemGroup>
+
 </Project>

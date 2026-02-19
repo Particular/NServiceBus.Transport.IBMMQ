@@ -5,7 +5,7 @@ using NServiceBus.Transport.IbmMq.PerformanceTests.Scenarios;
 
 var scenariosOption = new Option<string[]>("--scenarios")
 {
-    Description = "Scenarios to run: send, receive, receiveandsend, failure, sendlocal, all",
+    Description = "Scenarios to run: send, receive, receiveandsend, failure, sendlocal, publish, all",
     DefaultValueFactory = _ => ["all"],
     AllowMultipleArgumentsPerToken = true,
     Arity = ArgumentArity.ZeroOrMore
@@ -165,7 +165,8 @@ static List<IPerformanceScenario> ResolveScenarios(string[] scenarioNames)
         ["receive"] = new ReceiveThroughputScenario(),
         ["receiveandsend"] = new ReceiveAndSendThroughputScenario(),
         ["failure"] = new FailureProcessingScenario(),
-        ["sendlocal"] = new SendLocalThroughputScenario()
+        ["sendlocal"] = new SendLocalThroughputScenario(),
+        ["publish"] = new PublishThroughputScenario()
     };
 
     if (scenarioNames.Any(s => s.Equals("all", StringComparison.OrdinalIgnoreCase)))
