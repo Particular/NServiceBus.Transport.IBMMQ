@@ -24,7 +24,8 @@ static class EndpointLauncher
         typeof(ReceiveThroughputHandler),
         typeof(ReceiveAndSendHandler),
         typeof(FailureHandler),
-        typeof(SendLocalHandler)
+        typeof(SendLocalHandler),
+        typeof(PublishHandler)
     ];
 
     public static async Task<IEndpointInstance[]> StartMultiple(EndpointSpec spec, int instanceCount, CancellationToken cancellationToken = default)
@@ -65,6 +66,7 @@ static class EndpointLauncher
             options.QueueManagerName = "QM1";
             options.MessageWaitInterval = TimeSpan.FromMilliseconds(500);
             options.ResourceNameSanitizer = MqConnectionFactory.FormatQueueName;
+            options.TopicNaming = new ShortenedTopicNaming();
         })
         {
             TransportTransactionMode = spec.TransactionMode
