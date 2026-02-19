@@ -23,7 +23,8 @@ static class EndpointLauncher
     [
         typeof(ReceiveThroughputHandler),
         typeof(ReceiveAndSendHandler),
-        typeof(FailureHandler)
+        typeof(FailureHandler),
+        typeof(SendLocalHandler)
     ];
 
     public static async Task<IEndpointInstance[]> StartMultiple(EndpointSpec spec, int instanceCount, CancellationToken cancellationToken = default)
