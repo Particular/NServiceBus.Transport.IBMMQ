@@ -22,13 +22,9 @@ sealed class MqConnectionPool(CreateQueueManager createConnection, CreateQueueMa
         Interlocked.Decrement(ref currentSize);
 
         // Pool exhausted — spin-wait until one is returned
-        SpinWait spin = default;
-        while (!pool.TryTake(out facade))
-        {
-            spin.SpinOnce();
-        }
+        SpinWait.SpinUntil(() => pool.TryTake(out facade));
 
-        return facade;
+        return facade!;
     }
 
     public void Return(MqQueueManagerFacade facade) => pool.Add(facade);
