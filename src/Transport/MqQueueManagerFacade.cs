@@ -1,10 +1,17 @@
 namespace NServiceBus.Transport.IbmMq;
 
+using System.Collections.Concurrent;
 using IBM.WMQ;
 using IBM.WMQ.PCF;
 
 class MqQueueManagerFacade(MQQueueManager queueManager, SanitizeResourceName resourceNameFormatter)
 {
+    // Tracks topics that have been verified to exist on the queue manager.
+    // Avoids opening a PCFMessageAgent on every publish dispatch, which
+    // accumulates handles on the underlying MQQueueManager connection and
+    // can exhaust the per-connection handle limit (MAXHANDS, default 256).
+    static readonly ConcurrentDictionary<string, byte> createdTopics = new();
+
     public void Disconnect()
     {
         using (queueManager)
@@ -21,16 +28,25 @@ class MqQueueManagerFacade(MQQueueManager queueManager, SanitizeResourceName res
 
     public MQTopic EnsureTopic(string topicName, string topicString)
     {
-        try
+        if (createdTopics.TryAdd(topicName, 0))
         {
-            CreateTopic(topicName, topicString);
-        }
-        catch (MQException ex) when (ex.ReasonCode == MQC.MQRC_NOT_AUTHORIZED)
-        {
-            throw new InvalidOperationException(
-                $"Topic '{topicName}' does not exist and the current user is not authorized to create it. " +
-                "Pre-create topics by running the endpoint with EnableInstallers using an account with administrative permissions, " +
-                "or have an MQ administrator create the topic.", ex);
+            try
+            {
+                CreateTopic(topicName, topicString);
+            }
+            catch (MQException ex) when (ex.ReasonCode == MQC.MQRC_NOT_AUTHORIZED)
+            {
+                createdTopics.TryRemove(topicName, out _);
+                throw new InvalidOperationException(
+                    $"Topic '{topicName}' does not exist and the current user is not authorized to create it. " +
+                    "Pre-create topics by running the endpoint with EnableInstallers using an account with administrative permissions, " +
+                    "or have an MQ administrator create the topic.", ex);
+            }
+            catch
+            {
+                createdTopics.TryRemove(topicName, out _);
+                throw;
+            }
         }
 
         // Open by topic string for publishing, not by admin object name.
