@@ -2,7 +2,7 @@ namespace NServiceBus.Transport.IbmMq;
 
 using IBM.WMQ;
 
-class MessageDispatcher(MqQueueManagerFacade sendFacade, TopicTopology topology) : IMessageDispatcher
+class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology) : IMessageDispatcher
 {
     protected readonly record struct DispatchContext(MqQueueManagerFacade Facade, int PutOptions);
 
@@ -58,13 +58,20 @@ class MessageDispatcher(MqQueueManagerFacade sendFacade, TopicTopology topology)
                     }
                 }
             }
+
+            sendPool.Return(context.Facade);
         }
 
         return Task.CompletedTask;
     }
 
-    protected virtual DispatchContext ResolveContext(TransportTransaction transaction) =>
-        new(sendFacade, MQC.MQPMO_FAIL_IF_QUIESCING);
+    protected virtual DispatchContext ResolveContext(TransportTransaction transaction)
+    {
+        var facade = sendPool.Rent();
+        return new(facade, MQC.MQPMO_FAIL_IF_QUIESCING);
+    }
+
+    protected void ReturnToPool(MqQueueManagerFacade facade) => sendPool.Return(facade);
 
     protected static void DispatchUnicast(UnicastTransportOperation operation, Dictionary<string, MQQueue> queues, DispatchContext context)
     {
