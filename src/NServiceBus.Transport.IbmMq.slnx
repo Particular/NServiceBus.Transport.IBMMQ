@@ -4,6 +4,7 @@
     <Project Path="Tests/NServiceBus.Transport.IbmMq.Tests.csproj" />
     <Project Path="TransportTests/NServiceBus.Transport.IbmMq.TransportTests.csproj" />
     <Project Path="CommandLineTests/NServiceBus.Transport.IbmMq.CommandLine.Tests.csproj" />
+    <Project Path="PerformanceTests/NServiceBus.Transport.IbmMq.PerformanceTests.csproj" />
   </Folder>
   <Project Path="Transport/NServiceBus.Transport.IbmMq.csproj" />
   <Project Path="CommandLine/NServiceBus.Transport.IbmMq.CommandLine.csproj" />

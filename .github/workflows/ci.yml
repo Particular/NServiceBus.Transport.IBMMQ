@@ -5,7 +5,13 @@ on:
       - main
       - release-*
   pull_request:
+    types: [opened, synchronize, reopened, labeled]
   workflow_dispatch:
+    inputs:
+      run_perf_tests:
+        description: Run performance tests
+        type: boolean
+        default: false
 env:
   DOTNET_NOLOGO: true
 defaults:
@@ -50,3 +56,54 @@ jobs:
         run: dotnet build src/NServiceBus.Transport.IbmMq.slnx --configuration Release
       - name: Run tests
         run: dotnet test src/NServiceBus.Transport.IbmMq.slnx --configuration Release --no-build --logger "GitHubActions;report-warnings=false"
+
+  perf-test-gate:
+    name: Perf test gate
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for perf-test label
+        shell: bash
+        env:
+          HAS_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'perf-test') }}
+        run: |
+          if [ "$HAS_LABEL" != "true" ]; then
+            echo "::error::The 'perf-test' label is required. Add it to the PR to run performance tests."
+            exit 1
+          fi
+
+  perf-tests:
+    name: Performance tests
+    if: >-
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'perf-test'))
+      || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_perf_tests == 'true')
+    runs-on: ubuntu-latest
+    services:
+      ibm-mq:
+        image: icr.io/ibm-messaging/mq:latest
+        ports:
+          - 1414:1414
+          - 9443:9443
+        env:
+          LICENSE: accept
+          MQ_QMGR_NAME: QM1
+          MQ_ADMIN_PASSWORD: ${{ secrets.MQ_ADMIN_PASSWORD }}
+        options: >-
+          --health-cmd "dspmq"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+          --health-start-period 30s
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v5.1.0
+        with:
+          dotnet-version: 10.0.x
+      - name: Build
+        run: dotnet build src/NServiceBus.Transport.IbmMq.slnx --configuration Release
+      - name: Run performance tests
+        run: dotnet run --project src/PerformanceTests --configuration Release

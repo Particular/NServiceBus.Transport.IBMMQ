@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="NServiceBus.Transport.IbmMq.Tests" Key="$(NServiceBusTestsKey)" />
+    <InternalsVisibleTo Include="NServiceBus.Transport.IbmMq.PerformanceTests" Key="$(NServiceBusTestsKey)" />
   </ItemGroup>
 
 </Project>
