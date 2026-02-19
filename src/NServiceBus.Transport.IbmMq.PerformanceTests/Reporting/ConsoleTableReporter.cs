@@ -16,13 +16,13 @@ class ConsoleTableReporter : IResultReporter
         Console.WriteLine();
 
         Console.WriteLine(
-            $"{"TxMode",-27}{"Inst",5}{"Msgs",7}{"Elapsed",10}{"Msg/sec",12}{"CPU",10}{"Handles",9}{"Alloc MB",10}{"GC 0/1/2",10}");
-        Console.WriteLine(new string('-', 100));
+            $"{"TxMode",-27}{"Inst",5}{"Msgs",7}{"Elapsed",10}{"Msg/sec",12}{"CPU",10}{"Handles",9}{"Alloc MB",12}{"GC 0/1/2",14}");
+        Console.WriteLine(new string('-', 106));
 
         foreach (var r in results)
         {
             Console.WriteLine(
-                $"{r.TransactionMode,-27}{r.InstanceCount,5}{r.MessageCount,7}{FormatElapsed(r.Elapsed),10}{r.MessagesPerSecond,12:F1}{FormatCpu(r.CpuTime),10}{r.Handles,9}{r.AllocatedMb,10:F1}{r.GcGen0 + "/" + r.GcGen1 + "/" + r.GcGen2,10}");
+                $"{r.TransactionMode,-27}{r.InstanceCount,5}{r.MessageCount,7}{FormatElapsed(r.Elapsed),10}{r.MessagesPerSecond,12:F1}{FormatCpu(r.CpuTime),10}{r.Handles,9}{r.AllocatedMb,12:F1}{r.GcGen0 + "/" + r.GcGen1 + "/" + r.GcGen2,14}");
         }
 
         Console.WriteLine();
