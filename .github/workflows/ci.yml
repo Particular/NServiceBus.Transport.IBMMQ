@@ -106,4 +106,4 @@ jobs:
       - name: Build
         run: dotnet build src/NServiceBus.Transport.IbmMq.slnx --configuration Release
       - name: Run performance tests
-        run: dotnet run --project src/NServiceBus.Transport.IbmMq.PerformanceTests --configuration Release
+        run: dotnet run --project src/PerformanceTests --configuration Release
