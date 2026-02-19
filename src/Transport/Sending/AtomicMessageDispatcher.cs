@@ -13,7 +13,7 @@ sealed class AtomicMessageDispatcher(MqConnectionPool pool, TopicTopology topolo
         }
 
         var atomicContext = new DispatchContext(createFacade(receiveConnection), MQC.MQPMO_FAIL_IF_QUIESCING | MQC.MQPMO_SYNCPOINT);
-        var isolatedContext = ResolveContext(transaction);
+        DispatchContext? isolatedContext = null;
 
         Dictionary<string, MQQueue>? atomicQueues = null;
         Dictionary<string, MQQueue>? isolatedQueues = null;
@@ -26,8 +26,9 @@ sealed class AtomicMessageDispatcher(MqConnectionPool pool, TopicTopology topolo
             {
                 if (operation.RequiredDispatchConsistency == DispatchConsistency.Isolated)
                 {
+                    isolatedContext ??= ResolveContext(transaction);
                     isolatedQueues ??= [];
-                    DispatchUnicast(operation, isolatedQueues, isolatedContext);
+                    DispatchUnicast(operation, isolatedQueues, isolatedContext.Value);
                 }
                 else
                 {
@@ -40,8 +41,9 @@ sealed class AtomicMessageDispatcher(MqConnectionPool pool, TopicTopology topolo
             {
                 if (operation.RequiredDispatchConsistency == DispatchConsistency.Isolated)
                 {
+                    isolatedContext ??= ResolveContext(transaction);
                     isolatedTopics ??= [];
-                    DispatchMulticast(operation, isolatedTopics, isolatedContext);
+                    DispatchMulticast(operation, isolatedTopics, isolatedContext.Value);
                 }
                 else
                 {
@@ -56,7 +58,11 @@ sealed class AtomicMessageDispatcher(MqConnectionPool pool, TopicTopology topolo
             CloseAll(isolatedQueues);
             CloseAll(atomicTopics);
             CloseAll(isolatedTopics);
-            ReturnToPool(isolatedContext.Facade);
+
+            if (isolatedContext.HasValue)
+            {
+                ReturnToPool(isolatedContext.Value.Facade);
+            }
         }
 
         return Task.CompletedTask;
