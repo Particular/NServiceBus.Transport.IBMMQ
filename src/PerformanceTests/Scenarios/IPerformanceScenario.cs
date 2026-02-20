@@ -1,6 +1,6 @@
 namespace NServiceBus.Transport.IbmMq.PerformanceTests.Scenarios;
 
-using NServiceBus.Transport.IbmMq.PerformanceTests.Metrics;
+using Metrics;
 
 record ScenarioRunSettings(
     int MessageCount,

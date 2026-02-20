@@ -1,7 +1,7 @@
 namespace NServiceBus.Transport.IbmMq.PerformanceTests.Handlers;
 
-using NServiceBus.Transport.IbmMq.PerformanceTests.Infrastructure;
-using NServiceBus.Transport.IbmMq.PerformanceTests.Messages;
+using Infrastructure;
+using Messages;
 
 class ReceiveThroughputHandler : IHandleMessages<PerfTestMessage>
 {

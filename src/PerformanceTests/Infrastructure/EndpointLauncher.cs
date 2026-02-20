@@ -1,8 +1,7 @@
 namespace NServiceBus.Transport.IbmMq.PerformanceTests.Infrastructure;
 
-using NServiceBus.Logging;
-using NServiceBus.Transport.IbmMq;
-using NServiceBus.Transport.IbmMq.PerformanceTests.Handlers;
+using IbmMq;
+using Handlers;
 
 record EndpointSpec
 {
