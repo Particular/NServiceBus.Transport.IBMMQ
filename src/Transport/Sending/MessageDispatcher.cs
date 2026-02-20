@@ -93,12 +93,36 @@ class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology) : IMe
         {
             if (!topics.TryGetValue(destination.TopicName, out var topic))
             {
-                topic = context.Facade.EnsureTopic(destination.TopicName, destination.TopicString);
+                try
+                {
+                    topic = context.Facade.AccessTopic(destination.TopicString);
+                }
+                catch (MQException)
+                {
+                    CreateTopicOrThrow(context.Facade, destination.TopicName, destination.TopicString);
+                    topic = context.Facade.AccessTopic(destination.TopicString);
+                }
+
                 topics[destination.TopicName] = topic;
             }
 
             var message = IbmMqMessageConverter.ToNative(operation);
             topic.Put(message, putOptions);
+        }
+    }
+
+    static void CreateTopicOrThrow(MqQueueManagerFacade facade, string topicName, string topicString)
+    {
+        try
+        {
+            facade.CreateTopic(topicName, topicString);
+        }
+        catch (MQException ex) when (ex.ReasonCode == MQC.MQRC_NOT_AUTHORIZED)
+        {
+            throw new InvalidOperationException(
+                $"Topic '{topicName}' does not exist and the current user is not authorized to create it. " +
+                "Pre-create topics by running the endpoint with EnableInstallers using an account with administrative permissions, " +
+                "or have an MQ administrator create the topic.", ex);
         }
     }
 }
