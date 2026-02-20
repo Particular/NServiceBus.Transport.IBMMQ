@@ -37,7 +37,7 @@ var durationOption = new Option<int>("--duration-seconds")
 var instanceCountsOption = new Option<int[]>("--instance-counts")
 {
     Description = "Number of endpoint instances to run per scenario",
-    DefaultValueFactory = _ => [1, 2, 4, 8],
+    DefaultValueFactory = _ => [1, 2],// 4, 8],
     AllowMultipleArgumentsPerToken = true,
     Arity = ArgumentArity.ZeroOrMore
 };
@@ -62,20 +62,20 @@ rootCommand.SetAction(async (parseResult, cancellationToken) =>
     var transactionModes = ParseTransactionModes(txModeStrings);
     var scenarioInstances = ResolveScenarios(scenarios);
 
-    Console.WriteLine("IBM MQ Transport Performance Tests");
-    Console.WriteLine($"  Messages: {messageCount}");
-    Console.WriteLine($"  Timeout: {durationSeconds}s");
-    Console.WriteLine($"  Transaction modes: {string.Join(", ", transactionModes)}");
-    Console.WriteLine($"  Instance counts: {string.Join(", ", instanceCounts)}");
-    Console.WriteLine($"  Scenarios: {string.Join(", ", scenarioInstances.Select(s => s.Name))}");
-    Console.WriteLine();
+    ConsoleLog.WriteLine(ConsoleLog.Bold("IBM MQ Transport Performance Tests"));
+    ConsoleLog.WriteLine($"  Messages: {messageCount}");
+    ConsoleLog.WriteLine($"  Timeout: {durationSeconds}s");
+    ConsoleLog.WriteLine($"  Transaction modes: {string.Join(", ", transactionModes)}");
+    ConsoleLog.WriteLine($"  Instance counts: {string.Join(", ", instanceCounts)}");
+    ConsoleLog.WriteLine($"  Scenarios: {string.Join(", ", scenarioInstances.Select(s => s.Name))}");
+    ConsoleLog.WriteLine();
 
     var reporter = new ConsoleTableReporter();
 
     // Warm-up: one discarded run per scenario
     var warmUpCount = Math.Max(50, messageCount / 10);
     var warmUpDuration = Math.Min(durationSeconds, 5);
-    Console.WriteLine($"Warm-up ({warmUpCount} messages, {warmUpDuration}s, first txMode, first instance count)...");
+    ConsoleLog.WriteLine($"Warm-up ({warmUpCount} messages, {warmUpDuration}s, first txMode, first instance count)...");
 
     foreach (var scenario in scenarioInstances)
     {
@@ -95,13 +95,13 @@ rootCommand.SetAction(async (parseResult, cancellationToken) =>
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"  Warm-up WARNING for {scenario.Name}: {ex.Message}");
+            ConsoleLog.WriteLine(ConsoleLog.Yellow($"  Warm-up WARNING for {scenario.Name}: {ex.Message}"));
         }
     }
 
-    Console.WriteLine();
-    Console.WriteLine("Measured runs...");
-    Console.WriteLine();
+    ConsoleLog.WriteLine();
+    ConsoleLog.WriteLine("Measured runs...");
+    ConsoleLog.WriteLine();
 
     // Measured runs
     var runSettings = new ScenarioRunSettings(messageCount, durationSeconds, instanceCounts, transactionModes);
@@ -119,12 +119,12 @@ rootCommand.SetAction(async (parseResult, cancellationToken) =>
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"  ERROR in {scenario.Name}: {ex.Message}");
-            Console.WriteLine();
+            ConsoleLog.WriteLine(ConsoleLog.Red($"  ERROR in {scenario.Name}: {ex.Message}"));
+            ConsoleLog.WriteLine();
         }
     }
 
-    Console.WriteLine("Done.");
+    ConsoleLog.WriteLine("Done.");
 });
 
 var config = new CommandLineConfiguration(rootCommand);
@@ -153,7 +153,7 @@ static TransportTransactionMode[] ParseTransactionModes(string[] modeStrings)
         }
         else
         {
-            Console.WriteLine($"Warning: Unknown transaction mode '{s}', skipping.");
+            ConsoleLog.WriteLine(ConsoleLog.Yellow($"Warning: Unknown transaction mode '{s}', skipping."));
         }
     }
 
@@ -186,7 +186,7 @@ static List<IPerformanceScenario> ResolveScenarios(string[] scenarioNames)
         }
         else
         {
-            Console.WriteLine($"Warning: Unknown scenario '{name}', skipping.");
+            ConsoleLog.WriteLine(ConsoleLog.Yellow($"Warning: Unknown scenario '{name}', skipping."));
         }
     }
 
