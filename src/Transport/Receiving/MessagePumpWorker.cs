@@ -337,23 +337,25 @@ sealed class MessagePumpWorker(
 
         try
         {
+            // Remove the failure count before invoking onError so any copy
+            // dispatched during the callback (delayed retry) starts fresh.
+            failureCounts?.TryRemove(messageId, out _);
+
             var result = await onError.Invoke(errorContext, cancellationToken).ConfigureAwait(false);
 
             if (transactionMode == TransportTransactionMode.ReceiveOnly)
             {
                 if (result is ErrorHandleResult.RetryRequired)
                 {
+                    // Restore the count — the message will be backed out and
+                    // re-delivered for immediate retry.
+                    failureCounts?.TryAdd(messageId, failures);
                     _connection!.Backout();
                 }
                 else
                 {
-                    failureCounts?.TryRemove(messageId, out _);
                     _connection!.Commit();
                 }
-            }
-            else
-            {
-                failureCounts?.TryRemove(messageId, out _);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
