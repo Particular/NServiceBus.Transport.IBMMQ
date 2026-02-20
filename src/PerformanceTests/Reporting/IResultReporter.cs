@@ -1,6 +1,6 @@
 namespace NServiceBus.Transport.IbmMq.PerformanceTests.Reporting;
 
-using NServiceBus.Transport.IbmMq.PerformanceTests.Metrics;
+using Metrics;
 
 interface IResultReporter
 {

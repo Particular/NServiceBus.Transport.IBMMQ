@@ -1,10 +1,10 @@
 namespace NServiceBus.Transport.IbmMq.PerformanceTests.Scenarios;
 
 using System.Diagnostics;
-using NServiceBus.Transport.IbmMq.PerformanceTests.Handlers;
-using NServiceBus.Transport.IbmMq.PerformanceTests.Infrastructure;
-using NServiceBus.Transport.IbmMq.PerformanceTests.Metrics;
-using NServiceBus.Transport.IbmMq.PerformanceTests.Reporting;
+using Handlers;
+using Infrastructure;
+using Metrics;
+using Reporting;
 
 class ReceiveThroughputScenario : IPerformanceScenario
 {
