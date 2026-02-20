@@ -61,8 +61,9 @@ static class MqMetricsCollector
         }
     }
 
-    public static string GetChannelStatus(MQQueueManager queueManager, string channelName = "DEV.ADMIN.SVRCONN")
+    public static string GetChannelStatus(MQQueueManager queueManager, string? channelName = null)
     {
+        channelName ??= TestConnectionDetails.Channel;
         var agent = new PCFMessageAgent(queueManager);
         try
         {

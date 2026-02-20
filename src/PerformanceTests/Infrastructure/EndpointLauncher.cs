@@ -46,8 +46,6 @@ static class EndpointLauncher
 
     static async Task<IEndpointInstance> Start(EndpointSpec spec, string instanceName, CancellationToken cancellationToken)
     {
-        var (host, user, password, port) = MqConnectionFactory.ParseConnectionDetails();
-
         var config = new EndpointConfiguration(spec.Name);
 
         config.UniquelyIdentifyRunningInstance()
@@ -57,14 +55,10 @@ static class EndpointLauncher
 
         var transport = new IbmMqTransport(options =>
         {
-            options.Host = host;
-            options.User = user;
-            options.Password = password;
-            options.Port = port;
-            options.QueueManagerName = "QM1";
+            TestConnectionDetails.Apply(options);
             options.MessageWaitInterval = TimeSpan.FromMilliseconds(500);
             options.ResourceNameSanitizer = MqConnectionFactory.FormatQueueName;
-            options.TopicNaming = new ShortenedTopicNaming();
+            options.TopicNaming = TestConnectionDetails.CreateTopicNaming();
         })
         {
             TransportTransactionMode = spec.TransactionMode
