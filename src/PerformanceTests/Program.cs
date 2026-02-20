@@ -1,7 +1,10 @@
 using System.CommandLine;
-using NServiceBus;
+using NServiceBus.Logging;
 using NServiceBus.Transport.IbmMq.PerformanceTests.Reporting;
 using NServiceBus.Transport.IbmMq.PerformanceTests.Scenarios;
+
+var defaultFactory = LogManager.Use<DefaultFactory>();
+defaultFactory.Level(LogLevel.Fatal);
 
 var scenariosOption = new Option<string[]>("--scenarios")
 {

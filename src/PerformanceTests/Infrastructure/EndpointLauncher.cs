@@ -14,7 +14,6 @@ record EndpointSpec
     public int DelayedRetries { get; init; } = 0;
     public Type[] HandlerTypes { get; init; } = [];
     public Dictionary<Type, string>? Routing { get; init; }
-    public LogLevel LogLevel { get; init; } = LogLevel.Error;
 }
 
 static class EndpointLauncher
@@ -106,9 +105,6 @@ static class EndpointLauncher
         {
             config.AssemblyScanner().ExcludeTypes(excludedTypes);
         }
-
-        var defaultFactory = LogManager.Use<DefaultFactory>();
-        defaultFactory.Level(spec.LogLevel);
 
         return await Endpoint.Start(config, cancellationToken).ConfigureAwait(false);
     }
