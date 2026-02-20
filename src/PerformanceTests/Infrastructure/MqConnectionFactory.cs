@@ -7,37 +7,22 @@ using IBM.WMQ;
 
 static class MqConnectionFactory
 {
-    static readonly string ConnectionDetails =
-        Environment.GetEnvironmentVariable("IbmMq_ConnectionDetails") ?? "localhost;admin;passw0rd";
-
-    public static (string Host, string User, string Password, int Port) ParseConnectionDetails()
-    {
-        var parts = ConnectionDetails.Split(';');
-        var host = parts.Length > 0 ? parts[0] : "localhost";
-        var user = parts.Length > 1 ? parts[1] : "admin";
-        var password = parts.Length > 2 ? parts[2] : "passw0rd";
-        var port = parts.Length > 3 && int.TryParse(parts[3], out var p) ? p : 1414;
-        return (host, user, password, port);
-    }
-
     public static Hashtable BuildConnectionProperties()
     {
-        var (host, user, password, port) = ParseConnectionDetails();
-
         return new Hashtable
         {
             { MQC.TRANSPORT_PROPERTY, MQC.TRANSPORT_MQSERIES_MANAGED },
-            { MQC.HOST_NAME_PROPERTY, host },
-            { MQC.PORT_PROPERTY, port },
-            { MQC.CHANNEL_PROPERTY, "DEV.ADMIN.SVRCONN" },
-            { MQC.USER_ID_PROPERTY, user },
-            { MQC.PASSWORD_PROPERTY, password }
+            { MQC.HOST_NAME_PROPERTY, TestConnectionDetails.Host },
+            { MQC.PORT_PROPERTY, TestConnectionDetails.Port },
+            { MQC.CHANNEL_PROPERTY, TestConnectionDetails.Channel },
+            { MQC.USER_ID_PROPERTY, TestConnectionDetails.User },
+            { MQC.PASSWORD_PROPERTY, TestConnectionDetails.Password }
         };
     }
 
     public static MQQueueManager CreateQueueManager()
     {
-        return new MQQueueManager("QM1", BuildConnectionProperties());
+        return new MQQueueManager(TestConnectionDetails.QueueManagerName, BuildConnectionProperties());
     }
 
     public static string FormatQueueName(string name)
