@@ -1,6 +1,6 @@
 namespace NServiceBus.Transport.IbmMq.PerformanceTests.Handlers;
 
-using NServiceBus.Transport.IbmMq.PerformanceTests.Messages;
+using Messages;
 
 class FailureHandler : IHandleMessages<PerfTestFailureMessage>
 {

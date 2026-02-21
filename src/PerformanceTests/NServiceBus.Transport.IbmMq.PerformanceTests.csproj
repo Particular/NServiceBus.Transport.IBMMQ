@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <Compile Include="..\Testing\ShortenedTopicNaming.cs" />
+    <Compile Include="..\Testing\TestConnectionDetails.cs" />
   </ItemGroup>
 
 </Project>

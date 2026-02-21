@@ -1,8 +1,7 @@
 namespace NServiceBus.Transport.IbmMq.PerformanceTests.Infrastructure;
 
-using NServiceBus.Logging;
-using NServiceBus.Transport.IbmMq;
-using NServiceBus.Transport.IbmMq.PerformanceTests.Handlers;
+using IbmMq;
+using Handlers;
 
 record EndpointSpec
 {
@@ -14,7 +13,6 @@ record EndpointSpec
     public int DelayedRetries { get; init; } = 0;
     public Type[] HandlerTypes { get; init; } = [];
     public Dictionary<Type, string>? Routing { get; init; }
-    public LogLevel LogLevel { get; init; } = LogLevel.Error;
 }
 
 static class EndpointLauncher
@@ -48,8 +46,6 @@ static class EndpointLauncher
 
     static async Task<IEndpointInstance> Start(EndpointSpec spec, string instanceName, CancellationToken cancellationToken)
     {
-        var (host, user, password, port) = MqConnectionFactory.ParseConnectionDetails();
-
         var config = new EndpointConfiguration(spec.Name);
 
         config.UniquelyIdentifyRunningInstance()
@@ -59,14 +55,10 @@ static class EndpointLauncher
 
         var transport = new IbmMqTransport(options =>
         {
-            options.Host = host;
-            options.User = user;
-            options.Password = password;
-            options.Port = port;
-            options.QueueManagerName = "QM1";
+            TestConnectionDetails.Apply(options);
             options.MessageWaitInterval = TimeSpan.FromMilliseconds(500);
             options.ResourceNameSanitizer = MqConnectionFactory.FormatQueueName;
-            options.TopicNaming = new ShortenedTopicNaming();
+            options.TopicNaming = TestConnectionDetails.CreateTopicNaming();
         })
         {
             TransportTransactionMode = spec.TransactionMode
@@ -106,9 +98,6 @@ static class EndpointLauncher
         {
             config.AssemblyScanner().ExcludeTypes(excludedTypes);
         }
-
-        var defaultFactory = LogManager.Use<DefaultFactory>();
-        defaultFactory.Level(spec.LogLevel);
 
         return await Endpoint.Start(config, cancellationToken).ConfigureAwait(false);
     }
