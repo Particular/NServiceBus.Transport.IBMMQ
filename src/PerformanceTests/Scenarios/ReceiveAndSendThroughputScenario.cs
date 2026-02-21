@@ -1,10 +1,11 @@
 namespace NServiceBus.Transport.IbmMq.PerformanceTests.Scenarios;
 
 using System.Diagnostics;
-using NServiceBus.Transport.IbmMq.PerformanceTests.Handlers;
-using NServiceBus.Transport.IbmMq.PerformanceTests.Infrastructure;
-using NServiceBus.Transport.IbmMq.PerformanceTests.Messages;
-using NServiceBus.Transport.IbmMq.PerformanceTests.Metrics;
+using Handlers;
+using Infrastructure;
+using Messages;
+using Metrics;
+using Reporting;
 
 class ReceiveAndSendThroughputScenario : IPerformanceScenario
 {
@@ -22,7 +23,7 @@ class ReceiveAndSendThroughputScenario : IPerformanceScenario
         {
             foreach (var instanceCount in settings.InstanceCounts)
             {
-                Console.Write($"  {Name} [{txMode}, instances={instanceCount}]...");
+                ConsoleLog.Write($"  {Name} [{txMode}, instances={instanceCount}]...");
 
                 using (var adminQm = MqConnectionFactory.CreateQueueManager())
                 {
@@ -62,7 +63,7 @@ class ReceiveAndSendThroughputScenario : IPerformanceScenario
 
                     var actualReceived = HandlerCompletion.CurrentCount;
                     var msgPerSec = actualReceived / sw.Elapsed.TotalSeconds;
-                    Console.WriteLine($" {msgPerSec:F1} msg/sec ({actualReceived}/{settings.MessageCount} in {sw.Elapsed.TotalSeconds:F2}s)");
+                    ConsoleLog.WriteLine($" {msgPerSec:F1} msg/sec ({actualReceived}/{settings.MessageCount} in {sw.Elapsed.TotalSeconds:F2}s)");
 
                     var afterSnapshot = ProcessMetricsCollector.TakeSnapshot();
                     var deltas = ProcessMetricsCollector.ComputeDeltas(beforeSnapshot, afterSnapshot);

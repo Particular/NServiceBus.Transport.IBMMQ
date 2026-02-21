@@ -1,9 +1,10 @@
 namespace NServiceBus.Transport.IbmMq.PerformanceTests.Scenarios;
 
 using System.Diagnostics;
-using NServiceBus.Transport.IbmMq.PerformanceTests.Infrastructure;
-using NServiceBus.Transport.IbmMq.PerformanceTests.Messages;
-using NServiceBus.Transport.IbmMq.PerformanceTests.Metrics;
+using Infrastructure;
+using Messages;
+using Metrics;
+using Reporting;
 
 class SendThroughputScenario : IPerformanceScenario
 {
@@ -19,7 +20,7 @@ class SendThroughputScenario : IPerformanceScenario
         {
             foreach (var instanceCount in settings.InstanceCounts)
             {
-                Console.Write($"  {Name} [{txMode}, instances={instanceCount}]...");
+                ConsoleLog.Write($"  {Name} [{txMode}, instances={instanceCount}]...");
 
                 using (var adminQm = MqConnectionFactory.CreateQueueManager())
                 {
@@ -70,7 +71,7 @@ class SendThroughputScenario : IPerformanceScenario
                     var deltas = ProcessMetricsCollector.ComputeDeltas(beforeSnapshot, afterSnapshot);
 
                     var msgPerSec = settings.MessageCount / sw.Elapsed.TotalSeconds;
-                    Console.WriteLine($" {msgPerSec:F1} msg/sec ({sw.Elapsed.TotalSeconds:F2}s)");
+                    ConsoleLog.WriteLine($" {msgPerSec:F1} msg/sec ({sw.Elapsed.TotalSeconds:F2}s)");
 
                     results.Add(new PerformanceResult(
                         Name, txMode, instanceCount, settings.MessageCount, sw.Elapsed, msgPerSec,

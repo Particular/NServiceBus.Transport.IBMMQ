@@ -1,8 +1,8 @@
 namespace NServiceBus.Transport.IbmMq.PerformanceTests.Infrastructure;
 
 using IBM.WMQ;
-using NServiceBus.Transport.IbmMq;
-using NServiceBus.Transport.IbmMq.PerformanceTests.Messages;
+using IbmMq;
+using Messages;
 
 static class QueueSeeder
 {

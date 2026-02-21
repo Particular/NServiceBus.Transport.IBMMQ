@@ -1,10 +1,11 @@
 namespace NServiceBus.Transport.IbmMq.PerformanceTests.Scenarios;
 
 using System.Diagnostics;
-using NServiceBus.Transport.IbmMq.PerformanceTests.Handlers;
-using NServiceBus.Transport.IbmMq.PerformanceTests.Infrastructure;
-using NServiceBus.Transport.IbmMq.PerformanceTests.Messages;
-using NServiceBus.Transport.IbmMq.PerformanceTests.Metrics;
+using Handlers;
+using Infrastructure;
+using Messages;
+using Metrics;
+using Reporting;
 
 class PublishThroughputScenario : IPerformanceScenario
 {
@@ -22,7 +23,7 @@ class PublishThroughputScenario : IPerformanceScenario
             {
                 var seedCount = instanceCount * Environment.ProcessorCount * 2 * 2;
 
-                Console.Write($"  {Name} [{txMode}, instances={instanceCount}, seed={seedCount}]...");
+                ConsoleLog.Write($"  {Name} [{txMode}, instances={instanceCount}, seed={seedCount}]...");
 
                 using (var adminQm = MqConnectionFactory.CreateQueueManager())
                 {
@@ -62,7 +63,7 @@ class PublishThroughputScenario : IPerformanceScenario
 
                     var actualProcessed = HandlerCompletion.CurrentCount;
                     var msgPerSec = actualProcessed / sw.Elapsed.TotalSeconds;
-                    Console.WriteLine($" {msgPerSec:F1} msg/sec ({actualProcessed} in {sw.Elapsed.TotalSeconds:F2}s)");
+                    ConsoleLog.WriteLine($" {msgPerSec:F1} msg/sec ({actualProcessed} in {sw.Elapsed.TotalSeconds:F2}s)");
 
                     var afterSnapshot = ProcessMetricsCollector.TakeSnapshot();
                     var deltas = ProcessMetricsCollector.ComputeDeltas(beforeSnapshot, afterSnapshot);

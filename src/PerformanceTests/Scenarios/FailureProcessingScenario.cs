@@ -1,11 +1,11 @@
 namespace NServiceBus.Transport.IbmMq.PerformanceTests.Scenarios;
 
 using System.Diagnostics;
-using NServiceBus.Logging;
-using NServiceBus.Transport.IbmMq.PerformanceTests.Handlers;
-using NServiceBus.Transport.IbmMq.PerformanceTests.Infrastructure;
-using NServiceBus.Transport.IbmMq.PerformanceTests.Messages;
-using NServiceBus.Transport.IbmMq.PerformanceTests.Metrics;
+using Handlers;
+using Infrastructure;
+using Messages;
+using Metrics;
+using Reporting;
 
 class FailureProcessingScenario : IPerformanceScenario
 {
@@ -23,7 +23,7 @@ class FailureProcessingScenario : IPerformanceScenario
         {
             foreach (var instanceCount in settings.InstanceCounts)
             {
-                Console.Write($"  {Name} [{txMode}, instances={instanceCount}]...");
+                ConsoleLog.Write($"  {Name} [{txMode}, instances={instanceCount}]...");
 
                 using (var adminQm = MqConnectionFactory.CreateQueueManager())
                 {
@@ -43,7 +43,6 @@ class FailureProcessingScenario : IPerformanceScenario
                     ImmediateRetries = 0,
                     DelayedRetries = 0,
                     HandlerTypes = [typeof(FailureHandler)],
-                    LogLevel = LogLevel.Fatal
                 };
 
                 var endpoints = await EndpointLauncher.StartMultiple(spec, instanceCount, cancellationToken).ConfigureAwait(false);
@@ -76,7 +75,7 @@ class FailureProcessingScenario : IPerformanceScenario
                     var deltas = ProcessMetricsCollector.ComputeDeltas(beforeSnapshot, afterSnapshot);
 
                     var msgPerSec = errorDepth / sw.Elapsed.TotalSeconds;
-                    Console.WriteLine($" {msgPerSec:F1} msg/sec ({errorDepth}/{settings.MessageCount} in {sw.Elapsed.TotalSeconds:F2}s)");
+                    ConsoleLog.WriteLine($" {msgPerSec:F1} msg/sec ({errorDepth}/{settings.MessageCount} in {sw.Elapsed.TotalSeconds:F2}s)");
 
                     results.Add(new PerformanceResult(
                         Name, txMode, instanceCount, errorDepth, sw.Elapsed, msgPerSec,
