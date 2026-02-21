@@ -19,23 +19,8 @@ class MqQueueManagerFacade(MQQueueManager queueManager, SanitizeResourceName res
         return queueManager.AccessQueue(formatted, MQC.MQOO_OUTPUT);
     }
 
-    public MQTopic EnsureTopic(string topicName, string topicString)
+    public MQTopic AccessTopic(string topicString)
     {
-        try
-        {
-            CreateTopic(topicName, topicString);
-        }
-        catch (MQException ex) when (ex.ReasonCode == MQC.MQRC_NOT_AUTHORIZED)
-        {
-            throw new InvalidOperationException(
-                $"Topic '{topicName}' does not exist and the current user is not authorized to create it. " +
-                "Pre-create topics by running the endpoint with EnableInstallers using an account with administrative permissions, " +
-                "or have an MQ administrator create the topic.", ex);
-        }
-
-        // Open by topic string for publishing, not by admin object name.
-        // This ensures correct routing regardless of whether an existing
-        // topic object has a different topic string configuration.
         return queueManager.AccessTopic(
             topicString,
             null,
@@ -44,7 +29,7 @@ class MqQueueManagerFacade(MQQueueManager queueManager, SanitizeResourceName res
         );
     }
 
-    void CreateTopic(string topicName, string topicString)
+    public void CreateTopic(string topicName, string topicString)
     {
         var agent = new PCFMessageAgent(queueManager);
         try
