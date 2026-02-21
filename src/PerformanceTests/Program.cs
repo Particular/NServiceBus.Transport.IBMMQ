@@ -37,7 +37,7 @@ var durationOption = new Option<int>("--duration-seconds")
 var instanceCountsOption = new Option<int[]>("--instance-counts")
 {
     Description = "Number of endpoint instances to run per scenario",
-    DefaultValueFactory = _ => [1, 2],// 4, 8],
+    DefaultValueFactory = _ => [1, 2, 4, 8],
     AllowMultipleArgumentsPerToken = true,
     Arity = ArgumentArity.ZeroOrMore
 };
