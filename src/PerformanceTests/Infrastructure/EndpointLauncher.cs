@@ -9,6 +9,7 @@ record EndpointSpec
     public required TransportTransactionMode TransactionMode { get; init; }
     public bool SendOnly { get; init; }
     public string? ErrorQueue { get; init; }
+    public bool NotifyOnFailure { get; init; }
     public int ImmediateRetries { get; init; } = 5;
     public int DelayedRetries { get; init; } = 0;
     public Type[] HandlerTypes { get; init; } = [];
@@ -87,8 +88,18 @@ static class EndpointLauncher
         }
 
         var immediateRetries = spec.TransactionMode == TransportTransactionMode.None ? 0 : spec.ImmediateRetries;
-        config.Recoverability().Immediate(i => i.NumberOfRetries(immediateRetries));
-        config.Recoverability().Delayed(d => d.NumberOfRetries(spec.DelayedRetries));
+        var recoverability = config.Recoverability();
+        recoverability.Immediate(i => i.NumberOfRetries(immediateRetries));
+        recoverability.Delayed(d => d.NumberOfRetries(spec.DelayedRetries));
+
+        if (spec.NotifyOnFailure)
+        {
+            recoverability.Failed(f => f.OnMessageSentToErrorQueue((_, __) =>
+            {
+                HandlerCompletion.SignalOne();
+                return Task.CompletedTask;
+            }));
+        }
 
         config.EnableInstallers();
 
