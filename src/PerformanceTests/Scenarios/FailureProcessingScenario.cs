@@ -35,6 +35,8 @@ class FailureProcessingScenario : IPerformanceScenario
                     adminQm.Disconnect();
                 }
 
+                HandlerCompletion.Reset(settings.MessageCount);
+
                 var spec = new EndpointSpec
                 {
                     Name = endpointName,
@@ -42,6 +44,7 @@ class FailureProcessingScenario : IPerformanceScenario
                     ErrorQueue = errorQueueName,
                     ImmediateRetries = 0,
                     DelayedRetries = 0,
+                    NotifyOnFailure = true,
                     HandlerTypes = [typeof(FailureHandler)],
                 };
 
@@ -51,34 +54,22 @@ class FailureProcessingScenario : IPerformanceScenario
                 {
                     var beforeSnapshot = ProcessMetricsCollector.TakeSnapshot();
                     var sw = Stopwatch.StartNew();
+                    HandlerCompletion.OpenGate();
 
-                    var deadline = DateTime.UtcNow.AddSeconds(settings.DurationSeconds);
-                    var errorDepth = 0;
-
-                    while (DateTime.UtcNow < deadline)
-                    {
-                        using var pollQm = MqConnectionFactory.CreateQueueManager();
-                        errorDepth = QueueOperations.GetQueueDepth(pollQm, formattedErrorQueue);
-                        pollQm.Disconnect();
-
-                        if (errorDepth >= settings.MessageCount)
-                        {
-                            break;
-                        }
-
-                        await Task.Delay(500, cancellationToken).ConfigureAwait(false);
-                    }
+                    var timeoutTask = Task.Delay(TimeSpan.FromSeconds(settings.DurationSeconds), cancellationToken);
+                    await Task.WhenAny(HandlerCompletion.Completion, timeoutTask).ConfigureAwait(false);
 
                     sw.Stop();
 
+                    var actualFailed = HandlerCompletion.CurrentCount;
                     var afterSnapshot = ProcessMetricsCollector.TakeSnapshot();
                     var deltas = ProcessMetricsCollector.ComputeDeltas(beforeSnapshot, afterSnapshot);
 
-                    var msgPerSec = errorDepth / sw.Elapsed.TotalSeconds;
-                    ConsoleLog.WriteLine($" {msgPerSec:F1} msg/sec ({errorDepth}/{settings.MessageCount} in {sw.Elapsed.TotalSeconds:F2}s)");
+                    var msgPerSec = actualFailed / sw.Elapsed.TotalSeconds;
+                    ConsoleLog.WriteLine($" {msgPerSec:F1} msg/sec ({actualFailed}/{settings.MessageCount} in {sw.Elapsed.TotalSeconds:F2}s)");
 
                     results.Add(new PerformanceResult(
-                        Name, txMode, instanceCount, errorDepth, sw.Elapsed, msgPerSec,
+                        Name, txMode, instanceCount, actualFailed, sw.Elapsed, msgPerSec,
                         deltas.CpuDelta, deltas.FinalHandles, deltas.AllocatedMb,
                         deltas.GcGen0Delta, deltas.GcGen1Delta, deltas.GcGen2Delta));
                 }

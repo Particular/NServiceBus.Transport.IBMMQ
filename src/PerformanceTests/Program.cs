@@ -42,13 +42,19 @@ var instanceCountsOption = new Option<int[]>("--instance-counts")
     Arity = ArgumentArity.ZeroOrMore
 };
 
+var outputOption = new Option<string?>("--output")
+{
+    Description = "Path for JSON results file (JSON only written when specified)"
+};
+
 var rootCommand = new RootCommand("NServiceBus IBM MQ Transport Performance Tests")
 {
     scenariosOption,
     transactionModesOption,
     messageCountOption,
     durationOption,
-    instanceCountsOption
+    instanceCountsOption,
+    outputOption
 };
 
 rootCommand.SetAction(async (parseResult, cancellationToken) =>
@@ -58,6 +64,8 @@ rootCommand.SetAction(async (parseResult, cancellationToken) =>
     var messageCount = parseResult.GetValue(messageCountOption);
     var durationSeconds = parseResult.GetValue(durationOption);
     var instanceCounts = parseResult.GetValue(instanceCountsOption)!;
+
+    var outputPath = parseResult.GetValue(outputOption);
 
     var transactionModes = ParseTransactionModes(txModeStrings);
     var scenarioInstances = ResolveScenarios(scenarios);
@@ -70,7 +78,8 @@ rootCommand.SetAction(async (parseResult, cancellationToken) =>
     ConsoleLog.WriteLine($"  Scenarios: {string.Join(", ", scenarioInstances.Select(s => s.Name))}");
     ConsoleLog.WriteLine();
 
-    var reporter = new ConsoleTableReporter();
+    var consoleReporter = new ConsoleTableReporter();
+    JsonReporter? jsonReporter = !string.IsNullOrEmpty(outputPath) ? new JsonReporter(outputPath) : null;
 
     // Warm-up: one discarded run per scenario
     var warmUpCount = Math.Max(50, messageCount / 10);
@@ -111,7 +120,8 @@ rootCommand.SetAction(async (parseResult, cancellationToken) =>
         try
         {
             var results = await scenario.Run(runSettings, cancellationToken).ConfigureAwait(false);
-            reporter.ReportResults(scenario.Name, results);
+            consoleReporter.ReportResults(scenario.Name, results);
+            jsonReporter?.ReportResults(scenario.Name, results);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -122,6 +132,12 @@ rootCommand.SetAction(async (parseResult, cancellationToken) =>
             ConsoleLog.WriteLine(ConsoleLog.Red($"  ERROR in {scenario.Name}: {ex.Message}"));
             ConsoleLog.WriteLine();
         }
+    }
+
+    if (jsonReporter != null)
+    {
+        jsonReporter.WriteFile();
+        ConsoleLog.WriteLine($"Results written to {outputPath}");
     }
 
     ConsoleLog.WriteLine("Done.");
