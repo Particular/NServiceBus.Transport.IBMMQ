@@ -43,10 +43,15 @@ jq -r --argjson threshold "$THRESHOLD" --slurpfile base "$BASELINE" '
     elif .baseline == 0 then {delta: null, delta_str: "n/a"}
     else
       ((.current - .baseline) / .baseline * 100) as $d |
+      ($d | . * 10 | round / 10) as $rounded |
+      (if $d > $threshold then ":rocket:"
+       elif $d > 2 then ":white_check_mark:"
+       elif $d >= -2 then ":pause_button:"
+       elif $d >= (-$threshold) then ":warning:"
+       else ":x:"
+       end) as $icon |
       {delta: $d, delta_str: (
-        if $d >= 0 then "+\($d | . * 10 | round / 10)%"
-        else "\($d | . * 10 | round / 10)%"
-        end
+        "\($icon) " + (if $rounded >= 0 then "+\($rounded)%" else "\($rounded)%" end)
       )}
     end
   )) |
@@ -61,13 +66,36 @@ jq -r --argjson threshold "$THRESHOLD" --slurpfile base "$BASELINE" '
     select(("\(.scenario)|\(.mode)|\(.instances)" | IN($tested_keys[])) | not)
   ] | unique_by("\(.scenario)|\(.mode)|\(.instances)") | . as $skipped |
 
+  # Compute per-scenario summary
+  ($rows | group_by(.scenario) | map(
+    .[0].scenario as $name |
+    [.[] | select(.delta != null) | .delta] as $deltas |
+    if ($deltas | length) == 0 then {scenario: $name, avg: null, avg_str: "new"}
+    else
+      ($deltas | add / length) as $avg |
+      ($avg | . * 10 | round / 10) as $rounded |
+      (if $avg > $threshold then ":rocket:"
+       elif $avg > 2 then ":white_check_mark:"
+       elif $avg >= -2 then ":pause_button:"
+       elif $avg >= (-$threshold) then ":warning:"
+       else ":x:"
+       end) as $icon |
+      {scenario: $name, avg: $avg, avg_str: "\($icon) \(if $rounded >= 0 then "+\($rounded)%" else "\($rounded)%" end)"}
+    end
+  )) as $summary |
+
   # Format output
-  "## Performance comparison\n\nComparing against `main` baseline. Regression threshold: **\($threshold)%**.\n\n| Scenario | Mode | Instances | Baseline (msg/s) | Current (msg/s) | Delta |\n|---|---|---|---:|---:|---:|",
+  "## Performance comparison\n\nComparing against `main` baseline. Regression threshold: **\($threshold)%**.\(if env.PERF_DURATION != "" and env.PERF_DURATION != null then " Runtime: **\(env.PERF_DURATION)**." else "" end)\n\n| Scenario | Avg delta |\n|---|---:|",
+  ($summary[] | "| \(.scenario) | \(.avg_str) |"),
+  "",
+  "<details>\n<summary>Full results (\($rows | length) configurations)</summary>\n",
+  "| Scenario | Mode | Instances | Baseline (msg/s) | Current (msg/s) | Delta |\n|---|---|---|---:|---:|---:|",
   ($rows[] | "| \(.scenario) | \(.mode) | \(.instances) | \(.baseline // "-") | \(.current) | \(.delta_str) |"),
+  "\n</details>",
   "",
   if ($rows | any(.regressed)) then
     "### Regressions detected\n",
-    ($rows | map(select(.regressed))[] | "  - \(.scenario) / \(.mode) / \(.instances) instances: \(.delta_str)"),
+    ($rows | map(select(.regressed))[] | "- \(.scenario) / \(.mode) / \(.instances) instances: \(.delta_str)"),
     "",
     "One or more scenarios regressed beyond the \($threshold)% threshold.\n"
   else empty end,
