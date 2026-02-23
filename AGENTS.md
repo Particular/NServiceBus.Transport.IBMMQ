@@ -103,25 +103,27 @@ dotnet run --project src/NServiceBus.Transport.IbmMq.PerformanceTests
 
 ### Scenarios
 
-Five scenarios are available, selectable via `--scenarios`:
+Six scenarios are available, selectable via `--scenarios`:
 
 | Scenario | What it measures |
 |---|---|
-| `send` | Send throughput — sequential MQPUT via the dispatcher |
-| `receive` | Receive throughput — pre-fills a queue then measures consumption rate |
-| `latency` | End-to-end latency — sends and receives concurrently, reports p50/p95/p99/max |
-| `concurrency` | Concurrency scaling — receive throughput at different concurrency levels |
-| `failure` | Failure processing — measures error handler throughput (every message throws) |
+| `send` | Send throughput via `IMessageSession.Send()` |
+| `receive` | Receive throughput; pre-fills a queue then measures consumption rate |
+| `receiveandsend` | Receive + send inside handler; exercises transactional send path |
+| `sendlocal` | Sustained throughput via `context.SendLocal()`; self-sustaining message loop |
+| `publish` | Publish throughput via `context.Publish()`; self-sustaining event loop |
+| `failure` | Error handler throughput; every message throws, measures error pipeline speed |
 
 ### Command-line options
 
 | Option | Default | Description |
 |---|---|---|
-| `--scenarios <names>` | `all` | Scenarios to run: `send`, `receive`, `latency`, `failure`, `concurrency`, `all` |
+| `--scenarios <names>` | `all` | Scenarios to run: `send`, `receive`, `receiveandsend`, `failure`, `sendlocal`, `publish`, `all` |
 | `--transaction-modes <modes>` | `all` | Transaction modes: `None`, `ReceiveOnly`, `SendsAtomicWithReceive`, `all` |
-| `--message-count <n>` | `1000` | Number of messages for throughput tests |
-| `--duration-seconds <n>` | `30` | Timeout for time-based tests (receive, concurrency, failure, latency) |
-| `--concurrency-levels <n...>` | `1 2 4 8` | Concurrency levels for the concurrency scaling scenario |
+| `--message-count <n>` | `2500` | Number of messages for throughput tests |
+| `--duration-seconds <n>` | `30` | Timeout for time-based tests (receive, sendlocal, publish, failure) |
+| `--instance-counts <n...>` | `1 2 4 8` | Number of endpoint instances per scenario |
+| `--output <path>` | `(none)` | Path for JSON results file; JSON only written when specified |
 
 Multiple values are space-separated. Examples:
 
@@ -129,20 +131,32 @@ Multiple values are space-separated. Examples:
 # Run only send and receive with 5000 messages
 dotnet run --project src/NServiceBus.Transport.IbmMq.PerformanceTests -- --scenarios send receive --message-count 5000
 
-# Latency test with ReceiveOnly transaction mode
-dotnet run --project src/NServiceBus.Transport.IbmMq.PerformanceTests -- --scenarios latency --transaction-modes ReceiveOnly
+# Receive test with ReceiveOnly transaction mode
+dotnet run --project src/NServiceBus.Transport.IbmMq.PerformanceTests -- --scenarios receive --transaction-modes ReceiveOnly
 
-# Concurrency scaling at specific levels with a 60s timeout
-dotnet run --project src/NServiceBus.Transport.IbmMq.PerformanceTests -- --scenarios concurrency --concurrency-levels 1 4 16 --duration-seconds 60
+# All scenarios with JSON output
+dotnet run --project src/NServiceBus.Transport.IbmMq.PerformanceTests -- --output perf-results.json
+
+# Specific instance counts with a 60s timeout
+dotnet run --project src/NServiceBus.Transport.IbmMq.PerformanceTests -- --instance-counts 1 4 16 --duration-seconds 60
 ```
 
 ### Output
 
-Results are printed as tables to the console. Throughput scenarios show msg/sec, CPU time, handle count, memory allocations, and GC collections. The latency scenario shows percentile latencies (p50, p95, p99, max).
+Results are printed as tables to the console. Throughput scenarios show msg/sec, CPU time, handle count, memory allocations, and GC collections. When `--output` is specified, results are also written as a JSON array for CI consumption.
 
 ### Connection
 
 Uses the same `IbmMq_ConnectionDetails` environment variable as the other test projects. Queues are auto-created and purged before each run.
+
+### Benchmark data
+
+Performance results are stored on the `benchmark-data` orphan branch:
+
+- `main/latest.json` and `main/history/{timestamp}_{sha}.json` for baseline tracking
+- `branches/{name}/latest.json` for feature branch results
+
+On PRs, results are compared against the `main` baseline. A regression threshold of 10% (configurable) triggers a workflow failure.
 
 ## Project Structure
 
@@ -150,6 +164,11 @@ Uses the same `IbmMq_ConnectionDetails` environment variable as the other test p
 - `src/NServiceBus.Transport.IbmMq.Tests/` — unit tests (no MQ needed)
 - `src/NServiceBus.Transport.IbmMq.TransportTests/` — NServiceBus transport conformance tests (needs MQ)
 - `src/NServiceBus.Transport.IbmMq.AcceptanceTests/` — NServiceBus acceptance tests (needs MQ)
-- `src/NServiceBus.Transport.IbmMq.PerformanceTests/` — performance benchmarks
-- `extra/` — setup scripts and utilities
+- `src/NServiceBus.Transport.IbmMq.PerformanceTests/` — performance benchmarks (console app)
+- `extra/` — scripts and utilities
+  - `setup-leastpriv-tests.sh` — sets up least-privilege MQ user for tests
+  - `publish-benchmark.sh` — publishes perf results to the `benchmark-data` branch
+  - `compare-benchmarks.sh` — compares baseline vs current results, generates markdown table
+- `.github/workflows/ci.yml` — main CI workflow (build, tests, perf tests with benchmark tracking)
+- `.github/workflows/benchmark-cleanup.yml` — removes stale benchmark data when PRs are closed
 - `docs/` — design documents
