@@ -1,0 +1,31 @@
+name: Benchmark cleanup
+on:
+  pull_request:
+    types: [closed]
+jobs:
+  cleanup:
+    name: Remove stale benchmark data
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout benchmark-data branch
+        uses: actions/checkout@v6.0.2
+        with:
+          ref: benchmark-data
+      - name: Delete branch directory
+        shell: bash
+        run: |
+          SAFE_BRANCH=$(echo "${{ github.head_ref }}" | tr '/' '-')
+          DIR="branches/${SAFE_BRANCH}"
+
+          if [ ! -d "$DIR" ]; then
+            echo "No benchmark data for ${SAFE_BRANCH}, nothing to clean up."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git rm -rf "$DIR"
+          git commit -m "Remove benchmark data for ${SAFE_BRANCH}"
+          git push
