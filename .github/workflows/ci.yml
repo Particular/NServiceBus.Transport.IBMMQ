@@ -80,6 +80,7 @@ jobs:
       || (github.event_name == 'push')
     permissions:
       contents: write
+      pull-requests: write
     concurrency:
       group: perf-tests-${{ github.ref_name }}
       cancel-in-progress: false
@@ -130,3 +131,39 @@ jobs:
         if: success()
         shell: bash
         run: extra/publish-benchmark.sh perf-results.json "${{ github.head_ref || github.ref_name }}" "${{ github.sha }}"
+      - name: Compare with baseline
+        if: success() && github.event_name == 'pull_request'
+        id: compare
+        shell: bash
+        run: |
+          SAFE_BRANCH=$(echo "${{ github.head_ref }}" | tr '/' '-')
+          EXIT_CODE=0
+          extra/compare-benchmarks.sh \
+            _benchmark-data/main/latest.json \
+            "_benchmark-data/branches/${SAFE_BRANCH}/latest.json" \
+            > comparison.md || EXIT_CODE=$?
+          cat comparison.md
+          if [ "$EXIT_CODE" -ne 0 ]; then
+            echo "regression=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Post comparison to PR
+        if: success() && github.event_name == 'pull_request' && hashFiles('comparison.md') != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          COMMENT_BODY=$(cat comparison.md)
+          # Try to update an existing comment first, create new if none exists
+          gh pr comment "${{ github.event.pull_request.number }}" \
+            --repo "${{ github.repository }}" \
+            --body "$COMMENT_BODY" \
+            --edit-last 2>/dev/null \
+          || gh pr comment "${{ github.event.pull_request.number }}" \
+            --repo "${{ github.repository }}" \
+            --body "$COMMENT_BODY"
+      - name: Fail on regression
+        if: steps.compare.outputs.regression == 'true'
+        shell: bash
+        run: |
+          echo "::error::Performance regression detected. See the PR comment for details."
+          exit 1
