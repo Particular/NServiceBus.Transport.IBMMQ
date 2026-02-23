@@ -30,7 +30,7 @@ jobs:
         env:
           LICENSE: accept
           MQ_QMGR_NAME: QM1
-          MQ_ADMIN_PASSWORD: passw0rd
+          MQ_ADMIN_PASSWORD: ${{ secrets.MQ_ADMIN_PASSWORD }}
           MQ_APP_PASSWORD: testpass1
         options: >-
           --health-cmd "dspmq"
@@ -77,6 +77,12 @@ jobs:
     if: >-
       (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'perf-test'))
       || (github.event_name == 'workflow_dispatch' && github.event.inputs.run_perf_tests == 'true')
+      || (github.event_name == 'push')
+    permissions:
+      contents: write
+    concurrency:
+      group: perf-tests-${{ github.ref_name }}
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     services:
       ibm-mq:
@@ -104,6 +110,23 @@ jobs:
         with:
           dotnet-version: 10.0.x
       - name: Run performance tests
-        run: dotnet run --project src/PerformanceTests --configuration Release
+        run: dotnet run --project src/PerformanceTests --configuration Release -- --output perf-results.json
         env:
           IBMMQ_CONNECTIONSTRING: mq://admin:${{ secrets.MQ_ADMIN_PASSWORD }}@localhost:1414
+      - name: Upload performance results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: perf-results
+          path: perf-results.json
+          if-no-files-found: ignore
+      - name: Checkout benchmark-data branch
+        if: success()
+        uses: actions/checkout@v6.0.2
+        with:
+          ref: benchmark-data
+          path: _benchmark-data
+      - name: Publish results to benchmark-data
+        if: success()
+        shell: bash
+        run: extra/publish-benchmark.sh perf-results.json "${{ github.head_ref || github.ref_name }}" "${{ github.sha }}"
