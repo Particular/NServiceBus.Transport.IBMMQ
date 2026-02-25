@@ -31,7 +31,7 @@ jobs:
           LICENSE: accept
           MQ_QMGR_NAME: QM1
           MQ_ADMIN_PASSWORD: ${{ secrets.MQ_ADMIN_PASSWORD }}
-          MQ_APP_PASSWORD: testpass1
+          MQ_APP_PASSWORD: ${{ secrets.MQ_APP_PASSWORD }}
         options: >-
           --health-cmd "dspmq"
           --health-interval 10s
@@ -56,4 +56,5 @@ jobs:
         run: dotnet build src/NServiceBus.Transport.IbmMq.slnx --configuration Release
       - name: Run tests
         run: dotnet test src/NServiceBus.Transport.IbmMq.slnx --configuration Release --no-build --logger "GitHubActions;report-warnings=false"
+
 
