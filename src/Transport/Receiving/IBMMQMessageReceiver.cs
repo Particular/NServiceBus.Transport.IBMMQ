@@ -4,7 +4,7 @@ using System.Collections.Concurrent;
 using Logging;
 using Microsoft.Extensions.DependencyInjection;
 
-sealed class IbmMqMessageReceiver(
+sealed class IBMMQMessageReceiver(
     ILog log,
     IServiceScopeFactory scopeFactory,
     ISubscriptionManager subscriptions,

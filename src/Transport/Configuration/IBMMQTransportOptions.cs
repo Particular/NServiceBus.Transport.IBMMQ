@@ -6,7 +6,7 @@ using IBM.WMQ;
 /// <summary>
 /// Configuration settings for IBM MQ transport
 /// </summary>
-public class IbmMqTransportOptions
+public class IBMMQTransportOptions
 {
     // Core Connection Settings
 

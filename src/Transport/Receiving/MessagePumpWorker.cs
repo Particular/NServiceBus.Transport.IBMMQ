@@ -151,7 +151,7 @@ sealed class MessagePumpWorker(
                     try
                     {
                         queue.Get(receivedMessage, getOptions);
-                        messageBody = IbmMqMessageConverter.FromNative(receivedMessage, messageHeaders, ref messageId);
+                        messageBody = IBMMQMessageConverter.FromNative(receivedMessage, messageHeaders, ref messageId);
                         originalHeaders = new Dictionary<string, string>(messageHeaders);
 
                         log.DebugFormat("Worker {0} received message {1}", workerIndex, messageId);

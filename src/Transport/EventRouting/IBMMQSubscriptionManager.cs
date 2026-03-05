@@ -4,7 +4,7 @@ using Extensibility;
 using Logging;
 using Unicast.Messages;
 
-sealed class IbmMqSubscriptionManager(
+sealed class IBMMQSubscriptionManager(
     ILog log,
     TopicTopology topology,
     CreateQueueManagerFacade createFacade,

@@ -81,7 +81,7 @@ class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology) : IMe
             queues[operation.Destination] = queue;
         }
 
-        var message = IbmMqMessageConverter.ToNative(operation);
+        var message = IBMMQMessageConverter.ToNative(operation);
         queue.Put(message, new MQPutMessageOptions { Options = context.PutOptions });
     }
 
@@ -106,7 +106,7 @@ class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology) : IMe
                 topics[destination.TopicName] = topic;
             }
 
-            var message = IbmMqMessageConverter.ToNative(operation);
+            var message = IBMMQMessageConverter.ToNative(operation);
             topic.Put(message, putOptions);
         }
     }

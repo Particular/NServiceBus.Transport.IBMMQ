@@ -33,7 +33,7 @@ static class QueueSeeder
             var outgoingMessage = new OutgoingMessage(messageId, headers, body);
             var operation = new UnicastTransportOperation(outgoingMessage, queueName, []);
 
-            var mqMessage = IbmMqMessageConverter.ToNative(operation);
+            var mqMessage = IBMMQMessageConverter.ToNative(operation);
             queue.Put(mqMessage, pmo);
         }
     }

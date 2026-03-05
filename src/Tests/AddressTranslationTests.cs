@@ -11,7 +11,7 @@ public class AddressTranslationTests
     {
         var address = new QueueAddress("myendpoint");
 
-        var result = IbmMqMessageReceiver.ToTransportAddress(address);
+        var result = IBMMQMessageReceiver.ToTransportAddress(address);
 
         Assert.That(result, Is.EqualTo("myendpoint"));
     }
@@ -21,7 +21,7 @@ public class AddressTranslationTests
     {
         var address = new QueueAddress("myendpoint", discriminator: "disc1");
 
-        var result = IbmMqMessageReceiver.ToTransportAddress(address);
+        var result = IBMMQMessageReceiver.ToTransportAddress(address);
 
         Assert.That(result, Is.EqualTo("myendpoint.disc1"));
     }
@@ -31,7 +31,7 @@ public class AddressTranslationTests
     {
         var address = new QueueAddress("myendpoint", qualifier: "qual1");
 
-        var result = IbmMqMessageReceiver.ToTransportAddress(address);
+        var result = IBMMQMessageReceiver.ToTransportAddress(address);
 
         Assert.That(result, Is.EqualTo("myendpoint.qual1"));
     }
@@ -41,7 +41,7 @@ public class AddressTranslationTests
     {
         var address = new QueueAddress("myendpoint", discriminator: "disc1", qualifier: "qual1");
 
-        var result = IbmMqMessageReceiver.ToTransportAddress(address);
+        var result = IBMMQMessageReceiver.ToTransportAddress(address);
 
         Assert.That(result, Is.EqualTo("myendpoint.disc1.qual1"));
     }
@@ -51,7 +51,7 @@ public class AddressTranslationTests
     {
         var address = new QueueAddress("myendpoint", discriminator: null, qualifier: "qual1");
 
-        var result = IbmMqMessageReceiver.ToTransportAddress(address);
+        var result = IBMMQMessageReceiver.ToTransportAddress(address);
 
         Assert.That(result, Is.EqualTo("myendpoint.qual1"));
     }
@@ -61,7 +61,7 @@ public class AddressTranslationTests
     {
         var address = new QueueAddress("myendpoint", discriminator: "", qualifier: "qual1");
 
-        var result = IbmMqMessageReceiver.ToTransportAddress(address);
+        var result = IBMMQMessageReceiver.ToTransportAddress(address);
 
         Assert.That(result, Is.EqualTo("myendpoint.qual1"));
     }

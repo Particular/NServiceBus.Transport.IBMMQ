@@ -54,7 +54,7 @@ static class EndpointLauncher
                 instanceName: instanceName,
                 hostName: Environment.MachineName);
 
-        var transport = new IbmMqTransport(options =>
+        var transport = new IBMMQTransport(options =>
         {
             TestConnectionDetails.Apply(options);
             options.MessageWaitInterval = TimeSpan.FromMilliseconds(500);

@@ -4,15 +4,15 @@ using IBM.WMQ;
 using Microsoft.Extensions.DependencyInjection;
 using Logging;
 
-sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDisposable
+sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDisposable
 {
     readonly ILog log;
     readonly ServiceProvider serviceProvider;
     bool _disposed;
 
-    public IbmMqTransportInfrastructure(
+    public IBMMQTransportInfrastructure(
         ILog log,
-        IbmMqTransportOptions options,
+        IBMMQTransportOptions options,
         ConnectionConfiguration connectionConfiguration,
         ReceiveSettings[] receiverSettings,
         TransportTransactionMode transactionMode,
@@ -33,7 +33,7 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
     }
 
     public override string ToTransportAddress(QueueAddress address) =>
-        IbmMqMessageReceiver.ToTransportAddress(address);
+        IBMMQMessageReceiver.ToTransportAddress(address);
 
     public override async Task Shutdown(CancellationToken cancellationToken = default)
     {
@@ -56,7 +56,7 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
 
     static void ConfigureServices(
         IServiceCollection services,
-        IbmMqTransportOptions options,
+        IBMMQTransportOptions options,
         ConnectionConfiguration connectionConfiguration,
         ReceiveSettings[] receiverSettings,
         TransportTransactionMode transactionMode,
@@ -109,8 +109,8 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
                     var createFacade = sp.GetRequiredService<CreateQueueManagerFacade>();
                     var createConnection = sp.GetRequiredService<CreateQueueManager>();
                     var topo = sp.GetRequiredService<TopicTopology>();
-                    return new IbmMqSubscriptionManager(
-                        LogManager.GetLogger<IbmMqSubscriptionManager>(),
+                    return new IBMMQSubscriptionManager(
+                        LogManager.GetLogger<IBMMQSubscriptionManager>(),
                         topo, createFacade, createConnection, rs.ReceiveAddress.BaseAddress);
                 })
                 .AddSingleton<IMessageReceiver>(sp =>
@@ -118,8 +118,8 @@ sealed class IbmMqTransportInfrastructure : TransportInfrastructure, IAsyncDispo
                     var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
                     var subMgr = sp.GetRequiredKeyedService<ISubscriptionManager>(rs.Id);
                     var pSettings = sp.GetRequiredService<MessagePumpSettings>();
-                    return new IbmMqMessageReceiver(
-                        LogManager.GetLogger<IbmMqMessageReceiver>(),
+                    return new IBMMQMessageReceiver(
+                        LogManager.GetLogger<IBMMQMessageReceiver>(),
                         scopeFactory, subMgr, rs, pSettings, resourceNameFormatter);
                 });
         }

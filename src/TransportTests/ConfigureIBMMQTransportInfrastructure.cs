@@ -6,11 +6,11 @@ using System.Threading.Tasks;
 using NServiceBus.Transport;
 using NServiceBus.Transport.IBMMQ;
 
-public class ConfigureIbmMqTransportInfrastructure : IConfigureTransportInfrastructure
+public class ConfigureIBMMQTransportInfrastructure : IConfigureTransportInfrastructure
 {
     public TransportDefinition CreateTransportDefinition()
     {
-        var transport = new IbmMqTransport(s =>
+        var transport = new IBMMQTransport(s =>
         {
             TestConnectionDetails.Apply(s);
             s.MessageWaitInterval = TimeSpan.FromMilliseconds(100);

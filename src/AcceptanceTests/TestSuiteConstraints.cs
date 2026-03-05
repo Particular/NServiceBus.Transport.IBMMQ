@@ -16,7 +16,7 @@ public partial class TestSuiteConstraints
 
     public bool SupportsPurgeOnStartup => true;
 
-    public IConfigureEndpointTestExecution CreateTransportConfiguration() => new ConfigureEndpointIbmMqTransport();
+    public IConfigureEndpointTestExecution CreateTransportConfiguration() => new ConfigureEndpointIBMMQTransport();
 
     public IConfigureEndpointTestExecution CreatePersistenceConfiguration() => new ConfigureEndpointAcceptanceTestingPersistence();
 }

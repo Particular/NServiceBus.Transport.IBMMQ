@@ -10,7 +10,7 @@ public class APIApprovals
     [Test]
     public void Approve()
     {
-        var publicApi = typeof(IbmMqTransport).Assembly.GeneratePublicApi(new ApiGeneratorOptions
+        var publicApi = typeof(IBMMQTransport).Assembly.GeneratePublicApi(new ApiGeneratorOptions
         {
             ExcludeAttributes = ["System.Runtime.Versioning.TargetFrameworkAttribute", "System.Reflection.AssemblyMetadataAttribute"]
         });
