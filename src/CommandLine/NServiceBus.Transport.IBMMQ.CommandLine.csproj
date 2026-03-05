@@ -17,7 +17,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="NServiceBus.Transport.IbmMq.CommandLine.Tests" />
+    <InternalsVisibleTo Include="NServiceBus.Transport.IBMMQ.CommandLine.Tests" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,4 +1,4 @@
-namespace NServiceBus.Transport.IbmMq;
+namespace NServiceBus.Transport.IBMMQ;
 
 class IbmMqTransportOptionsValidate
 {

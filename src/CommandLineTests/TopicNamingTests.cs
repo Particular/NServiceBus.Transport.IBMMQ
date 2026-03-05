@@ -1,4 +1,4 @@
-namespace NServiceBus.Transport.IbmMq.CommandLine.Tests;
+namespace NServiceBus.Transport.IBMMQ.CommandLine.Tests;
 
 using NUnit.Framework;
 

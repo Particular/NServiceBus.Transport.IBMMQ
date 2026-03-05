@@ -1,4 +1,4 @@
-namespace NServiceBus.Transport.IbmMq.CommandLine.Tests;
+namespace NServiceBus.Transport.IBMMQ.CommandLine.Tests;
 
 using System;
 using System.Diagnostics;
@@ -141,7 +141,7 @@ public class CommandLineTests
         var assemblyCsproj = Path.Combine(
             Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!,
             "..", "..", "..", "..",
-            "CommandLine", "NServiceBus.Transport.IbmMq.CommandLine.csproj"
+            "CommandLine", "NServiceBus.Transport.IBMMQ.CommandLine.csproj"
         );
 
         var process = new Process

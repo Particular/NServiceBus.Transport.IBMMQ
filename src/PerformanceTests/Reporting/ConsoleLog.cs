@@ -1,4 +1,4 @@
-namespace NServiceBus.Transport.IbmMq.PerformanceTests.Reporting;
+namespace NServiceBus.Transport.IBMMQ.PerformanceTests.Reporting;
 
 using System.Diagnostics;
 using System.Runtime.CompilerServices;

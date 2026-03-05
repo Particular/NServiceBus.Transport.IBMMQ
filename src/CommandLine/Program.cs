@@ -1,4 +1,4 @@
-namespace NServiceBus.Transport.IbmMq.CommandLine;
+namespace NServiceBus.Transport.IBMMQ.CommandLine;
 
 using McMaster.Extensions.CommandLineUtils;
 

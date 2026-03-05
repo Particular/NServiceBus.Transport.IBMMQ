@@ -1,4 +1,4 @@
-namespace NServiceBus.Transport.IbmMq.Tests.Configuration
+namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
 {
     using System;
     using NUnit.Framework;

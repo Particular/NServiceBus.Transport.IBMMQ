@@ -1,4 +1,4 @@
-﻿namespace NServiceBus.Transport.IbmMq;
+﻿namespace NServiceBus.Transport.IBMMQ;
 
 using System.Collections.Generic;
 using IBM.WMQ;
@@ -139,8 +139,8 @@ public class IbmMqTransportOptions
 
     /// <summary>
     /// Controls how event types are mapped to IBM MQ topic names and topic strings.
-    /// Subclass <see cref="IbmMq.TopicNaming"/> to customize naming conventions for your environment.
-    /// Default: <see cref="IbmMq.TopicNaming"/> with prefix "DEV".
+    /// Subclass <see cref="IBMMQ.TopicNaming"/> to customize naming conventions for your environment.
+    /// Default: <see cref="IBMMQ.TopicNaming"/> with prefix "DEV".
     /// </summary>
     public TopicNaming TopicNaming { get; set; } = new();
 

@@ -1,4 +1,4 @@
-namespace NServiceBus.Transport.IbmMq.PerformanceTests.Messages;
+namespace NServiceBus.Transport.IBMMQ.PerformanceTests.Messages;
 
 class PerfTestEvent : IEvent
 {

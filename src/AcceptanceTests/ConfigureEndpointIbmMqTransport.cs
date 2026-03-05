@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 using IBM.WMQ;
 using NServiceBus;
 using NServiceBus.AcceptanceTesting.Support;
-using NServiceBus.Transport.IbmMq;
+using NServiceBus.Transport.IBMMQ;
 
 // ReSharper disable once CheckNamespace
 public class ConfigureEndpointIbmMqTransport : IConfigureEndpointTestExecution

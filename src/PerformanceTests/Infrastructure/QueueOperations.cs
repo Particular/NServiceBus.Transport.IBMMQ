@@ -1,4 +1,4 @@
-namespace NServiceBus.Transport.IbmMq.PerformanceTests.Infrastructure;
+namespace NServiceBus.Transport.IBMMQ.PerformanceTests.Infrastructure;
 
 using IBM.WMQ;
 using IBM.WMQ.PCF;

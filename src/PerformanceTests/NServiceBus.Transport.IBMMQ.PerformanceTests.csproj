@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Transport\NServiceBus.Transport.IbmMq.csproj" />
+    <ProjectReference Include="..\Transport\NServiceBus.Transport.IBMMQ.csproj" />
   </ItemGroup>
 
   <ItemGroup>
