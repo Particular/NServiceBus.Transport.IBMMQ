@@ -54,7 +54,7 @@ jobs:
           CONTAINER=$(docker ps -q --filter "ancestor=icr.io/ibm-messaging/mq:latest" | head -1)
           .github/workflows/setup-leastpriv-tests.sh docker "$CONTAINER"
       - name: Build
-        run: dotnet build src/NServiceBus.Transport.IbmMq.slnx --configuration Release
+        run: dotnet build src/NServiceBus.Transport.IBMMQ.slnx --configuration Release
       - name: Upload packages
         uses: actions/upload-artifact@v6.0.0
         with:
@@ -62,6 +62,6 @@ jobs:
           path: nugets/
           retention-days: 7
       - name: Run tests
-        run: dotnet test src/NServiceBus.Transport.IbmMq.slnx --configuration Release --no-build --logger "GitHubActions;report-warnings=false"
+        run: dotnet test src/NServiceBus.Transport.IBMMQ.slnx --configuration Release --no-build --logger "GitHubActions;report-warnings=false"
 
 

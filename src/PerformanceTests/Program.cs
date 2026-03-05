@@ -1,7 +1,7 @@
 using System.CommandLine;
 using NServiceBus.Logging;
-using NServiceBus.Transport.IbmMq.PerformanceTests.Reporting;
-using NServiceBus.Transport.IbmMq.PerformanceTests.Scenarios;
+using NServiceBus.Transport.IBMMQ.PerformanceTests.Reporting;
+using NServiceBus.Transport.IBMMQ.PerformanceTests.Scenarios;
 
 var defaultFactory = LogManager.Use<DefaultFactory>();
 defaultFactory.Level(LogLevel.Fatal);

@@ -1,4 +1,4 @@
-namespace NServiceBus.Transport.IbmMq.PerformanceTests.Metrics;
+namespace NServiceBus.Transport.IBMMQ.PerformanceTests.Metrics;
 
 record PerformanceResult(
     string ScenarioName,

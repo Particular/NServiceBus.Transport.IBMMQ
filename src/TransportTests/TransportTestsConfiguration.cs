@@ -2,6 +2,6 @@ namespace NServiceBus.TransportTests;
 
 public partial class TransportTestsConfiguration
 {
-    public IConfigureTransportInfrastructure CreateTransportConfiguration() => new ConfigureIbmMqTransportInfrastructure();
+    public IConfigureTransportInfrastructure CreateTransportConfiguration() => new ConfigureIBMMQTransportInfrastructure();
 }
 

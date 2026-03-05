@@ -5,8 +5,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\CommandLine\NServiceBus.Transport.IbmMq.CommandLine.csproj" />
-    <ProjectReference Include="..\Transport\NServiceBus.Transport.IbmMq.csproj" />
+    <ProjectReference Include="..\CommandLine\NServiceBus.Transport.IBMMQ.CommandLine.csproj" />
+    <ProjectReference Include="..\Transport\NServiceBus.Transport.IBMMQ.csproj" />
   </ItemGroup>
 
   <ItemGroup>

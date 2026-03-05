@@ -4,7 +4,7 @@
         <TargetFramework>net10.0</TargetFramework>
         <SignAssembly>true</SignAssembly>
         <AssemblyOriginatorKeyFile>..\NServiceBusTests.snk</AssemblyOriginatorKeyFile>
-        <RootNamespace>NServiceBus.Transport.IbmMq.AcceptanceTests</RootNamespace>
+        <RootNamespace>NServiceBus.Transport.IBMMQ.AcceptanceTests</RootNamespace>
     </PropertyGroup>
 
     <ItemGroup>
@@ -21,7 +21,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Transport\NServiceBus.Transport.IbmMq.csproj" />
+      <ProjectReference Include="..\Transport\NServiceBus.Transport.IBMMQ.csproj" />
     </ItemGroup>
 
     <ItemGroup>

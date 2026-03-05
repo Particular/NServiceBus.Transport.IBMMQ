@@ -1,4 +1,4 @@
-namespace NServiceBus.Transport.IbmMq.PerformanceTests.Scenarios;
+namespace NServiceBus.Transport.IBMMQ.PerformanceTests.Scenarios;
 
 using System.Diagnostics;
 using Handlers;

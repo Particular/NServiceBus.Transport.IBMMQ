@@ -1,4 +1,4 @@
-namespace NServiceBus.Transport.IbmMq.PerformanceTests.Handlers;
+namespace NServiceBus.Transport.IBMMQ.PerformanceTests.Handlers;
 
 using Infrastructure;
 using Messages;

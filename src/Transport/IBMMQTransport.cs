@@ -1,4 +1,4 @@
-namespace NServiceBus.Transport.IbmMq;
+namespace NServiceBus.Transport.IBMMQ;
 
 using IBM.WMQ;
 using IBM.WMQ.PCF;
@@ -7,34 +7,34 @@ using Logging;
 /// <summary>
 /// IBM MQ transport for NServiceBus.
 /// </summary>
-public sealed class IbmMqTransport : TransportDefinition
+public sealed class IBMMQTransport : TransportDefinition
 {
-    readonly ILog log = LogManager.GetLogger<IbmMqTransport>();
+    readonly ILog log = LogManager.GetLogger<IBMMQTransport>();
 
-    IbmMqTransportOptions Options { get; }
+    IBMMQTransportOptions Options { get; }
 
     /// <summary>
     /// Creates a new instance of IBM MQ transport with configuration
     /// </summary>
     /// <param name="configure">Configuration object to customize</param>
-    public IbmMqTransport(Action<IbmMqTransportOptions> configure)
+    public IBMMQTransport(Action<IBMMQTransportOptions> configure)
         : base(TransportTransactionMode.ReceiveOnly, supportsDelayedDelivery: false, supportsPublishSubscribe: true, supportsTTBR: true)
     {
         ArgumentNullException.ThrowIfNull(configure);
 
-        Options = new IbmMqTransportOptions();
+        Options = new IBMMQTransportOptions();
         configure(Options);
-        new IbmMqTransportOptionsValidate().Validate(Options);
+        new IBMMQTransportOptionsValidate().Validate(Options);
     }
 
     /// <summary>
     /// Internal constructor for creating transport with pre-configured settings
     /// </summary>
-    internal IbmMqTransport(IbmMqTransportOptions options)
+    internal IBMMQTransport(IBMMQTransportOptions options)
         : base(TransportTransactionMode.ReceiveOnly, supportsDelayedDelivery: false, supportsPublishSubscribe: true, supportsTTBR: true)
     {
         Options = options ?? throw new ArgumentNullException(nameof(options));
-        new IbmMqTransportOptionsValidate().Validate(Options);
+        new IBMMQTransportOptionsValidate().Validate(Options);
     }
 
     /// <inheritdoc />
@@ -61,7 +61,7 @@ public sealed class IbmMqTransport : TransportDefinition
         {
             foreach (var receiver in receivers)
             {
-                var queueName = SanitizeQueueName(IbmMqMessageReceiver.ToTransportAddress(receiver.ReceiveAddress));
+                var queueName = SanitizeQueueName(IBMMQMessageReceiver.ToTransportAddress(receiver.ReceiveAddress));
                 log.DebugFormat("Creating queue {0}", queueName);
                 CreateQueue(setupConnection, queueName);
 
@@ -85,7 +85,7 @@ public sealed class IbmMqTransport : TransportDefinition
         {
             if (receiver.PurgeOnStartup)
             {
-                var queueName = SanitizeQueueName(IbmMqMessageReceiver.ToTransportAddress(receiver.ReceiveAddress));
+                var queueName = SanitizeQueueName(IBMMQMessageReceiver.ToTransportAddress(receiver.ReceiveAddress));
                 log.DebugFormat("Purging queue {0}", queueName);
                 var count = PurgeQueue(setupConnection, queueName);
                 log.InfoFormat("Purged {0} messages from queue '{1}'", count, queueName);
@@ -97,7 +97,7 @@ public sealed class IbmMqTransport : TransportDefinition
 
         setupConnection.Disconnect();
 
-        var infrastructure = new IbmMqTransportInfrastructure(log, Options, connectionConfiguration, receivers, TransportTransactionMode, hostSettings.CriticalErrorAction);
+        var infrastructure = new IBMMQTransportInfrastructure(log, Options, connectionConfiguration, receivers, TransportTransactionMode, hostSettings.CriticalErrorAction);
         return Task.FromResult<TransportInfrastructure>(infrastructure);
     }
 
@@ -155,7 +155,7 @@ public sealed class IbmMqTransport : TransportDefinition
 
     void WriteStartupDiagnostics(
         StartupDiagnosticEntries diagnostics,
-        IbmMqTransportOptions options,
+        IBMMQTransportOptions options,
         ConnectionConfiguration connectionConfiguration,
         ReceiveSettings[] receivers,
         TransportTransactionMode transactionMode)
@@ -175,7 +175,7 @@ public sealed class IbmMqTransport : TransportDefinition
             options.MaxMessageLength,
             options.CharacterSet,
             SslEnabled = !string.IsNullOrWhiteSpace(options.CipherSpec),
-            Receivers = receivers.Select(r => SanitizeQueueName(IbmMqMessageReceiver.ToTransportAddress(r.ReceiveAddress))).ToArray()
+            Receivers = receivers.Select(r => SanitizeQueueName(IBMMQMessageReceiver.ToTransportAddress(r.ReceiveAddress))).ToArray()
         });
     }
 

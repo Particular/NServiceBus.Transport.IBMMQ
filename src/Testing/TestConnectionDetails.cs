@@ -2,7 +2,7 @@
 using System;
 using System.Collections.Specialized;
 using System.Web;
-using NServiceBus.Transport.IbmMq;
+using NServiceBus.Transport.IBMMQ;
 
 static class TestConnectionDetails
 {
@@ -19,7 +19,7 @@ static class TestConnectionDetails
 
     public static TopicNaming CreateTopicNaming() => new ShortenedTopicNaming(TopicPrefix);
 
-    public static void Apply(IbmMqTransportOptions options)
+    public static void Apply(IBMMQTransportOptions options)
     {
         options.Host = Host;
         options.Port = Port;

@@ -6,10 +6,10 @@ using System.Threading.Tasks;
 using IBM.WMQ;
 using NServiceBus;
 using NServiceBus.AcceptanceTesting.Support;
-using NServiceBus.Transport.IbmMq;
+using NServiceBus.Transport.IBMMQ;
 
 // ReSharper disable once CheckNamespace
-public class ConfigureEndpointIbmMqTransport : IConfigureEndpointTestExecution
+public class ConfigureEndpointIBMMQTransport : IConfigureEndpointTestExecution
 {
     static readonly Hashtable ConnectionProperties = BuildConnectionProperties();
 
@@ -24,7 +24,7 @@ public class ConfigureEndpointIbmMqTransport : IConfigureEndpointTestExecution
     {
         this.endpointName = endpointName;
 
-        var transport = new IbmMqTransport(s =>
+        var transport = new IBMMQTransport(s =>
             {
                 TestConnectionDetails.Apply(s);
                 s.MessageWaitInterval = TimeSpan.FromMilliseconds(100);

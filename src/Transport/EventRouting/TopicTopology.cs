@@ -1,4 +1,4 @@
-namespace NServiceBus.Transport.IbmMq;
+namespace NServiceBus.Transport.IBMMQ;
 
 /// <summary>
 /// Controls how events are mapped to IBM MQ topics for pub/sub.

@@ -1,10 +1,10 @@
-namespace NServiceBus.Transport.IbmMq;
+namespace NServiceBus.Transport.IBMMQ;
 
 using Extensibility;
 using Logging;
 using Unicast.Messages;
 
-sealed class IbmMqSubscriptionManager(
+sealed class IBMMQSubscriptionManager(
     ILog log,
     TopicTopology topology,
     CreateQueueManagerFacade createFacade,

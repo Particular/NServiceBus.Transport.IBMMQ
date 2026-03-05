@@ -1,11 +1,11 @@
-namespace NServiceBus.Transport.IbmMq;
+namespace NServiceBus.Transport.IBMMQ;
 
-class IbmMqTransportOptionsValidate
+class IBMMQTransportOptionsValidate
 {
     /// <summary>
     /// Validates the settings and throws ArgumentException if any are invalid.
     /// </summary>
-    public void Validate(IbmMqTransportOptions options)
+    public void Validate(IBMMQTransportOptions options)
     {
         // Queue Manager validation - can be null for local default QM
         // No validation needed for QueueManagerName as it can be null
@@ -35,7 +35,7 @@ class IbmMqTransportOptionsValidate
         }
     }
 
-    void ValidateConnection(IbmMqTransportOptions options)
+    void ValidateConnection(IBMMQTransportOptions options)
     {
         // Either ConnectionNameList OR Host+Port must be valid
         if (options.Connections.Count > 0)
@@ -71,7 +71,7 @@ class IbmMqTransportOptionsValidate
         }
     }
 
-    void ValidateSslConfiguration(IbmMqTransportOptions options)
+    void ValidateSslConfiguration(IBMMQTransportOptions options)
     {
         bool hasKeyRepo = !string.IsNullOrWhiteSpace(options.SslKeyRepository);
         bool hasCipherSpec = !string.IsNullOrWhiteSpace(options.CipherSpec);
@@ -99,7 +99,7 @@ class IbmMqTransportOptionsValidate
         }
     }
 
-    void ValidateMessageProcessing(IbmMqTransportOptions options)
+    void ValidateMessageProcessing(IBMMQTransportOptions options)
     {
         if (options.MessageWaitInterval.TotalMilliseconds is < 100 or > 30000)
         {

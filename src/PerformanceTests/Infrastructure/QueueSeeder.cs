@@ -1,7 +1,7 @@
-namespace NServiceBus.Transport.IbmMq.PerformanceTests.Infrastructure;
+namespace NServiceBus.Transport.IBMMQ.PerformanceTests.Infrastructure;
 
 using IBM.WMQ;
-using IbmMq;
+using IBMMQ;
 using Messages;
 
 static class QueueSeeder
@@ -33,7 +33,7 @@ static class QueueSeeder
             var outgoingMessage = new OutgoingMessage(messageId, headers, body);
             var operation = new UnicastTransportOperation(outgoingMessage, queueName, []);
 
-            var mqMessage = IbmMqMessageConverter.ToNative(operation);
+            var mqMessage = IBMMQMessageConverter.ToNative(operation);
             queue.Put(mqMessage, pmo);
         }
     }

@@ -1,4 +1,4 @@
-namespace NServiceBus.Transport.IbmMq;
+namespace NServiceBus.Transport.IBMMQ;
 
 using IBM.WMQ;
 using System.Collections;
@@ -9,7 +9,7 @@ using System.Reflection;
 /// </summary>
 class ConnectionConfiguration
 {
-    public ConnectionConfiguration(IbmMqTransportOptions options)
+    public ConnectionConfiguration(IBMMQTransportOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
 
@@ -27,7 +27,7 @@ class ConnectionConfiguration
 
     public Hashtable ConnectionProperties { get; }
 
-    static Hashtable BuildConnectionProperties(IbmMqTransportOptions options, out string applicationName)
+    static Hashtable BuildConnectionProperties(IBMMQTransportOptions options, out string applicationName)
     {
         var properties = new Hashtable
         {
@@ -49,7 +49,7 @@ class ConnectionConfiguration
 
         properties.Add(MQC.CONNECT_OPTIONS_PROPERTY, MQC.MQCNO_RECONNECT_DISABLED);
 
-        applicationName = options.ApplicationName ?? Assembly.GetExecutingAssembly().GetName().Name ?? "NServiceBus.IbmMq";
+        applicationName = options.ApplicationName ?? Assembly.GetExecutingAssembly().GetName().Name ?? "NServiceBus.IBMMQ";
         properties.Add(MQC.APPNAME_PROPERTY, applicationName);
 
         AddSslProperties(properties, options);
@@ -68,7 +68,7 @@ class ConnectionConfiguration
         return properties;
     }
 
-    static void AddSslProperties(Hashtable properties, IbmMqTransportOptions options)
+    static void AddSslProperties(Hashtable properties, IBMMQTransportOptions options)
     {
         if (!string.IsNullOrWhiteSpace(options.SslKeyRepository))
         {

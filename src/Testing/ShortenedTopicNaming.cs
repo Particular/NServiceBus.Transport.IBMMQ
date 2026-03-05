@@ -1,7 +1,7 @@
 using System;
 using System.Security.Cryptography;
 using System.Text;
-using NServiceBus.Transport.IbmMq;
+using NServiceBus.Transport.IBMMQ;
 
 /// <summary>
 /// A <see cref="TopicNaming"/> subclass that shortens topic names exceeding the

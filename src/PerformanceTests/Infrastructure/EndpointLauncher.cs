@@ -1,6 +1,6 @@
-namespace NServiceBus.Transport.IbmMq.PerformanceTests.Infrastructure;
+namespace NServiceBus.Transport.IBMMQ.PerformanceTests.Infrastructure;
 
-using IbmMq;
+using IBMMQ;
 using Handlers;
 
 record EndpointSpec
@@ -54,7 +54,7 @@ static class EndpointLauncher
                 instanceName: instanceName,
                 hostName: Environment.MachineName);
 
-        var transport = new IbmMqTransport(options =>
+        var transport = new IBMMQTransport(options =>
         {
             TestConnectionDetails.Apply(options);
             options.MessageWaitInterval = TimeSpan.FromMilliseconds(500);

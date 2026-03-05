@@ -1,9 +1,9 @@
-namespace NServiceBus.Transport.IbmMq;
+namespace NServiceBus.Transport.IBMMQ;
 
 using System.Text.RegularExpressions;
 using IBM.WMQ;
 
-static class IbmMqMessageConverter
+static class IBMMQMessageConverter
 {
     // IBM MQ silently discards string properties set to "" — they cannot be enumerated via
     // GetPropertyNames nor retrieved via GetStringProperty.  Work around this by:
@@ -77,14 +77,14 @@ static class IbmMqMessageConverter
         return messageBody;
     }
 
-    // Delegate to IbmMqHelper which has the correct implementation including:
+    // Delegate to IBMMQHelper which has the correct implementation including:
     // - Empty header manifest handling
     // - Proper property name escaping for all special characters
-    // Note: IbmMqHelper needs a QueueManager, but we only use static methods for message creation
+    // Note: IBMMQHelper needs a QueueManager, but we only use static methods for message creation
     // This is a temporary adapter until we can refactor to pass the QueueManager
     public static MQMessage ToNative(IOutgoingTransportOperation outgoingTransportOperation)
     {
-        // Temporarily create a message using the same logic as IbmMqHelper.CreateMessage
+        // Temporarily create a message using the same logic as IBMMQHelper.CreateMessage
         // but inline here since we don't have a QueueManager instance
         var isNonDurable = outgoingTransportOperation.Message.Headers.ContainsKey(Headers.NonDurableMessage);
 
@@ -101,7 +101,7 @@ static class IbmMqMessageConverter
         SetMessageId(outgoingMessage, message);
         SetCorrelationId(outgoingMessage, message);
 
-        // Use IbmMqHelper's property setting logic (includes empty header manifests)
+        // Use IBMMQHelper's property setting logic (includes empty header manifests)
         var pd = new MQPropertyDescriptor
         {
             Options = MQC.MQPD_SUPPORT_OPTIONAL

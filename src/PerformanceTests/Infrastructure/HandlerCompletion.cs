@@ -1,4 +1,4 @@
-namespace NServiceBus.Transport.IbmMq.PerformanceTests.Infrastructure;
+namespace NServiceBus.Transport.IBMMQ.PerformanceTests.Infrastructure;
 
 static class HandlerCompletion
 {

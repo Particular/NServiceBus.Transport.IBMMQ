@@ -1,4 +1,4 @@
-namespace NServiceBus.Transport.IbmMq.Tests.Topology;
+namespace NServiceBus.Transport.IBMMQ.Tests.Topology;
 
 using NUnit.Framework;
 
