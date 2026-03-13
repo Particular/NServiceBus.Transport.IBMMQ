@@ -1,10 +1,16 @@
 namespace NServiceBus.Transport.IBMMQ;
 
+using System.Collections.Concurrent;
 using IBM.WMQ;
 
 sealed class AtomicMessageDispatcher(MqConnectionPool pool, TopicTopology topology, CreateQueueManagerFacade createFacade)
     : MessageDispatcher(pool, topology)
 {
+    // Reference equality is intentional — we cache per connection instance, not per connection properties
+#pragma warning disable PS0025
+    readonly ConcurrentDictionary<MQQueueManager, MqQueueManagerFacade> facadeCache = new();
+#pragma warning restore PS0025
+
     public override Task Dispatch(TransportOperations outgoingMessages, TransportTransaction transaction, CancellationToken cancellationToken = default)
     {
         if (!transaction.TryGet<MQQueueManager>(out var receiveConnection))
@@ -12,13 +18,9 @@ sealed class AtomicMessageDispatcher(MqConnectionPool pool, TopicTopology topolo
             return base.Dispatch(outgoingMessages, transaction, cancellationToken);
         }
 
-        var atomicContext = new DispatchContext(createFacade(receiveConnection), MQC.MQPMO_FAIL_IF_QUIESCING | MQC.MQPMO_SYNCPOINT);
+        var atomicFacade = facadeCache.GetOrAdd(receiveConnection, qm => createFacade(qm));
+        var atomicContext = new DispatchContext(atomicFacade, MQC.MQPMO_FAIL_IF_QUIESCING | MQC.MQPMO_SYNCPOINT);
         DispatchContext? isolatedContext = null;
-
-        Dictionary<string, MQQueue>? atomicQueues = null;
-        Dictionary<string, MQQueue>? isolatedQueues = null;
-        Dictionary<string, MQTopic>? atomicTopics = null;
-        Dictionary<string, MQTopic>? isolatedTopics = null;
 
         try
         {
@@ -27,13 +29,11 @@ sealed class AtomicMessageDispatcher(MqConnectionPool pool, TopicTopology topolo
                 if (operation.RequiredDispatchConsistency == DispatchConsistency.Isolated)
                 {
                     isolatedContext ??= ResolveContext(transaction);
-                    isolatedQueues ??= [];
-                    DispatchUnicast(operation, isolatedQueues, isolatedContext.Value);
+                    DispatchUnicast(operation, isolatedContext.Value);
                 }
                 else
                 {
-                    atomicQueues ??= [];
-                    DispatchUnicast(operation, atomicQueues, atomicContext);
+                    DispatchUnicast(operation, atomicContext);
                 }
             }
 
@@ -42,23 +42,17 @@ sealed class AtomicMessageDispatcher(MqConnectionPool pool, TopicTopology topolo
                 if (operation.RequiredDispatchConsistency == DispatchConsistency.Isolated)
                 {
                     isolatedContext ??= ResolveContext(transaction);
-                    isolatedTopics ??= [];
-                    DispatchMulticast(operation, isolatedTopics, isolatedContext.Value);
+                    DispatchMulticast(operation, isolatedContext.Value);
                 }
                 else
                 {
-                    atomicTopics ??= [];
-                    DispatchMulticast(operation, atomicTopics, atomicContext);
+                    DispatchMulticast(operation, atomicContext);
                 }
             }
         }
         finally
         {
-            CloseAll(atomicQueues);
-            CloseAll(isolatedQueues);
-            CloseAll(atomicTopics);
-            CloseAll(isolatedTopics);
-
+            // Atomic facade is cached — don't close handles
             if (isolatedContext.HasValue)
             {
                 ReturnToPool(isolatedContext.Value.Facade);
@@ -66,37 +60,5 @@ sealed class AtomicMessageDispatcher(MqConnectionPool pool, TopicTopology topolo
         }
 
         return Task.CompletedTask;
-    }
-
-    static void CloseAll(Dictionary<string, MQQueue>? queues)
-    {
-        if (queues == null)
-        {
-            return;
-        }
-
-        foreach (var queue in queues.Values)
-        {
-            using (queue)
-            {
-                queue.Close();
-            }
-        }
-    }
-
-    static void CloseAll(Dictionary<string, MQTopic>? topics)
-    {
-        if (topics == null)
-        {
-            return;
-        }
-
-        foreach (var topic in topics.Values)
-        {
-            using (topic)
-            {
-                topic.Close();
-            }
-        }
     }
 }
