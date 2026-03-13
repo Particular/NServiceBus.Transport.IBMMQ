@@ -124,10 +124,13 @@ sealed class MessagePumpWorker(
             };
 
             int reconnectAttempt = 0;
+            MQMessage receivedMessage = new();
 
             while (!stopCts.IsCancellationRequested)
             {
-                MQMessage receivedMessage = new();
+                receivedMessage.ClearMessage();
+                receivedMessage.MessageId = MQC.MQMI_NONE;
+                receivedMessage.CorrelationId = MQC.MQCI_NONE;
 
                 var transportTransaction = new TransportTransaction();
 
