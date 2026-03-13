@@ -5,28 +5,74 @@ using IBM.WMQ.PCF;
 
 class MqQueueManagerFacade(MQQueueManager queueManager, SanitizeResourceName resourceNameFormatter)
 {
+    static readonly Logging.ILog log = Logging.LogManager.GetLogger<MqQueueManagerFacade>();
+    readonly Dictionary<string, MQQueue> sendQueueCache = [];
+    readonly Dictionary<string, MQTopic> topicCache = [];
+
     public void Disconnect()
     {
+        CloseCachedHandles();
         using (queueManager)
         {
             queueManager.Disconnect();
         }
     }
 
+    public void CloseCachedHandles()
+    {
+        foreach (var queue in sendQueueCache.Values)
+        {
+            try
+            {
+                queue.Close();
+            }
+            catch (Exception ex)
+            {
+                log.Info("Failed to close cached queue handle", ex);
+            }
+        }
+
+        sendQueueCache.Clear();
+
+        foreach (var topic in topicCache.Values)
+        {
+            try
+            {
+                topic.Close();
+            }
+            catch (Exception ex)
+            {
+                log.Info("Failed to close cached topic handle", ex);
+            }
+        }
+
+        topicCache.Clear();
+    }
+
     public MQQueue AccessSendQueue(string name)
     {
-        var formatted = resourceNameFormatter(name);
-        return queueManager.AccessQueue(formatted, MQC.MQOO_OUTPUT);
+        if (!sendQueueCache.TryGetValue(name, out var queue))
+        {
+            var formatted = resourceNameFormatter(name);
+            queue = queueManager.AccessQueue(formatted, MQC.MQOO_OUTPUT);
+            sendQueueCache[name] = queue;
+        }
+        return queue;
     }
 
     public MQTopic AccessTopic(string topicString)
     {
-        return queueManager.AccessTopic(
-            topicString,
-            null,
-            MQC.MQTOPIC_OPEN_AS_PUBLICATION,
-            MQC.MQOO_OUTPUT
-        );
+        if (!topicCache.TryGetValue(topicString, out var topic))
+        {
+            topic = queueManager.AccessTopic(
+                topicString,
+                null,
+                MQC.MQTOPIC_OPEN_AS_PUBLICATION,
+                MQC.MQOO_OUTPUT
+            );
+            topicCache[topicString] = topic;
+        }
+        return topic;
     }
 
     public void CreateTopic(string topicName, string topicString)

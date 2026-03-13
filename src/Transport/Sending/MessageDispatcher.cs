@@ -10,55 +10,20 @@ class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology) : IMe
     {
         var context = ResolveContext(transaction);
 
-        Dictionary<string, MQQueue>? queues = null;
-        Dictionary<string, MQTopic>? topics = null;
-
         try
         {
-            if (outgoingMessages.UnicastTransportOperations.Count > 0)
+            foreach (var operation in outgoingMessages.UnicastTransportOperations)
             {
-                queues = [];
-
-                foreach (var operation in outgoingMessages.UnicastTransportOperations)
-                {
-                    DispatchUnicast(operation, queues, context);
-                }
+                DispatchUnicast(operation, context);
             }
 
-            if (outgoingMessages.MulticastTransportOperations.Count > 0)
+            foreach (var operation in outgoingMessages.MulticastTransportOperations)
             {
-                topics = [];
-
-                foreach (var operation in outgoingMessages.MulticastTransportOperations)
-                {
-                    DispatchMulticast(operation, topics, context);
-                }
+                DispatchMulticast(operation, context);
             }
         }
         finally
         {
-            if (queues != null)
-            {
-                foreach (var queue in queues.Values)
-                {
-                    using (queue)
-                    {
-                        queue.Close();
-                    }
-                }
-            }
-
-            if (topics != null)
-            {
-                foreach (var topic in topics.Values)
-                {
-                    using (topic)
-                    {
-                        topic.Close();
-                    }
-                }
-            }
-
             sendPool.Return(context.Facade);
         }
 
@@ -73,41 +38,34 @@ class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology) : IMe
 
     protected void ReturnToPool(MqQueueManagerFacade facade) => sendPool.Return(facade);
 
-    protected static void DispatchUnicast(UnicastTransportOperation operation, Dictionary<string, MQQueue> queues, DispatchContext context)
+    protected static void DispatchUnicast(UnicastTransportOperation operation, DispatchContext context)
     {
-        if (!queues.TryGetValue(operation.Destination, out var queue))
-        {
-            queue = context.Facade.AccessSendQueue(operation.Destination);
-            queues[operation.Destination] = queue;
-        }
-
+        var queue = context.Facade.AccessSendQueue(operation.Destination);
         var message = IBMMQMessageConverter.ToNative(operation);
         queue.Put(message, new MQPutMessageOptions { Options = context.PutOptions });
     }
 
-    protected void DispatchMulticast(MulticastTransportOperation operation, Dictionary<string, MQTopic> topics, DispatchContext context)
+    protected void DispatchMulticast(MulticastTransportOperation operation, DispatchContext context)
     {
         var putOptions = new MQPutMessageOptions { Options = context.PutOptions };
 
         foreach (var destination in topology.GetPublishDestinations(operation.MessageType))
         {
-            if (!topics.TryGetValue(destination.TopicName, out var topic))
+            try
             {
-                try
-                {
-                    topic = context.Facade.AccessTopic(destination.TopicString);
-                }
-                catch (MQException)
-                {
-                    CreateTopicOrThrow(context.Facade, destination.TopicName, destination.TopicString);
-                    topic = context.Facade.AccessTopic(destination.TopicString);
-                }
-
-                topics[destination.TopicName] = topic;
+                var topic = context.Facade.AccessTopic(destination.TopicString);
+                var message = IBMMQMessageConverter.ToNative(operation);
+                topic.Put(message, putOptions);
             }
-
-            var message = IBMMQMessageConverter.ToNative(operation);
-            topic.Put(message, putOptions);
+            catch (MQException)
+            {
+                CreateTopicOrThrow(context.Facade, destination.TopicName, destination.TopicString);
+                // Evict failed cache entry and retry
+                context.Facade.CloseCachedHandles();
+                var topic = context.Facade.AccessTopic(destination.TopicString);
+                var message = IBMMQMessageConverter.ToNative(operation);
+                topic.Put(message, putOptions);
+            }
         }
     }
 
