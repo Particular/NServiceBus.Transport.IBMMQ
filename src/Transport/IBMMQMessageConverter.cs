@@ -1,6 +1,8 @@
 namespace NServiceBus.Transport.IBMMQ;
 
-using System.Text.RegularExpressions;
+using System.Collections.Concurrent;
+using System.Runtime.InteropServices;
+using System.Text;
 using IBM.WMQ;
 
 static class IBMMQMessageConverter
@@ -12,6 +14,11 @@ static class IBMMQMessageConverter
     // On receive, names in nsbempty are reconstructed as "" without touching MQ properties.
     const string HeaderManifestProperty = "nsbhdrs";
     const string EmptyHeadersProperty = "nsbempty";
+
+    static readonly MQPropertyDescriptor PropertyDescriptor = new()
+    {
+        Options = MQC.MQPD_SUPPORT_OPTIONAL
+    };
 
 
     public static byte[] FromNative(MQMessage receivedMessage, Dictionary<string, string> messageHeaders, ref string messageId)
@@ -44,14 +51,15 @@ static class IBMMQMessageConverter
                 // Property not set, which is fine — no empty headers
             }
 
-            var emptySet = new HashSet<string>(
-                string.IsNullOrEmpty(emptyRaw) ? Array.Empty<string>() : emptyRaw.Split(','));
+            var emptySet = string.IsNullOrEmpty(emptyRaw)
+                ? null
+                : new HashSet<string>(emptyRaw.Split(','));
 
             foreach (var escapedName in manifest.Split(','))
             {
                 messageHeaders.Add(
                     UnescapePropertyName(escapedName),
-                    emptySet.Contains(escapedName) ? "" : receivedMessage.GetStringProperty(escapedName));
+                    emptySet != null && emptySet.Contains(escapedName) ? "" : receivedMessage.GetStringProperty(escapedName));
             }
         }
         else
@@ -102,10 +110,6 @@ static class IBMMQMessageConverter
         SetCorrelationId(outgoingMessage, message);
 
         // Use IBMMQHelper's property setting logic (includes empty header manifests)
-        var pd = new MQPropertyDescriptor
-        {
-            Options = MQC.MQPD_SUPPORT_OPTIONAL
-        };
         var allNames = new List<string>(outgoingMessage.Headers.Count);
         var emptyNames = new List<string>();
 
@@ -120,20 +124,32 @@ static class IBMMQMessageConverter
             }
             else
             {
-                message.SetStringProperty(escapedKey, pd, header.Value);
+                message.SetStringProperty(escapedKey, PropertyDescriptor, header.Value);
             }
         }
 
-        message.SetStringProperty(HeaderManifestProperty, pd, string.Join(",", allNames));
+        message.SetStringProperty(HeaderManifestProperty, PropertyDescriptor, string.Join(",", allNames));
 
         if (emptyNames.Count > 0)
         {
-            message.SetStringProperty(EmptyHeadersProperty, pd, string.Join(",", emptyNames));
+            message.SetStringProperty(EmptyHeadersProperty, PropertyDescriptor, string.Join(",", emptyNames));
         }
 
-        message.Write(outgoingMessage.Body.ToArray());
+        WriteBody(outgoingMessage, message);
 
         return message;
+    }
+
+    static void WriteBody(OutgoingMessage outgoingMessage, MQMessage message)
+    {
+        if (MemoryMarshal.TryGetArray(outgoingMessage.Body, out var segment))
+        {
+            message.Write(segment.Array!, segment.Offset, segment.Count);
+        }
+        else
+        {
+            message.Write(outgoingMessage.Body.ToArray());
+        }
     }
 
     static void SetCorrelationId(OutgoingMessage outgoingMessage, MQMessage message)
@@ -184,30 +200,118 @@ static class IBMMQMessageConverter
         }
     }
 
+    // Cache escaped/unescaped property names — NServiceBus reuses the same ~15 header keys
+    // for every message, so the cache hit rate approaches 100% after the first message.
+    static readonly ConcurrentDictionary<string, string> EscapeNameCache = new();
+    static readonly ConcurrentDictionary<string, string> UnescapeNameCache = new();
+
     // MQ validates property names as Java identifiers: only ASCII letters, digits, and underscores.
     // Encode underscores as "__", all other non-alphanumeric chars as "_xHHHH".
     // This handles edge cases like:
     // - "Test_xABCD" -> escapes to "Test__xABCD" -> unescapes back to "Test_xABCD" ✓
     // - "Test.Name" -> escapes to "Test_x002EName" -> unescapes back to "Test.Name" ✓
     // - "Test__Value" -> escapes to "Test____Value" -> unescapes back to "Test__Value" ✓
-    static string EscapePropertyName(string name)
-    {
-        // First, escape existing underscores by doubling them
-        name = name.Replace("_", "__");
+    static string EscapePropertyName(string name) => EscapeNameCache.GetOrAdd(name, DoEscapePropertyName);
 
-        // Then replace all non-alphanumeric characters (excluding underscore) with _xHHHH
-        return Regex.Replace(name, @"[^a-zA-Z0-9_]", match => $"_x{(int)match.Value[0]:X4}");
+    static string DoEscapePropertyName(string name)
+    {
+        // Fast path: check if escaping is needed (no underscores and no non-identifier chars)
+        var needsEscape = false;
+        foreach (var c in name)
+        {
+            if (c == '_' || !char.IsAsciiLetterOrDigit(c))
+            {
+                needsEscape = true;
+                break;
+            }
+        }
+
+        if (!needsEscape)
+        {
+            return name;
+        }
+
+        var sb = new StringBuilder(name.Length + 16);
+        foreach (var c in name)
+        {
+            if (c == '_')
+            {
+                sb.Append("__");
+            }
+            else if (char.IsAsciiLetterOrDigit(c))
+            {
+                sb.Append(c);
+            }
+            else
+            {
+                sb.Append("_x");
+                var hex = (int)c;
+                sb.Append(HexChars[(hex >> 12) & 0xF]);
+                sb.Append(HexChars[(hex >> 8) & 0xF]);
+                sb.Append(HexChars[(hex >> 4) & 0xF]);
+                sb.Append(HexChars[hex & 0xF]);
+            }
+        }
+
+        return sb.ToString();
     }
 
-    static string UnescapePropertyName(string name)
-    {
-        // First, replace _xHHHH patterns with the corresponding character
-        // Use negative lookbehind (?<!_) to avoid matching _x that's part of __x
-        // (which represents a literal underscore followed by 'x', not an escape sequence)
-        name = Regex.Replace(name, @"(?<!_)_x([0-9A-Fa-f]{4})", match =>
-            ((char)Convert.ToInt32(match.Groups[1].Value, 16)).ToString());
+    static string UnescapePropertyName(string name) => UnescapeNameCache.GetOrAdd(name, DoUnescapePropertyName);
 
-        // Then replace double underscores with single underscores
-        return name.Replace("__", "_");
+    static string DoUnescapePropertyName(string name)
+    {
+        // Fast path: if no escape sequences present
+        if (name.IndexOf('_') < 0)
+        {
+            return name;
+        }
+
+        var sb = new StringBuilder(name.Length);
+        for (var i = 0; i < name.Length; i++)
+        {
+            if (name[i] == '_')
+            {
+                if (i + 1 < name.Length && name[i + 1] == '_')
+                {
+                    // Double underscore → single underscore
+                    sb.Append('_');
+                    i++;
+                }
+                else if (i + 5 < name.Length && name[i + 1] == 'x'
+                                              && IsHexDigit(name[i + 2]) && IsHexDigit(name[i + 3])
+                                              && IsHexDigit(name[i + 4]) && IsHexDigit(name[i + 5]))
+                {
+                    // _xHHHH → char
+                    var hex = (HexValue(name[i + 2]) << 12)
+                              | (HexValue(name[i + 3]) << 8)
+                              | (HexValue(name[i + 4]) << 4)
+                              | HexValue(name[i + 5]);
+                    sb.Append((char)hex);
+                    i += 5;
+                }
+                else
+                {
+                    sb.Append('_');
+                }
+            }
+            else
+            {
+                sb.Append(name[i]);
+            }
+        }
+
+        return sb.ToString();
     }
+
+    const string HexChars = "0123456789ABCDEF";
+
+    static bool IsHexDigit(char c) => c is (>= '0' and <= '9') or (>= 'A' and <= 'F') or (>= 'a' and <= 'f');
+
+    static int HexValue(char c) => c switch
+    {
+        >= '0' and <= '9' => c - '0',
+        >= 'A' and <= 'F' => c - 'A' + 10,
+        >= 'a' and <= 'f' => c - 'a' + 10,
+        _ => 0
+    };
 }
