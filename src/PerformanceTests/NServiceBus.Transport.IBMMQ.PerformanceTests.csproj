@@ -16,6 +16,11 @@
     <PackageReference Include="System.IO.Hashing" Version="10.0.5" />
   </ItemGroup>
 
+  <!-- Source package Program.cs uses removed CommandLineConfiguration; override with local copy -->
+  <ItemGroup>
+    <Compile Remove="$(NuGetPackageRoot)nservicebus.performancetests.sources/**/NSB.PerformanceTests/Program.cs" />
+  </ItemGroup>
+
   <ItemGroup>
     <ProjectReference Include="..\Transport\NServiceBus.Transport.IBMMQ.csproj" />
   </ItemGroup>
