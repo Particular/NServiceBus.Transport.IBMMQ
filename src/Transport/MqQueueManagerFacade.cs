@@ -29,6 +29,34 @@ class MqQueueManagerFacade(MQQueueManager queueManager, SanitizeResourceName res
         );
     }
 
+    public MQTopic EnsureTopic(string topicName, string topicString)
+    {
+        try
+        {
+            return AccessTopic(topicString);
+        }
+        catch (MQException)
+        {
+            CreateTopicOrThrow(topicName, topicString);
+            return AccessTopic(topicString);
+        }
+    }
+
+    void CreateTopicOrThrow(string topicName, string topicString)
+    {
+        try
+        {
+            CreateTopic(topicName, topicString);
+        }
+        catch (MQException ex) when (ex.ReasonCode == MQC.MQRC_NOT_AUTHORIZED)
+        {
+            throw new InvalidOperationException(
+                $"Topic '{topicName}' does not exist and the current user is not authorized to create it. " +
+                "Pre-create topics by running the endpoint with EnableInstallers using an account with administrative permissions, " +
+                "or have an MQ administrator create the topic.", ex);
+        }
+    }
+
     public void CreateTopic(string topicName, string topicString)
     {
         var agent = new PCFMessageAgent(queueManager);

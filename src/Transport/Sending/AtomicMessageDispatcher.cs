@@ -2,8 +2,8 @@ namespace NServiceBus.Transport.IBMMQ;
 
 using IBM.WMQ;
 
-sealed class AtomicMessageDispatcher(MqConnectionPool pool, TopicTopology topology, CreateQueueManagerFacade createFacade)
-    : MessageDispatcher(pool, topology)
+sealed class AtomicMessageDispatcher(MqConnectionPool pool, TopicTopology topology, CreateQueueManagerFacade createFacade, DestinationCache<MQQueue> queueCache, DestinationCache<MQTopic> topicCache)
+    : MessageDispatcher(pool, topology, queueCache, topicCache)
 {
     public override Task Dispatch(TransportOperations outgoingMessages, TransportTransaction transaction, CancellationToken cancellationToken = default)
     {
