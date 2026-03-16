@@ -2,63 +2,60 @@ namespace NServiceBus.Transport.IBMMQ;
 
 using IBM.WMQ;
 
-class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology) : IMessageDispatcher
+class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology) : IMessageDispatcher, IDisposable
 {
     protected readonly record struct DispatchContext(MqQueueManagerFacade Facade, int PutOptions);
+
+    readonly DestinationCache<MQQueue> _queueCache = new(100);
+    readonly DestinationCache<MQTopic> _topicCache = new(100);
 
     public virtual Task Dispatch(TransportOperations outgoingMessages, TransportTransaction transaction, CancellationToken cancellationToken = default)
     {
         var context = ResolveContext(transaction);
-
-        Dictionary<string, MQQueue>? queues = null;
-        Dictionary<string, MQTopic>? topics = null;
+        var putOptions = new MQPutMessageOptions { Options = context.PutOptions };
 
         try
         {
-            if (outgoingMessages.UnicastTransportOperations.Count > 0)
+            foreach (var operation in outgoingMessages.UnicastTransportOperations)
             {
-                queues = [];
+                var queue = _queueCache.GetOrAdd(operation.Destination, context.Facade.AccessSendQueue);
+                var message = IBMMQMessageConverter.ToNative(operation);
 
-                foreach (var operation in outgoingMessages.UnicastTransportOperations)
+                try
                 {
-                    DispatchUnicast(operation, queues, context);
+                    queue.Put(message, putOptions);
+                }
+                catch (MQException)
+                {
+                    _queueCache.Evict(operation.Destination);
+                    throw;
                 }
             }
 
-            if (outgoingMessages.MulticastTransportOperations.Count > 0)
+            foreach (var operation in outgoingMessages.MulticastTransportOperations)
             {
-                topics = [];
-
-                foreach (var operation in outgoingMessages.MulticastTransportOperations)
+                foreach (var destination in topology.GetPublishDestinations(operation.MessageType))
                 {
-                    DispatchMulticast(operation, topics, context);
+                    var topic = _topicCache.GetOrAdd(destination.TopicName, _ =>
+                        context.Facade.EnsureTopic(destination.TopicName, destination.TopicString));
+
+                    // Message cannot be re-used, is modified by .Put(..)
+                    var message = IBMMQMessageConverter.ToNative(operation);
+
+                    try
+                    {
+                        topic.Put(message, putOptions);
+                    }
+                    catch (MQException)
+                    {
+                        _topicCache.Evict(destination.TopicName);
+                        throw;
+                    }
                 }
             }
         }
         finally
         {
-            if (queues != null)
-            {
-                foreach (var queue in queues.Values)
-                {
-                    using (queue)
-                    {
-                        queue.Close();
-                    }
-                }
-            }
-
-            if (topics != null)
-            {
-                foreach (var topic in topics.Values)
-                {
-                    using (topic)
-                    {
-                        topic.Close();
-                    }
-                }
-            }
-
             sendPool.Return(context.Facade);
         }
 
@@ -93,36 +90,19 @@ class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology) : IMe
         {
             if (!topics.TryGetValue(destination.TopicName, out var topic))
             {
-                try
-                {
-                    topic = context.Facade.AccessTopic(destination.TopicString);
-                }
-                catch (MQException)
-                {
-                    CreateTopicOrThrow(context.Facade, destination.TopicName, destination.TopicString);
-                    topic = context.Facade.AccessTopic(destination.TopicString);
-                }
-
+                topic = context.Facade.EnsureTopic(destination.TopicName, destination.TopicString);
                 topics[destination.TopicName] = topic;
             }
 
+            // Message cannot be re-used, is modified by .Put(..)
             var message = IBMMQMessageConverter.ToNative(operation);
             topic.Put(message, putOptions);
         }
     }
 
-    static void CreateTopicOrThrow(MqQueueManagerFacade facade, string topicName, string topicString)
+    public void Dispose()
     {
-        try
-        {
-            facade.CreateTopic(topicName, topicString);
-        }
-        catch (MQException ex) when (ex.ReasonCode == MQC.MQRC_NOT_AUTHORIZED)
-        {
-            throw new InvalidOperationException(
-                $"Topic '{topicName}' does not exist and the current user is not authorized to create it. " +
-                "Pre-create topics by running the endpoint with EnableInstallers using an account with administrative permissions, " +
-                "or have an MQ administrator create the topic.", ex);
-        }
+        _queueCache.Dispose();
+        _topicCache.Dispose();
     }
 }
