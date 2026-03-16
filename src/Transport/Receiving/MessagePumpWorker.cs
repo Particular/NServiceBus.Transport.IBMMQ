@@ -13,6 +13,8 @@ sealed class MessagePumpWorker(
     Action<string, Exception, CancellationToken> criticalError
 ) : IAsyncDisposable
 {
+    readonly bool isDebugEnabled = log.IsDebugEnabled;
+
     const int ReconnectBaseDelayMs = 1000;
     const int ReconnectMaxDelayMs = 60_000;
     readonly int messageWaitInterval = (int)settings.MessageWaitInterval.TotalMilliseconds;
@@ -135,7 +137,7 @@ sealed class MessagePumpWorker(
                 {
                     if (_connection == null)
                     {
-                        if (log.IsDebugEnabled)
+                        if (isDebugEnabled)
                         {
                             log.DebugFormat("Worker {0} creating queue connection {1}", workerIndex, queueName);
                         }
@@ -158,7 +160,7 @@ sealed class MessagePumpWorker(
                         messageBody = IBMMQMessageConverter.FromNative(receivedMessage, messageHeaders, ref messageId);
                         originalHeaders = new Dictionary<string, string>(messageHeaders);
 
-                        if (log.IsDebugEnabled)
+                        if (isDebugEnabled)
                         {
                             log.DebugFormat("Worker {0} received message {1}", workerIndex, messageId);
                         }
@@ -169,7 +171,7 @@ sealed class MessagePumpWorker(
                             && failedMessages != null
                             && failedMessages.TryRemove(messageId, out var failedEntry))
                         {
-                            if (log.IsDebugEnabled)
+                            if (isDebugEnabled)
                             {
                                 log.DebugFormat("Worker {0} handling previously failed message {1}", workerIndex, messageId);
                             }
@@ -214,7 +216,7 @@ sealed class MessagePumpWorker(
                     }
                     catch (Exception ex) when (ex is not MQException)
                     {
-                        if (log.IsDebugEnabled)
+                        if (isDebugEnabled)
                         {
                             log.DebugFormat("Worker {0} error processing message from {1}\n{2}", workerIndex, queueName, ex);
                         }
