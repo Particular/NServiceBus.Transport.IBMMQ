@@ -118,6 +118,19 @@ public sealed class IBMMQTransport : TransportDefinition
         {
             // Queue already exists, nothing to do
         }
+        catch (PCFException e) when (e.ReasonCode == MQC.MQRCCF_CFST_STRING_LENGTH_ERR)
+        {
+            throw new Exception(
+                $"IBM MQ rejected the queue name '{name}' because it exceeds the maximum allowed length (48 characters). " +
+                $"Use the {nameof(IBMMQTransportOptions.ResourceNameSanitizer)} option to truncate or shorten queue names before they are sent to IBM MQ.", e);
+        }
+        catch (PCFException e) when (e.ReasonCode == MQC.MQRCCF_OBJECT_NAME_ERROR)
+        {
+            throw new Exception(
+                $"IBM MQ rejected the queue name '{name}' because it contains invalid characters or is otherwise malformed. " +
+                $"IBM MQ queue names must be 1-48 characters using only A-Z, 0-9, '.', '_', '/', and '%'. " +
+                $"Use the {nameof(IBMMQTransportOptions.ResourceNameSanitizer)} option to transform queue names into a valid format before they are sent to IBM MQ.", e);
+        }
         finally
         {
             agent.Disconnect();
