@@ -73,34 +73,37 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
             .AddSingleton(topology)
             .AddSingleton<MqPropertyNameEncoder>()
             .AddSingleton<IBMMQMessageConverter>()
-            .AddSingleton<CreateQueueManager>(() => new MQQueueManager(queueManagerName, connectionProperties))
-            .AddSingleton(new MessagePumpSettings(messageWaitInterval, transactionMode))
-            .AddScoped(sp => new MessagePumpWorker(
-                LogManager.GetLogger<MessagePumpWorker>(),
-                sp.GetRequiredService<MessagePumpSettings>(),
-                sp.GetRequiredService<CreateQueueManager>(),
-                sp.GetRequiredService<IBMMQMessageConverter>(),
-                criticalError
-            ))
-            .AddSingleton<CreateQueueManagerFacade>(qm =>
-                new MqQueueManagerFacade(LogManager.GetLogger<MqQueueManagerFacade>(), qm, resourceNameFormatter))
             .AddSingleton(new MqConnectionPool(
-                () => new MQQueueManager(queueManagerName, connectionProperties),
-                qm => new MqQueueManagerFacade(LogManager.GetLogger<MqQueueManagerFacade>(), qm, resourceNameFormatter),
+                () => new MqConnection(
+                    new MQQueueManager(queueManagerName, connectionProperties),
+                    resourceNameFormatter, 100),
                 Environment.ProcessorCount))
             .AddSingleton<IMessageDispatcher>(sp =>
+                new MessageDispatcher(
+                    sp.GetRequiredService<MqConnectionPool>(),
+                    sp.GetRequiredService<TopicTopology>(),
+                    sp.GetRequiredService<IBMMQMessageConverter>()))
+            .AddSingleton<CreateMqAdminConnection>(() =>
+                new MqAdminConnection(new MQQueueManager(queueManagerName, connectionProperties), resourceNameFormatter))
+            .AddSingleton(new MessagePumpSettings(messageWaitInterval, transactionMode))
+            .AddScoped(_ => new MqConnection(
+                new MQQueueManager(queueManagerName, connectionProperties),
+                resourceNameFormatter, 100))
+            .AddScoped<ReceiveStrategy>(sp =>
             {
-                var pool = sp.GetRequiredService<MqConnectionPool>();
-                var createFacade = sp.GetRequiredService<CreateQueueManagerFacade>();
-                var topo = sp.GetRequiredService<TopicTopology>();
+                var conn = sp.GetRequiredService<MqConnection>();
                 var converter = sp.GetRequiredService<IBMMQMessageConverter>();
-
+                var strategyLog = LogManager.GetLogger<ReceiveStrategy>();
                 return transactionMode switch
                 {
-                    TransportTransactionMode.None => new MessageDispatcher(pool, topo, converter),
-                    TransportTransactionMode.ReceiveOnly => new MessageDispatcher(pool, topo, converter),
-                    TransportTransactionMode.SendsAtomicWithReceive => new AtomicMessageDispatcher(pool, topo, createFacade, converter),
-                    TransportTransactionMode.TransactionScope => throw new NotSupportedException("TransactionScope is not supported"),
+                    TransportTransactionMode.None =>
+                        new NoTransactionReceiveStrategy(conn, converter, strategyLog),
+                    TransportTransactionMode.ReceiveOnly =>
+                        new ReceiveOnlyReceiveStrategy(conn, converter, strategyLog),
+                    TransportTransactionMode.SendsAtomicWithReceive =>
+                        new AtomicReceiveStrategy(conn, converter, strategyLog),
+                    TransportTransactionMode.TransactionScope =>
+                        throw new NotSupportedException("TransactionScope is not supported"),
                     _ => throw new ArgumentOutOfRangeException(nameof(transactionMode), transactionMode, "Unsupported transaction mode")
                 };
             });
@@ -110,12 +113,11 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
             services
                 .AddKeyedSingleton<ISubscriptionManager>(rs.Id, (sp, _) =>
                 {
-                    var createFacade = sp.GetRequiredService<CreateQueueManagerFacade>();
-                    var createConnection = sp.GetRequiredService<CreateQueueManager>();
+                    var createAdmin = sp.GetRequiredService<CreateMqAdminConnection>();
                     var topo = sp.GetRequiredService<TopicTopology>();
                     return new IBMMQSubscriptionManager(
                         LogManager.GetLogger<IBMMQSubscriptionManager>(),
-                        topo, createFacade, createConnection, rs.ReceiveAddress.BaseAddress);
+                        topo, createAdmin, rs.ReceiveAddress.BaseAddress);
                 })
                 .AddSingleton<IMessageReceiver>(sp =>
                 {
@@ -124,7 +126,7 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
                     var pSettings = sp.GetRequiredService<MessagePumpSettings>();
                     return new IBMMQMessageReceiver(
                         LogManager.GetLogger<IBMMQMessageReceiver>(),
-                        scopeFactory, subMgr, rs, pSettings, resourceNameFormatter);
+                        scopeFactory, subMgr, rs, pSettings, resourceNameFormatter, criticalError);
                 });
         }
     }

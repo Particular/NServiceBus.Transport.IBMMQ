@@ -2,38 +2,51 @@ namespace NServiceBus.Transport.IBMMQ;
 
 using System.Collections.Concurrent;
 
-sealed class MqConnectionPool(CreateQueueManager createConnection, CreateQueueManagerFacade createFacade, int maxSize) : IAsyncDisposable
+sealed class MqConnectionPool : IAsyncDisposable
 {
-    readonly ConcurrentBag<MqQueueManagerFacade> pool = [];
+    readonly Func<MqConnection> factory;
+    readonly int maxSize;
+    readonly ConcurrentBag<MqConnection> pool = [];
     int currentSize;
 
-    public MqQueueManagerFacade Rent()
+    public MqConnectionPool(Func<MqConnection> factory, int maxSize)
     {
-        if (pool.TryTake(out var facade))
+        this.factory = factory;
+        this.maxSize = maxSize;
+    }
+
+    public MqConnection Rent()
+    {
+        if (pool.TryTake(out var connection))
         {
-            return facade;
+            return connection;
         }
 
         if (Interlocked.Increment(ref currentSize) <= maxSize)
         {
-            return createFacade(createConnection());
+            return factory();
         }
 
         Interlocked.Decrement(ref currentSize);
 
-        // Pool exhausted — spin-wait until one is returned
-        SpinWait.SpinUntil(() => pool.TryTake(out facade));
+        SpinWait.SpinUntil(() => pool.TryTake(out connection));
 
-        return facade!;
+        return connection!;
     }
 
-    public void Return(MqQueueManagerFacade facade) => pool.Add(facade);
+    public void Return(MqConnection connection) => pool.Add(connection);
+
+    public void Discard(MqConnection connection)
+    {
+        connection.Disconnect();
+        Interlocked.Decrement(ref currentSize);
+    }
 
     public ValueTask DisposeAsync()
     {
-        while (pool.TryTake(out var facade))
+        while (pool.TryTake(out var connection))
         {
-            facade.Disconnect();
+            connection.Disconnect();
         }
 
         return ValueTask.CompletedTask;

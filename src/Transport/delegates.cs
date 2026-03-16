@@ -1,16 +1,9 @@
 namespace NServiceBus.Transport.IBMMQ;
 
-using IBM.WMQ;
-
 /// <summary>
-/// Creates a new queue manager connection
+/// Creates a MqAdminConnection for admin/subscription operations
 /// </summary>
-delegate MQQueueManager CreateQueueManager();
-
-/// <summary>
-/// Creates a MqQueueManagerFacade for a given queue manager
-/// </summary>
-delegate MqQueueManagerFacade CreateQueueManagerFacade(MQQueueManager queueManager);
+delegate MqAdminConnection CreateMqAdminConnection();
 
 /// <summary>
 /// Sanitizer topic and queue resource names
