@@ -22,7 +22,7 @@
 
   <ItemGroup>
     <PackageReference Include="IBMMQDotnetClient" Version="9.4.5" />
-    <PackageReference Include="McMaster.Extensions.CommandLineUtils" Version="4.1.1" />
+    <PackageReference Include="McMaster.Extensions.CommandLineUtils" Version="5.0.1" />
   </ItemGroup>
 
 </Project>
