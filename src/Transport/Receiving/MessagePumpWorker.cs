@@ -10,6 +10,7 @@ sealed class MessagePumpWorker(
     ILog log,
     MessagePumpSettings settings,
     CreateQueueManager createConnection,
+    IBMMQMessageConverter messageConverter,
     Action<string, Exception, CancellationToken> criticalError
 ) : IAsyncDisposable
 {
@@ -164,7 +165,7 @@ sealed class MessagePumpWorker(
                     try
                     {
                         queue.Get(receivedMessage, getOptions);
-                        messageBody = IBMMQMessageConverter.FromNative(receivedMessage, messageHeaders, ref messageId);
+                        messageBody = messageConverter.FromNative(receivedMessage, messageHeaders, ref messageId);
                         originalHeaders = new Dictionary<string, string>(messageHeaders);
 
                         if (isDebugEnabled)

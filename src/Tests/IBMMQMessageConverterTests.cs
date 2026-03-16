@@ -10,6 +10,7 @@ using NUnit.Framework;
 [TestFixture]
 public class IBMMQMessageConverterTests
 {
+    static readonly IBMMQMessageConverter converter = new(new MqPropertyNameEncoder());
     static UnicastTransportOperation CreateOperation(
         Dictionary<string, string> headers = null,
         byte[] body = null,
@@ -36,7 +37,7 @@ public class IBMMQMessageConverterTests
             };
             var operation = CreateOperation(properties: properties);
 
-            var mqMessage = IBMMQMessageConverter.ToNative(operation);
+            var mqMessage = converter.ToNative(operation);
 
             Assert.That(mqMessage.Expiry, Is.EqualTo(300)); // 30s * 10 = 300 tenths-of-seconds
         }
@@ -46,7 +47,7 @@ public class IBMMQMessageConverterTests
         {
             var operation = CreateOperation(properties: []);
 
-            var mqMessage = IBMMQMessageConverter.ToNative(operation);
+            var mqMessage = converter.ToNative(operation);
 
             Assert.That(mqMessage.Expiry, Is.EqualTo(MQC.MQEI_UNLIMITED));
         }
@@ -56,7 +57,7 @@ public class IBMMQMessageConverterTests
         {
             var operation = CreateOperation();
 
-            var mqMessage = IBMMQMessageConverter.ToNative(operation);
+            var mqMessage = converter.ToNative(operation);
 
             Assert.That(mqMessage.Expiry, Is.EqualTo(MQC.MQEI_UNLIMITED));
         }
@@ -71,7 +72,7 @@ public class IBMMQMessageConverterTests
             };
             var operation = CreateOperation(properties: properties);
 
-            var mqMessage = IBMMQMessageConverter.ToNative(operation);
+            var mqMessage = converter.ToNative(operation);
 
             Assert.That(mqMessage.Expiry, Is.EqualTo(36000)); // 3600s * 10
         }
@@ -90,7 +91,7 @@ public class IBMMQMessageConverterTests
             };
             var operation = CreateOperation(headers: headers);
 
-            var mqMessage = IBMMQMessageConverter.ToNative(operation);
+            var mqMessage = converter.ToNative(operation);
 
             var expected = new byte[24];
             Array.Copy(messageId.ToByteArray(), expected, 16);
@@ -107,7 +108,7 @@ public class IBMMQMessageConverterTests
             };
             var operation = CreateOperation(headers: headers);
 
-            var mqMessage = IBMMQMessageConverter.ToNative(operation);
+            var mqMessage = converter.ToNative(operation);
 
             var expected = new byte[24];
             Array.Copy(correlationId.ToByteArray(), expected, 16);
@@ -123,7 +124,7 @@ public class IBMMQMessageConverterTests
             };
             var operation = CreateOperation(headers: headers);
 
-            var mqMessage = IBMMQMessageConverter.ToNative(operation);
+            var mqMessage = converter.ToNative(operation);
 
             Assert.That(mqMessage.ReplyToQueueName, Is.EqualTo("my.reply.queue"));
         }
@@ -134,7 +135,7 @@ public class IBMMQMessageConverterTests
             var body = System.Text.Encoding.UTF8.GetBytes("hello world");
             var operation = CreateOperation(body: body);
 
-            var mqMessage = IBMMQMessageConverter.ToNative(operation);
+            var mqMessage = converter.ToNative(operation);
 
             mqMessage.Seek(0);
             var actual = mqMessage.ReadBytes(mqMessage.MessageLength);
@@ -149,7 +150,7 @@ public class IBMMQMessageConverterTests
         public void MessageType_is_datagram()
         {
             var operation = CreateOperation();
-            var mqMessage = IBMMQMessageConverter.ToNative(operation);
+            var mqMessage = converter.ToNative(operation);
             Assert.That(mqMessage.MessageType, Is.EqualTo(MQC.MQMT_DATAGRAM));
         }
 
@@ -157,7 +158,7 @@ public class IBMMQMessageConverterTests
         public void Persistence_is_persistent()
         {
             var operation = CreateOperation();
-            var mqMessage = IBMMQMessageConverter.ToNative(operation);
+            var mqMessage = converter.ToNative(operation);
             Assert.That(mqMessage.Persistence, Is.EqualTo(MQC.MQPER_PERSISTENT));
         }
 
@@ -169,7 +170,7 @@ public class IBMMQMessageConverterTests
                 { Headers.NonDurableMessage, null }
             };
             var operation = CreateOperation(headers: headers);
-            var mqMessage = IBMMQMessageConverter.ToNative(operation);
+            var mqMessage = converter.ToNative(operation);
             Assert.That(mqMessage.Persistence, Is.EqualTo(MQC.MQPER_NOT_PERSISTENT));
         }
 
@@ -177,7 +178,7 @@ public class IBMMQMessageConverterTests
         public void CharacterSet_is_UTF8()
         {
             var operation = CreateOperation();
-            var mqMessage = IBMMQMessageConverter.ToNative(operation);
+            var mqMessage = converter.ToNative(operation);
             Assert.That(mqMessage.CharacterSet, Is.EqualTo(MQC.CODESET_UTF));
         }
     }
@@ -194,7 +195,7 @@ public class IBMMQMessageConverterTests
             };
             var operation = CreateOperation(headers: headers);
 
-            var mqMessage = IBMMQMessageConverter.ToNative(operation);
+            var mqMessage = converter.ToNative(operation);
 
             var value = mqMessage.GetStringProperty("NServiceBus_x002EEnclosedMessageTypes");
             Assert.That(value, Is.EqualTo("MyEvent"));
@@ -209,7 +210,7 @@ public class IBMMQMessageConverterTests
             };
             var operation = CreateOperation(headers: headers);
 
-            var mqMessage = IBMMQMessageConverter.ToNative(operation);
+            var mqMessage = converter.ToNative(operation);
 
             var value = mqMessage.GetStringProperty("my_x002Dheader");
             Assert.That(value, Is.EqualTo("value"));
@@ -224,7 +225,7 @@ public class IBMMQMessageConverterTests
             };
             var operation = CreateOperation(headers: headers);
 
-            var mqMessage = IBMMQMessageConverter.ToNative(operation);
+            var mqMessage = converter.ToNative(operation);
 
             var value = mqMessage.GetStringProperty("my__header");
             Assert.That(value, Is.EqualTo("value"));
@@ -244,7 +245,7 @@ public class IBMMQMessageConverterTests
             };
             var operation = CreateOperation(headers: headers);
 
-            var mqMessage = IBMMQMessageConverter.ToNative(operation);
+            var mqMessage = converter.ToNative(operation);
 
             var manifest = mqMessage.GetStringProperty("nsbhdrs");
             Assert.That(manifest, Does.Contain("NormalHeader"));
@@ -264,7 +265,7 @@ public class IBMMQMessageConverterTests
             };
             var operation = CreateOperation(headers: headers);
 
-            var mqMessage = IBMMQMessageConverter.ToNative(operation);
+            var mqMessage = converter.ToNative(operation);
 
             Assert.Throws<MQException>(() => mqMessage.GetStringProperty("nsbempty"));
         }

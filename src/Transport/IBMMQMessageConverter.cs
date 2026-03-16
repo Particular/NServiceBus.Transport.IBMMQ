@@ -1,9 +1,8 @@
 namespace NServiceBus.Transport.IBMMQ;
 
-using System.Text.RegularExpressions;
 using IBM.WMQ;
 
-static class IBMMQMessageConverter
+class IBMMQMessageConverter(MqPropertyNameEncoder propertyNameEncoder)
 {
     // IBM MQ silently discards string properties set to "" — they cannot be enumerated via
     // GetPropertyNames nor retrieved via GetStringProperty.  Work around this by:
@@ -14,7 +13,7 @@ static class IBMMQMessageConverter
     const string EmptyHeadersProperty = "nsbempty";
 
 
-    public static byte[] FromNative(MQMessage receivedMessage, Dictionary<string, string> messageHeaders, ref string messageId)
+    public byte[] FromNative(MQMessage receivedMessage, Dictionary<string, string> messageHeaders, ref string messageId)
     {
         byte[] messageBody = receivedMessage.ReadBytes(receivedMessage.MessageLength);
 
@@ -50,7 +49,7 @@ static class IBMMQMessageConverter
             foreach (var escapedName in manifest.Split(','))
             {
                 messageHeaders.Add(
-                    UnescapePropertyName(escapedName),
+                    propertyNameEncoder.Decode(escapedName),
                     emptySet.Contains(escapedName) ? "" : receivedMessage.GetStringProperty(escapedName));
             }
         }
@@ -63,7 +62,7 @@ static class IBMMQMessageConverter
                 var escapedName = propertyNames.Current!.ToString();
                 if (escapedName != null)
                 {
-                    var originalName = UnescapePropertyName(escapedName);
+                    var originalName = propertyNameEncoder.Decode(escapedName);
                     messageHeaders.Add(originalName, receivedMessage.GetStringProperty(escapedName));
                 }
             }
@@ -82,7 +81,7 @@ static class IBMMQMessageConverter
     // - Proper property name escaping for all special characters
     // Note: IBMMQHelper needs a QueueManager, but we only use static methods for message creation
     // This is a temporary adapter until we can refactor to pass the QueueManager
-    public static MQMessage ToNative(IOutgoingTransportOperation outgoingTransportOperation)
+    public MQMessage ToNative(IOutgoingTransportOperation outgoingTransportOperation)
     {
         // Temporarily create a message using the same logic as IBMMQHelper.CreateMessage
         // but inline here since we don't have a QueueManager instance
@@ -111,7 +110,7 @@ static class IBMMQMessageConverter
 
         foreach (var header in outgoingMessage.Headers)
         {
-            var escapedKey = EscapePropertyName(header.Key);
+            var escapedKey = propertyNameEncoder.Encode(header.Key);
             allNames.Add(escapedKey);
 
             if (string.IsNullOrEmpty(header.Value))
@@ -182,32 +181,5 @@ static class IBMMQMessageConverter
         {
             message.Expiry = MQC.MQEI_UNLIMITED;
         }
-    }
-
-    // MQ validates property names as Java identifiers: only ASCII letters, digits, and underscores.
-    // Encode underscores as "__", all other non-alphanumeric chars as "_xHHHH".
-    // This handles edge cases like:
-    // - "Test_xABCD" -> escapes to "Test__xABCD" -> unescapes back to "Test_xABCD" ✓
-    // - "Test.Name" -> escapes to "Test_x002EName" -> unescapes back to "Test.Name" ✓
-    // - "Test__Value" -> escapes to "Test____Value" -> unescapes back to "Test__Value" ✓
-    static string EscapePropertyName(string name)
-    {
-        // First, escape existing underscores by doubling them
-        name = name.Replace("_", "__");
-
-        // Then replace all non-alphanumeric characters (excluding underscore) with _xHHHH
-        return Regex.Replace(name, @"[^a-zA-Z0-9_]", match => $"_x{(int)match.Value[0]:X4}");
-    }
-
-    static string UnescapePropertyName(string name)
-    {
-        // First, replace _xHHHH patterns with the corresponding character
-        // Use negative lookbehind (?<!_) to avoid matching _x that's part of __x
-        // (which represents a literal underscore followed by 'x', not an escape sequence)
-        name = Regex.Replace(name, @"(?<!_)_x([0-9A-Fa-f]{4})", match =>
-            ((char)Convert.ToInt32(match.Groups[1].Value, 16)).ToString());
-
-        // Then replace double underscores with single underscores
-        return name.Replace("__", "_");
     }
 }

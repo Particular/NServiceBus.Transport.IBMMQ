@@ -2,7 +2,7 @@ namespace NServiceBus.Transport.IBMMQ;
 
 using IBM.WMQ;
 
-class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology, DestinationCache<MQQueue> queueCache, DestinationCache<MQTopic> topicCache) : IMessageDispatcher
+class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology, IBMMQMessageConverter messageConverter, DestinationCache<MQQueue> queueCache, DestinationCache<MQTopic> topicCache) : IMessageDispatcher
 {
     protected readonly record struct DispatchContext(MqQueueManagerFacade Facade, int PutOptions);
 
@@ -16,7 +16,7 @@ class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology, Desti
             foreach (var operation in outgoingMessages.UnicastTransportOperations)
             {
                 var queue = queueCache.GetOrAdd(operation.Destination, context.Facade.AccessSendQueue);
-                var message = IBMMQMessageConverter.ToNative(operation);
+                var message = messageConverter.ToNative(operation);
 
                 try
                 {
@@ -37,7 +37,7 @@ class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology, Desti
                         context.Facade.EnsureTopic(destination.TopicName, destination.TopicString));
 
                     // Message cannot be re-used, is modified by .Put(..)
-                    var message = IBMMQMessageConverter.ToNative(operation);
+                    var message = messageConverter.ToNative(operation);
 
                     try
                     {
@@ -67,7 +67,7 @@ class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology, Desti
 
     protected void ReturnToPool(MqQueueManagerFacade facade) => sendPool.Return(facade);
 
-    protected static void DispatchUnicast(UnicastTransportOperation operation, Dictionary<string, MQQueue> queues, DispatchContext context)
+    protected void DispatchUnicast(UnicastTransportOperation operation, Dictionary<string, MQQueue> queues, DispatchContext context)
     {
         if (!queues.TryGetValue(operation.Destination, out var queue))
         {
@@ -75,7 +75,7 @@ class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology, Desti
             queues[operation.Destination] = queue;
         }
 
-        var message = IBMMQMessageConverter.ToNative(operation);
+        var message = messageConverter.ToNative(operation);
         queue.Put(message, new MQPutMessageOptions { Options = context.PutOptions });
     }
 
@@ -91,8 +91,7 @@ class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology, Desti
                 topics[destination.TopicName] = topic;
             }
 
-            // Message cannot be re-used, is modified by .Put(..)
-            var message = IBMMQMessageConverter.ToNative(operation);
+            var message = messageConverter.ToNative(operation);
             topic.Put(message, putOptions);
         }
     }
