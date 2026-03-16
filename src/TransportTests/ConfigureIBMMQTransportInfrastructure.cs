@@ -10,13 +10,13 @@ public class ConfigureIBMMQTransportInfrastructure : IConfigureTransportInfrastr
 {
     public TransportDefinition CreateTransportDefinition()
     {
-        var transport = new IBMMQTransport(s =>
+        var transport = new IBMMQTransport
         {
-            TestConnectionDetails.Apply(s);
-            s.MessageWaitInterval = TimeSpan.FromMilliseconds(100);
-            s.TopicNaming = TestConnectionDetails.CreateTopicNaming();
-            s.ResourceNameSanitizer = Sanitize;
-        });
+            MessageWaitInterval = TimeSpan.FromMilliseconds(100),
+            TopicNaming = TestConnectionDetails.CreateTopicNaming(),
+            ResourceNameSanitizer = Sanitize
+        };
+        TestConnectionDetails.Apply(transport);
 
         return transport;
     }

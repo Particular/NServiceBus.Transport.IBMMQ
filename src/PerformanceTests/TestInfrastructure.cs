@@ -25,13 +25,13 @@ static partial class TestInfrastructure
         TransportTransactionMode transactionMode,
         Dictionary<Type, string>? routing)
     {
-        var transport = new IBMMQTransport(options =>
+        var transport = new IBMMQTransport
         {
-            TestConnectionDetails.Apply(options);
-            options.MessageWaitInterval = TimeSpan.FromMilliseconds(100);
-            options.TopicNaming = TestConnectionDetails.CreateTopicNaming();
-            options.ResourceNameSanitizer = Sanitize;
-        });
+            MessageWaitInterval = TimeSpan.FromMilliseconds(100),
+            TopicNaming = TestConnectionDetails.CreateTopicNaming(),
+            ResourceNameSanitizer = Sanitize
+        };
+        TestConnectionDetails.Apply(transport);
 
         var routingConfig = config.UseTransport(transport);
 

@@ -5,48 +5,48 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
     using NUnit.Framework;
 
     [TestFixture]
-    class IBMMQTransportOptionsTests
+    class IBMMQTransportTests
     {
         const int ExpectedMessageWaitInterval = 5000;
 
         [Test]
         public void Default_values_are_set_correctly()
         {
-            var options = new IBMMQTransportOptions();
+            var transport = new IBMMQTransport();
 
             using (Assert.EnterMultipleScope())
             {
-                Assert.That(options.QueueManagerName, Is.EqualTo(string.Empty));
-                Assert.That(options.Host, Is.EqualTo("localhost"));
-                Assert.That(options.Port, Is.EqualTo(1414));
-                Assert.That(options.Channel, Is.EqualTo("DEV.ADMIN.SVRCONN"));
-                Assert.That(options.Connections, Is.Empty);
-                Assert.That(options.User, Is.Null);
-                Assert.That(options.Password, Is.Null);
-                Assert.That(options.ApplicationName, Is.Null);
-                Assert.That(options.SslKeyRepository, Is.Null);
-                Assert.That(options.CipherSpec, Is.Null);
-                Assert.That(options.SslPeerName, Is.Null);
-                Assert.That(options.KeyResetCount, Is.EqualTo(0));
-                Assert.That(options.MessageWaitInterval, Is.EqualTo(TimeSpan.FromMilliseconds(ExpectedMessageWaitInterval)));
-                Assert.That(options.MaxMessageLength, Is.EqualTo(4 * 1024 * 1024));
-                Assert.That(options.CharacterSet, Is.EqualTo(1208));
-                Assert.That(options.ResourceNameSanitizer, Is.Not.Null);
+                Assert.That(transport.QueueManagerName, Is.EqualTo(string.Empty));
+                Assert.That(transport.Host, Is.EqualTo("localhost"));
+                Assert.That(transport.Port, Is.EqualTo(1414));
+                Assert.That(transport.Channel, Is.EqualTo("DEV.ADMIN.SVRCONN"));
+                Assert.That(transport.Connections, Is.Empty);
+                Assert.That(transport.User, Is.Null);
+                Assert.That(transport.Password, Is.Null);
+                Assert.That(transport.ApplicationName, Is.Null);
+                Assert.That(transport.SslKeyRepository, Is.Null);
+                Assert.That(transport.CipherSpec, Is.Null);
+                Assert.That(transport.SslPeerName, Is.Null);
+                Assert.That(transport.KeyResetCount, Is.EqualTo(0));
+                Assert.That(transport.MessageWaitInterval, Is.EqualTo(TimeSpan.FromMilliseconds(ExpectedMessageWaitInterval)));
+                Assert.That(transport.MaxMessageLength, Is.EqualTo(4 * 1024 * 1024));
+                Assert.That(transport.CharacterSet, Is.EqualTo(1208));
+                Assert.That(transport.ResourceNameSanitizer, Is.Not.Null);
             }
         }
 
         [Test]
         public void Default_queue_name_formatter_returns_input_unchanged()
         {
-            var options = new IBMMQTransportOptions();
+            var transport = new IBMMQTransport();
 
-            Assert.That(options.ResourceNameSanitizer!("MY.QUEUE"), Is.EqualTo("MY.QUEUE"));
+            Assert.That(transport.ResourceNameSanitizer!("MY.QUEUE"), Is.EqualTo("MY.QUEUE"));
         }
 
         [Test]
-        public void Valid_default_options_pass_validation()
+        public void Valid_default_transport_passes_validation()
         {
-            Assert.DoesNotThrow(() => new IBMMQTransport(_ => { }));
+            Assert.DoesNotThrow(() => IBMMQTransportValidator.Validate(new IBMMQTransport()));
         }
 
         // Connection validation
@@ -54,7 +54,7 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
         [Test]
         public void Validation_fails_when_host_is_null_and_no_connections()
         {
-            Assert.That(() => new IBMMQTransport(o => o.Host = null),
+            Assert.That(() => IBMMQTransportValidator.Validate(new IBMMQTransport { Host = null }),
                 Throws.TypeOf<ArgumentException>()
                     .With.Message.Contains("Host is required"));
         }
@@ -62,7 +62,7 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
         [Test]
         public void Validation_fails_when_host_is_empty_and_no_connections()
         {
-            Assert.That(() => new IBMMQTransport(o => o.Host = ""),
+            Assert.That(() => IBMMQTransportValidator.Validate(new IBMMQTransport { Host = "" }),
                 Throws.TypeOf<ArgumentException>()
                     .With.Message.Contains("Host is required"));
         }
@@ -70,7 +70,7 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
         [Test]
         public void Validation_fails_when_host_is_whitespace_and_no_connections()
         {
-            Assert.That(() => new IBMMQTransport(o => o.Host = "   "),
+            Assert.That(() => IBMMQTransportValidator.Validate(new IBMMQTransport { Host = "   " }),
                 Throws.TypeOf<ArgumentException>()
                     .With.Message.Contains("Host is required"));
         }
@@ -80,7 +80,7 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
         [TestCase(65536)]
         public void Validation_fails_for_invalid_port(int port)
         {
-            Assert.That(() => new IBMMQTransport(o => o.Port = port),
+            Assert.That(() => IBMMQTransportValidator.Validate(new IBMMQTransport { Port = port }),
                 Throws.TypeOf<ArgumentException>()
                     .With.Message.Contains("Port must be between 1 and 65535"));
         }
@@ -90,13 +90,13 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
         [TestCase(65535)]
         public void Validation_passes_for_valid_port(int port)
         {
-            Assert.DoesNotThrow(() => new IBMMQTransport(o => o.Port = port));
+            Assert.DoesNotThrow(() => IBMMQTransportValidator.Validate(new IBMMQTransport { Port = port }));
         }
 
         [Test]
         public void Validation_fails_when_channel_is_null()
         {
-            Assert.That(() => new IBMMQTransport(o => o.Channel = null),
+            Assert.That(() => IBMMQTransportValidator.Validate(new IBMMQTransport { Channel = null }),
                 Throws.TypeOf<ArgumentException>()
                     .With.Message.Contains("Channel is required"));
         }
@@ -104,7 +104,7 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
         [Test]
         public void Validation_fails_when_channel_is_empty()
         {
-            Assert.That(() => new IBMMQTransport(o => o.Channel = ""),
+            Assert.That(() => IBMMQTransportValidator.Validate(new IBMMQTransport { Channel = "" }),
                 Throws.TypeOf<ArgumentException>()
                     .With.Message.Contains("Channel is required"));
         }
@@ -114,17 +114,20 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
         [Test]
         public void Validation_passes_with_valid_connection_name_list()
         {
-            Assert.DoesNotThrow(() => new IBMMQTransport(o =>
-            {
-                o.Connections.Add("mqhost1(1414)");
-                o.Connections.Add("mqhost2(1415)");
-            }));
+            var transport = new IBMMQTransport();
+            transport.Connections.Add("mqhost1(1414)");
+            transport.Connections.Add("mqhost2(1415)");
+
+            Assert.DoesNotThrow(() => IBMMQTransportValidator.Validate(transport));
         }
 
         [Test]
         public void Validation_fails_when_connection_entry_missing_parentheses()
         {
-            Assert.That(() => new IBMMQTransport(o => o.Connections.Add("mqhost1:1414")),
+            var transport = new IBMMQTransport();
+            transport.Connections.Add("mqhost1:1414");
+
+            Assert.That(() => IBMMQTransportValidator.Validate(transport),
                 Throws.TypeOf<ArgumentException>()
                     .With.Message.Contains("Connections format is invalid"));
         }
@@ -132,7 +135,10 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
         [Test]
         public void Validation_fails_when_connection_entry_has_non_numeric_port()
         {
-            Assert.That(() => new IBMMQTransport(o => o.Connections.Add("mqhost1(abc)")),
+            var transport = new IBMMQTransport();
+            transport.Connections.Add("mqhost1(abc)");
+
+            Assert.That(() => IBMMQTransportValidator.Validate(transport),
                 Throws.TypeOf<ArgumentException>()
                     .With.Message.Contains("Connections format is invalid"));
         }
@@ -140,7 +146,10 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
         [Test]
         public void Validation_fails_when_connection_entry_has_invalid_port()
         {
-            Assert.That(() => new IBMMQTransport(o => o.Connections.Add("mqhost1(0)")),
+            var transport = new IBMMQTransport();
+            transport.Connections.Add("mqhost1(0)");
+
+            Assert.That(() => IBMMQTransportValidator.Validate(transport),
                 Throws.TypeOf<ArgumentException>()
                     .With.Message.Contains("Connections format is invalid"));
         }
@@ -148,7 +157,10 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
         [Test]
         public void Validation_fails_when_connection_entry_has_empty_host()
         {
-            Assert.That(() => new IBMMQTransport(o => o.Connections.Add("(1414)")),
+            var transport = new IBMMQTransport();
+            transport.Connections.Add("(1414)");
+
+            Assert.That(() => IBMMQTransportValidator.Validate(transport),
                 Throws.TypeOf<ArgumentException>()
                     .With.Message.Contains("Connections format is invalid"));
         }
@@ -156,12 +168,14 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
         [Test]
         public void Connection_name_list_takes_precedence_over_host_and_port()
         {
-            Assert.DoesNotThrow(() => new IBMMQTransport(o =>
+            var transport = new IBMMQTransport
             {
-                o.Host = null;
-                o.Port = 0;
-                o.Connections.Add("mqhost1(1414)");
-            }));
+                Host = null,
+                Port = 0
+            };
+            transport.Connections.Add("mqhost1(1414)");
+
+            Assert.DoesNotThrow(() => IBMMQTransportValidator.Validate(transport));
         }
 
         // SSL validation
@@ -169,7 +183,7 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
         [Test]
         public void Validation_fails_when_ssl_key_repository_set_without_cipher_spec()
         {
-            Assert.That(() => new IBMMQTransport(o => o.SslKeyRepository = "*SYSTEM"),
+            Assert.That(() => IBMMQTransportValidator.Validate(new IBMMQTransport { SslKeyRepository = "*SYSTEM" }),
                 Throws.TypeOf<ArgumentException>()
                     .With.Message.Contains("CipherSpec is required when SslKeyRepository is specified"));
         }
@@ -177,7 +191,7 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
         [Test]
         public void Validation_fails_when_cipher_spec_set_without_ssl_key_repository()
         {
-            Assert.That(() => new IBMMQTransport(o => o.CipherSpec = "TLS_RSA_WITH_AES_128_CBC_SHA256"),
+            Assert.That(() => IBMMQTransportValidator.Validate(new IBMMQTransport { CipherSpec = "TLS_RSA_WITH_AES_128_CBC_SHA256" }),
                 Throws.TypeOf<ArgumentException>()
                     .With.Message.Contains("SslKeyRepository is required when CipherSpec is specified"));
         }
@@ -185,17 +199,17 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
         [Test]
         public void Validation_passes_when_both_ssl_settings_specified()
         {
-            Assert.DoesNotThrow(() => new IBMMQTransport(o =>
+            Assert.DoesNotThrow(() => IBMMQTransportValidator.Validate(new IBMMQTransport
             {
-                o.SslKeyRepository = "*SYSTEM";
-                o.CipherSpec = "TLS_RSA_WITH_AES_128_CBC_SHA256";
+                SslKeyRepository = "*SYSTEM",
+                CipherSpec = "TLS_RSA_WITH_AES_128_CBC_SHA256"
             }));
         }
 
         [Test]
         public void Validation_fails_when_key_reset_count_is_negative()
         {
-            Assert.That(() => new IBMMQTransport(o => o.KeyResetCount = -1),
+            Assert.That(() => IBMMQTransportValidator.Validate(new IBMMQTransport { KeyResetCount = -1 }),
                 Throws.TypeOf<ArgumentException>()
                     .With.Message.Contains("KeyResetCount must be 0 or greater"));
         }
@@ -204,7 +218,7 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
         [TestCase(40000)]
         public void Validation_passes_for_valid_key_reset_count(int count)
         {
-            Assert.DoesNotThrow(() => new IBMMQTransport(o => o.KeyResetCount = count));
+            Assert.DoesNotThrow(() => IBMMQTransportValidator.Validate(new IBMMQTransport { KeyResetCount = count }));
         }
 
         // Message processing validation
@@ -215,7 +229,7 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
         [TestCase(30001)]
         public void Validation_fails_for_invalid_message_wait_interval(int interval)
         {
-            Assert.That(() => new IBMMQTransport(o => o.MessageWaitInterval = TimeSpan.FromMilliseconds(interval)),
+            Assert.That(() => IBMMQTransportValidator.Validate(new IBMMQTransport { MessageWaitInterval = TimeSpan.FromMilliseconds(interval) }),
                 Throws.TypeOf<ArgumentException>()
                     .With.Message.Contains("MessageWaitInterval must be between 100 and 30000"));
         }
@@ -225,7 +239,7 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
         [TestCase(30000)]
         public void Validation_passes_for_valid_message_wait_interval(int interval)
         {
-            Assert.DoesNotThrow(() => new IBMMQTransport(o => o.MessageWaitInterval = TimeSpan.FromMilliseconds(interval)));
+            Assert.DoesNotThrow(() => IBMMQTransportValidator.Validate(new IBMMQTransport { MessageWaitInterval = TimeSpan.FromMilliseconds(interval) }));
         }
 
         [TestCase(1023)]
@@ -234,7 +248,7 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
         [TestCase(104857601)]
         public void Validation_fails_for_invalid_max_message_length(int length)
         {
-            Assert.That(() => new IBMMQTransport(o => o.MaxMessageLength = length),
+            Assert.That(() => IBMMQTransportValidator.Validate(new IBMMQTransport { MaxMessageLength = length }),
                 Throws.TypeOf<ArgumentException>()
                     .With.Message.Contains("MaxMessageLength must be between 1024"));
         }
@@ -244,14 +258,14 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
         [TestCase(104857600)]
         public void Validation_passes_for_valid_max_message_length(int length)
         {
-            Assert.DoesNotThrow(() => new IBMMQTransport(o => o.MaxMessageLength = length));
+            Assert.DoesNotThrow(() => IBMMQTransportValidator.Validate(new IBMMQTransport { MaxMessageLength = length }));
         }
 
         [TestCase(0)]
         [TestCase(-1)]
         public void Validation_fails_for_invalid_character_set(int ccsid)
         {
-            Assert.That(() => new IBMMQTransport(o => o.CharacterSet = ccsid),
+            Assert.That(() => IBMMQTransportValidator.Validate(new IBMMQTransport { CharacterSet = ccsid }),
                 Throws.TypeOf<ArgumentException>()
                     .With.Message.Contains("CharacterSet must be a positive CCSID value"));
         }
@@ -261,14 +275,7 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
         [TestCase(1252)]
         public void Validation_passes_for_valid_character_set(int ccsid)
         {
-            Assert.DoesNotThrow(() => new IBMMQTransport(o => o.CharacterSet = ccsid));
-        }
-
-        [Test]
-        public void Constructor_throws_when_configure_action_is_null()
-        {
-            Assert.That(() => new IBMMQTransport((Action<IBMMQTransportOptions>)null!),
-                Throws.TypeOf<ArgumentNullException>());
+            Assert.DoesNotThrow(() => IBMMQTransportValidator.Validate(new IBMMQTransport { CharacterSet = ccsid }));
         }
     }
 }

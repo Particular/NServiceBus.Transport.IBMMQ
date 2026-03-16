@@ -9,14 +9,14 @@ using System.Reflection;
 /// </summary>
 class ConnectionConfiguration
 {
-    public ConnectionConfiguration(IBMMQTransportOptions options)
+    public ConnectionConfiguration(IBMMQTransport transport)
     {
-        ArgumentNullException.ThrowIfNull(options);
+        ArgumentNullException.ThrowIfNull(transport);
 
-        QueueManagerName = options.QueueManagerName ?? string.Empty;
-        ConnectionProperties = BuildConnectionProperties(options, out var applicationName);
+        QueueManagerName = transport.QueueManagerName ?? string.Empty;
+        ConnectionProperties = BuildConnectionProperties(transport, out var applicationName);
         ApplicationName = applicationName;
-        MessageWaitInterval = options.MessageWaitInterval;
+        MessageWaitInterval = transport.MessageWaitInterval;
     }
 
     public string ApplicationName { get; }
@@ -27,7 +27,7 @@ class ConnectionConfiguration
 
     public Hashtable ConnectionProperties { get; }
 
-    static Hashtable BuildConnectionProperties(IBMMQTransportOptions options, out string applicationName)
+    static Hashtable BuildConnectionProperties(IBMMQTransport transport, out string applicationName)
     {
         var properties = new Hashtable
         {
@@ -35,59 +35,59 @@ class ConnectionConfiguration
             [MQC.TRANSPORT_PROPERTY] = MQC.TRANSPORT_MQSERIES_MANAGED
         };
 
-        if (options.Connections.Count > 0)
+        if (transport.Connections.Count > 0)
         {
-            properties.Add(MQC.CONNECTION_NAME_PROPERTY, string.Join(",", options.Connections));
+            properties.Add(MQC.CONNECTION_NAME_PROPERTY, string.Join(",", transport.Connections));
         }
         else
         {
-            properties.Add(MQC.HOST_NAME_PROPERTY, options.Host);
-            properties.Add(MQC.PORT_PROPERTY, options.Port);
+            properties.Add(MQC.HOST_NAME_PROPERTY, transport.Host);
+            properties.Add(MQC.PORT_PROPERTY, transport.Port);
         }
 
-        properties.Add(MQC.CHANNEL_PROPERTY, options.Channel);
+        properties.Add(MQC.CHANNEL_PROPERTY, transport.Channel);
 
         properties.Add(MQC.CONNECT_OPTIONS_PROPERTY, MQC.MQCNO_RECONNECT_DISABLED);
 
-        applicationName = options.ApplicationName ?? Assembly.GetExecutingAssembly().GetName().Name ?? "NServiceBus.IBMMQ";
+        applicationName = transport.ApplicationName ?? Assembly.GetExecutingAssembly().GetName().Name ?? "NServiceBus.IBMMQ";
         properties.Add(MQC.APPNAME_PROPERTY, applicationName);
 
-        AddSslProperties(properties, options);
+        AddSslProperties(properties, transport);
 
-        if (!string.IsNullOrWhiteSpace(options.User))
+        if (!string.IsNullOrWhiteSpace(transport.User))
         {
             properties.Add(MQC.USE_MQCSP_AUTHENTICATION_PROPERTY, true);
-            properties.Add(MQC.USER_ID_PROPERTY, options.User);
+            properties.Add(MQC.USER_ID_PROPERTY, transport.User);
         }
 
-        if (!string.IsNullOrWhiteSpace(options.Password))
+        if (!string.IsNullOrWhiteSpace(transport.Password))
         {
-            properties.Add(MQC.PASSWORD_PROPERTY, options.Password);
+            properties.Add(MQC.PASSWORD_PROPERTY, transport.Password);
         }
 
         return properties;
     }
 
-    static void AddSslProperties(Hashtable properties, IBMMQTransportOptions options)
+    static void AddSslProperties(Hashtable properties, IBMMQTransport transport)
     {
-        if (!string.IsNullOrWhiteSpace(options.SslKeyRepository))
+        if (!string.IsNullOrWhiteSpace(transport.SslKeyRepository))
         {
-            properties.Add(MQC.SSL_CERT_STORE_PROPERTY, options.SslKeyRepository);
+            properties.Add(MQC.SSL_CERT_STORE_PROPERTY, transport.SslKeyRepository);
         }
 
-        if (!string.IsNullOrWhiteSpace(options.CipherSpec))
+        if (!string.IsNullOrWhiteSpace(transport.CipherSpec))
         {
-            properties.Add(MQC.SSL_CIPHER_SPEC_PROPERTY, options.CipherSpec);
+            properties.Add(MQC.SSL_CIPHER_SPEC_PROPERTY, transport.CipherSpec);
         }
 
-        if (!string.IsNullOrWhiteSpace(options.SslPeerName))
+        if (!string.IsNullOrWhiteSpace(transport.SslPeerName))
         {
-            properties.Add(MQC.SSL_PEER_NAME_PROPERTY, options.SslPeerName);
+            properties.Add(MQC.SSL_PEER_NAME_PROPERTY, transport.SslPeerName);
         }
 
-        if (options.KeyResetCount > 0)
+        if (transport.KeyResetCount > 0)
         {
-            properties.Add(MQC.SSL_RESET_COUNT_PROPERTY, options.KeyResetCount);
+            properties.Add(MQC.SSL_RESET_COUNT_PROPERTY, transport.KeyResetCount);
         }
     }
 }
