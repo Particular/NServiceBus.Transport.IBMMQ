@@ -2,11 +2,12 @@ namespace NServiceBus.Transport.IBMMQ;
 
 using IBM.WMQ;
 using IBM.WMQ.PCF;
+using Logging;
 
-class MqQueueManagerFacade(MQQueueManager queueManager, SanitizeResourceName resourceNameFormatter)
+class MqQueueManagerFacade(MQQueueManager queueManager, SanitizeResourceName resourceNameFormatter, ILog log)
 {
-    readonly DestinationCache<MQQueue> queueCache = new(100);
-    readonly DestinationCache<MQTopic> topicCache = new(100);
+    readonly DestinationCache<MQQueue> queueCache = new(log, 100);
+    readonly DestinationCache<MQTopic> topicCache = new(log, 100);
 
     public void Disconnect()
     {
