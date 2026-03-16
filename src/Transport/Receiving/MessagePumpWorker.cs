@@ -135,7 +135,11 @@ sealed class MessagePumpWorker(
                 {
                     if (_connection == null)
                     {
-                        log.DebugFormat("Worker {0} creating queue connection {1}", workerIndex, queueName);
+                        if (log.IsDebugEnabled)
+                        {
+                            log.DebugFormat("Worker {0} creating queue connection {1}", workerIndex, queueName);
+                        }
+
                         _connection = createConnection();
                     }
 
@@ -154,7 +158,10 @@ sealed class MessagePumpWorker(
                         messageBody = IBMMQMessageConverter.FromNative(receivedMessage, messageHeaders, ref messageId);
                         originalHeaders = new Dictionary<string, string>(messageHeaders);
 
-                        log.DebugFormat("Worker {0} received message {1}", workerIndex, messageId);
+                        if (log.IsDebugEnabled)
+                        {
+                            log.DebugFormat("Worker {0} received message {1}", workerIndex, messageId);
+                        }
 
                         // For SendsAtomicWithReceive, check if this message previously failed
                         // and needs error handling instead of reprocessing
@@ -162,7 +169,10 @@ sealed class MessagePumpWorker(
                             && failedMessages != null
                             && failedMessages.TryRemove(messageId, out var failedEntry))
                         {
-                            log.DebugFormat("Worker {0} handling previously failed message {1}", workerIndex, messageId);
+                            if (log.IsDebugEnabled)
+                            {
+                                log.DebugFormat("Worker {0} handling previously failed message {1}", workerIndex, messageId);
+                            }
 
                             int failures = (receivedMessage.BackoutCount + 1) / 2;
                             await HandleSendsAtomicWithReceiveOnError(
@@ -204,7 +214,10 @@ sealed class MessagePumpWorker(
                     }
                     catch (Exception ex) when (ex is not MQException)
                     {
-                        log.DebugFormat("Worker {0} error processing message from {1}\n{2}", workerIndex, queueName, ex);
+                        if (log.IsDebugEnabled)
+                        {
+                            log.DebugFormat("Worker {0} error processing message from {1}\n{2}", workerIndex, queueName, ex);
+                        }
 
                         if (transactionMode == TransportTransactionMode.SendsAtomicWithReceive
                             && failedMessages != null)
