@@ -127,9 +127,16 @@ sealed class MessagePumpWorker(
 
             int reconnectAttempt = 0;
 
+            // Reuse MQMessage instead of allocating per iteration. ClearMessage() + resetting
+            // MessageId/CorrelationId is ~8x faster with ~21x fewer allocations than new MQMessage().
+            // See MqMessageBenchmarks for measurements.
+            MQMessage receivedMessage = new();
+
             while (!stopCts.IsCancellationRequested)
             {
-                MQMessage receivedMessage = new();
+                receivedMessage.ClearMessage();
+                receivedMessage.MessageId = MQC.MQMI_NONE;
+                receivedMessage.CorrelationId = MQC.MQCI_NONE;
 
                 var transportTransaction = new TransportTransaction();
 
