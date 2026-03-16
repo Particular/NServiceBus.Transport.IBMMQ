@@ -27,9 +27,6 @@ insert_final_newline = false
 
 #### Code quality analysis
 
-# PS0024: False positive — "I" in IBMMQ is from "IBM", not an interface prefix
-dotnet_diagnostic.PS0024.severity = none
-
 dotnet_diagnostic.CA1068.severity = error
 dotnet_diagnostic.CA1710.severity = error
 dotnet_diagnostic.CA1711.severity = error
