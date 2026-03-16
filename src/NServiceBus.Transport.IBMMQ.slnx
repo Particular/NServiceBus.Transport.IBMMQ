@@ -8,4 +8,5 @@
   </Folder>
   <Project Path="Transport/NServiceBus.Transport.IBMMQ.csproj" />
   <Project Path="CommandLine/NServiceBus.Transport.IBMMQ.CommandLine.csproj" />
+  <Project Path="Benchmarks/NServiceBus.Transport.IBMMQ.Benchmarks.csproj" />
 </Solution>
