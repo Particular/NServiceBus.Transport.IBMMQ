@@ -2,12 +2,9 @@ namespace NServiceBus.Transport.IBMMQ;
 
 using IBM.WMQ;
 
-class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology) : IMessageDispatcher, IDisposable
+class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology, DestinationCache<MQQueue> queueCache, DestinationCache<MQTopic> topicCache) : IMessageDispatcher
 {
     protected readonly record struct DispatchContext(MqQueueManagerFacade Facade, int PutOptions);
-
-    readonly DestinationCache<MQQueue> _queueCache = new(100);
-    readonly DestinationCache<MQTopic> _topicCache = new(100);
 
     public virtual Task Dispatch(TransportOperations outgoingMessages, TransportTransaction transaction, CancellationToken cancellationToken = default)
     {
@@ -18,7 +15,7 @@ class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology) : IMe
         {
             foreach (var operation in outgoingMessages.UnicastTransportOperations)
             {
-                var queue = _queueCache.GetOrAdd(operation.Destination, context.Facade.AccessSendQueue);
+                var queue = queueCache.GetOrAdd(operation.Destination, context.Facade.AccessSendQueue);
                 var message = IBMMQMessageConverter.ToNative(operation);
 
                 try
@@ -27,7 +24,7 @@ class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology) : IMe
                 }
                 catch (MQException)
                 {
-                    _queueCache.Evict(operation.Destination);
+                    queueCache.Evict(operation.Destination);
                     throw;
                 }
             }
@@ -36,7 +33,7 @@ class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology) : IMe
             {
                 foreach (var destination in topology.GetPublishDestinations(operation.MessageType))
                 {
-                    var topic = _topicCache.GetOrAdd(destination.TopicName, _ =>
+                    var topic = topicCache.GetOrAdd(destination.TopicName, _ =>
                         context.Facade.EnsureTopic(destination.TopicName, destination.TopicString));
 
                     // Message cannot be re-used, is modified by .Put(..)
@@ -48,7 +45,7 @@ class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology) : IMe
                     }
                     catch (MQException)
                     {
-                        _topicCache.Evict(destination.TopicName);
+                        topicCache.Evict(destination.TopicName);
                         throw;
                     }
                 }
@@ -100,9 +97,4 @@ class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology) : IMe
         }
     }
 
-    public void Dispose()
-    {
-        _queueCache.Dispose();
-        _topicCache.Dispose();
-    }
 }
