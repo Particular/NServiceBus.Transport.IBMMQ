@@ -7,11 +7,13 @@
     <Description>IBM MQ transport for NServiceBus</Description>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- PS0024: "I" in IBMMQ is from "IBM", not an interface prefix -->
+    <NoWarn>$(NoWarn);PS0024</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="IBMMQDotnetClient" Version="9.4.2" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.2" AutomaticVersionRange="false" />
     <PackageReference Include="NServiceBus" Version="10.1.0" />
   </ItemGroup>
 
@@ -20,8 +22,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="NServiceBus.Transport.IBMMQ.Tests" Key="$(NServiceBusTestsKey)" />
     <InternalsVisibleTo Include="NServiceBus.Transport.IBMMQ.PerformanceTests" Key="$(NServiceBusTestsKey)" />
+    <InternalsVisibleTo Include="NServiceBus.Transport.IBMMQ.Tests" Key="$(NServiceBusTestsKey)" />
   </ItemGroup>
 
 </Project>
