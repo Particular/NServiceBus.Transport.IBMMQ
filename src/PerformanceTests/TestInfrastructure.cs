@@ -11,6 +11,7 @@ using Transport.IBMMQ;
 
 static partial class TestInfrastructure
 {
+    static readonly IBMMQMessageConverter Converter = new(new MqPropertyNameEncoder());
     static readonly Hashtable ConnectionProperties = BuildConnectionProperties();
 
     internal static partial string GetTestSuiteName() =>
@@ -122,7 +123,7 @@ static partial class TestInfrastructure
             var outgoingMessage = new OutgoingMessage(messageId, headers, body);
             var operation = new UnicastTransportOperation(outgoingMessage, queueName, []);
 
-            var mqMessage = IBMMQMessageConverter.ToNative(operation);
+            var mqMessage = Converter.ToNative(operation);
             queue.Put(mqMessage, pmo);
         }
 

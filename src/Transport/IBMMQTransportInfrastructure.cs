@@ -71,12 +71,15 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
 
         services
             .AddSingleton(topology)
+            .AddSingleton<MqPropertyNameEncoder>()
+            .AddSingleton<IBMMQMessageConverter>()
             .AddSingleton<CreateQueueManager>(() => new MQQueueManager(queueManagerName, connectionProperties))
             .AddSingleton(new MessagePumpSettings(messageWaitInterval, transactionMode))
             .AddScoped(sp => new MessagePumpWorker(
                 LogManager.GetLogger<MessagePumpWorker>(),
                 sp.GetRequiredService<MessagePumpSettings>(),
                 sp.GetRequiredService<CreateQueueManager>(),
+                sp.GetRequiredService<IBMMQMessageConverter>(),
                 criticalError
             ))
             .AddSingleton<CreateQueueManagerFacade>(qm =>
@@ -92,14 +95,15 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
                 var pool = sp.GetRequiredService<MqConnectionPool>();
                 var createFacade = sp.GetRequiredService<CreateQueueManagerFacade>();
                 var topo = sp.GetRequiredService<TopicTopology>();
+                var converter = sp.GetRequiredService<IBMMQMessageConverter>();
                 var queueCache = sp.GetRequiredService<DestinationCache<MQQueue>>();
                 var topicCache = sp.GetRequiredService<DestinationCache<MQTopic>>();
 
                 return transactionMode switch
                 {
-                    TransportTransactionMode.None => new MessageDispatcher(pool, topo, queueCache, topicCache),
-                    TransportTransactionMode.ReceiveOnly => new MessageDispatcher(pool, topo, queueCache, topicCache),
-                    TransportTransactionMode.SendsAtomicWithReceive => new AtomicMessageDispatcher(pool, topo, createFacade, queueCache, topicCache),
+                    TransportTransactionMode.None => new MessageDispatcher(pool, topo, converter, queueCache, topicCache),
+                    TransportTransactionMode.ReceiveOnly => new MessageDispatcher(pool, topo, converter, queueCache, topicCache),
+                    TransportTransactionMode.SendsAtomicWithReceive => new AtomicMessageDispatcher(pool, topo, createFacade, converter, queueCache, topicCache),
                     TransportTransactionMode.TransactionScope => throw new NotSupportedException("TransactionScope is not supported"),
                     _ => throw new ArgumentOutOfRangeException(nameof(transactionMode), transactionMode, "Unsupported transaction mode")
                 };

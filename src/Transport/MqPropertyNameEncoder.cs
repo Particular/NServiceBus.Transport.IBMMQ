@@ -22,15 +22,15 @@ using System.Text;
 ///   https://www.ibm.com/docs/en/ibm-mq/latest?topic=properties-property-names
 /// </para>
 /// </remarks>
-static class MqPropertyNameEncoder
+class MqPropertyNameEncoder
 {
     // The set of distinct header keys in an NServiceBus system is small and fixed: ~15 built-in
     // NServiceBus headers plus a handful of custom headers per application. Even with custom
     // headers, the total number of unique keys is bounded by the application's design, not by
     // message volume. The cache stabilizes after the first few messages and approaches a 100%
     // hit rate, so an eviction policy would add complexity without practical benefit.
-    static readonly ConcurrentDictionary<string, string> EncodeCache = new();
-    static readonly ConcurrentDictionary<string, string> DecodeCache = new();
+    readonly ConcurrentDictionary<string, string> EncodeCache = new();
+    readonly ConcurrentDictionary<string, string> DecodeCache = new();
 
     /// <summary>
     /// Encodes a property name for use as an MQ message property.
@@ -41,12 +41,12 @@ static class MqPropertyNameEncoder
     /// - "Test.Name" → "Test_x002EName" → decodes back to "Test.Name"
     /// - "Test__Value" → "Test____Value" → decodes back to "Test__Value"
     /// </remarks>
-    public static string Encode(string name) => EncodeCache.GetOrAdd(name, DoEncode);
+    public string Encode(string name) => EncodeCache.GetOrAdd(name, DoEncode);
 
     /// <summary>
     /// Decodes an MQ property name back to the original property name.
     /// </summary>
-    public static string Decode(string name) => DecodeCache.GetOrAdd(name, DoDecode);
+    public string Decode(string name) => DecodeCache.GetOrAdd(name, DoDecode);
 
     static string DoEncode(string name)
     {

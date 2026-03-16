@@ -2,7 +2,7 @@ namespace NServiceBus.Transport.IBMMQ;
 
 using IBM.WMQ;
 
-static class IBMMQMessageConverter
+class IBMMQMessageConverter(MqPropertyNameEncoder propertyNameEncoder)
 {
     // IBM MQ silently discards string properties set to "" — they cannot be enumerated via
     // GetPropertyNames nor retrieved via GetStringProperty.  Work around this by:
@@ -13,7 +13,7 @@ static class IBMMQMessageConverter
     const string EmptyHeadersProperty = "nsbempty";
 
 
-    public static byte[] FromNative(MQMessage receivedMessage, Dictionary<string, string> messageHeaders, ref string messageId)
+    public byte[] FromNative(MQMessage receivedMessage, Dictionary<string, string> messageHeaders, ref string messageId)
     {
         byte[] messageBody = receivedMessage.ReadBytes(receivedMessage.MessageLength);
 
@@ -49,7 +49,7 @@ static class IBMMQMessageConverter
             foreach (var escapedName in manifest.Split(','))
             {
                 messageHeaders.Add(
-                    MqPropertyNameEncoder.Decode(escapedName),
+                    propertyNameEncoder.Decode(escapedName),
                     emptySet.Contains(escapedName) ? "" : receivedMessage.GetStringProperty(escapedName));
             }
         }
@@ -62,7 +62,7 @@ static class IBMMQMessageConverter
                 var escapedName = propertyNames.Current!.ToString();
                 if (escapedName != null)
                 {
-                    var originalName = MqPropertyNameEncoder.Decode(escapedName);
+                    var originalName = propertyNameEncoder.Decode(escapedName);
                     messageHeaders.Add(originalName, receivedMessage.GetStringProperty(escapedName));
                 }
             }
@@ -81,7 +81,7 @@ static class IBMMQMessageConverter
     // - Proper property name escaping for all special characters
     // Note: IBMMQHelper needs a QueueManager, but we only use static methods for message creation
     // This is a temporary adapter until we can refactor to pass the QueueManager
-    public static MQMessage ToNative(IOutgoingTransportOperation outgoingTransportOperation)
+    public MQMessage ToNative(IOutgoingTransportOperation outgoingTransportOperation)
     {
         // Temporarily create a message using the same logic as IBMMQHelper.CreateMessage
         // but inline here since we don't have a QueueManager instance
@@ -110,7 +110,7 @@ static class IBMMQMessageConverter
 
         foreach (var header in outgoingMessage.Headers)
         {
-            var escapedKey = MqPropertyNameEncoder.Encode(header.Key);
+            var escapedKey = propertyNameEncoder.Encode(header.Key);
             allNames.Add(escapedKey);
 
             if (string.IsNullOrEmpty(header.Value))

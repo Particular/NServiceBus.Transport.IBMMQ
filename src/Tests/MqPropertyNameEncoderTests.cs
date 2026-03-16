@@ -5,6 +5,8 @@ using NUnit.Framework;
 [TestFixture]
 public class MqPropertyNameEncoderTests
 {
+    readonly MqPropertyNameEncoder encoder = new();
+
     [TestCase("SimpleHeader", "SimpleHeader")]
     [TestCase("NServiceBus.MessageId", "NServiceBus_x002EMessageId")]
     [TestCase("my-header", "my_x002Dheader")]
@@ -15,7 +17,7 @@ public class MqPropertyNameEncoderTests
     [TestCase("", "")]
     public void Encode(string input, string expected)
     {
-        Assert.That(MqPropertyNameEncoder.Encode(input), Is.EqualTo(expected));
+        Assert.That(encoder.Encode(input), Is.EqualTo(expected));
     }
 
     [TestCase("SimpleHeader", "SimpleHeader")]
@@ -26,7 +28,7 @@ public class MqPropertyNameEncoderTests
     [TestCase("a_b", "a_b")]
     public void Decode(string input, string expected)
     {
-        Assert.That(MqPropertyNameEncoder.Decode(input), Is.EqualTo(expected));
+        Assert.That(encoder.Decode(input), Is.EqualTo(expected));
     }
 
     [TestCase("NServiceBus.MessageId")]
@@ -52,8 +54,8 @@ public class MqPropertyNameEncoderTests
     [TestCase("a_x002E_xNotHex")]
     public void Decode_reverses_Encode(string original)
     {
-        var encoded = MqPropertyNameEncoder.Encode(original);
-        var decoded = MqPropertyNameEncoder.Decode(encoded);
+        var encoded = encoder.Encode(original);
+        var decoded = encoder.Decode(encoded);
         Assert.That(decoded, Is.EqualTo(original));
     }
 }
