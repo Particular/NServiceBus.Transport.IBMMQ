@@ -88,22 +88,18 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
                 () => new MQQueueManager(queueManagerName, connectionProperties),
                 qm => new MqQueueManagerFacade(qm, resourceNameFormatter),
                 Environment.ProcessorCount))
-            .AddSingleton(new DestinationCache<MQQueue>(100))
-            .AddSingleton(new DestinationCache<MQTopic>(100))
             .AddSingleton<IMessageDispatcher>(sp =>
             {
                 var pool = sp.GetRequiredService<MqConnectionPool>();
                 var createFacade = sp.GetRequiredService<CreateQueueManagerFacade>();
                 var topo = sp.GetRequiredService<TopicTopology>();
                 var converter = sp.GetRequiredService<IBMMQMessageConverter>();
-                var queueCache = sp.GetRequiredService<DestinationCache<MQQueue>>();
-                var topicCache = sp.GetRequiredService<DestinationCache<MQTopic>>();
 
                 return transactionMode switch
                 {
-                    TransportTransactionMode.None => new MessageDispatcher(pool, topo, converter, queueCache, topicCache),
-                    TransportTransactionMode.ReceiveOnly => new MessageDispatcher(pool, topo, converter, queueCache, topicCache),
-                    TransportTransactionMode.SendsAtomicWithReceive => new AtomicMessageDispatcher(pool, topo, createFacade, converter, queueCache, topicCache),
+                    TransportTransactionMode.None => new MessageDispatcher(pool, topo, converter),
+                    TransportTransactionMode.ReceiveOnly => new MessageDispatcher(pool, topo, converter),
+                    TransportTransactionMode.SendsAtomicWithReceive => new AtomicMessageDispatcher(pool, topo, createFacade, converter),
                     TransportTransactionMode.TransactionScope => throw new NotSupportedException("TransactionScope is not supported"),
                     _ => throw new ArgumentOutOfRangeException(nameof(transactionMode), transactionMode, "Unsupported transaction mode")
                 };
