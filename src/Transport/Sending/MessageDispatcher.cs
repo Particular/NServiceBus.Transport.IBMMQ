@@ -2,7 +2,11 @@ namespace NServiceBus.Transport.IBMMQ;
 
 using IBM.WMQ;
 
-class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology, IBMMQMessageConverter messageConverter) : IMessageDispatcher
+class MessageDispatcher(
+    MqConnectionPool sendPool,
+    TopicTopology topology,
+    IBMMQMessageConverter messageConverter
+) : IMessageDispatcher
 {
     protected readonly record struct DispatchContext(MqQueueManagerFacade Facade, int PutOptions);
 
@@ -90,7 +94,6 @@ class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology, IBMMQ
                 topics[destination.TopicName] = topic;
             }
 
-            // Message cannot be re-used, is modified by .Put(..)
             var message = messageConverter.ToNative(operation);
             topic.Put(message, putOptions);
         }

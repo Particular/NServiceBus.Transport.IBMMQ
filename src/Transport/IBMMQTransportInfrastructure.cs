@@ -83,10 +83,10 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
                 criticalError
             ))
             .AddSingleton<CreateQueueManagerFacade>(qm =>
-                new MqQueueManagerFacade(qm, resourceNameFormatter, LogManager.GetLogger<MqQueueManagerFacade>()))
+                new MqQueueManagerFacade(LogManager.GetLogger<MqQueueManagerFacade>(), qm, resourceNameFormatter))
             .AddSingleton(new MqConnectionPool(
                 () => new MQQueueManager(queueManagerName, connectionProperties),
-                qm => new MqQueueManagerFacade(qm, resourceNameFormatter, LogManager.GetLogger<MqQueueManagerFacade>()),
+                qm => new MqQueueManagerFacade(LogManager.GetLogger<MqQueueManagerFacade>(), qm, resourceNameFormatter),
                 Environment.ProcessorCount))
             .AddSingleton<IMessageDispatcher>(sp =>
             {

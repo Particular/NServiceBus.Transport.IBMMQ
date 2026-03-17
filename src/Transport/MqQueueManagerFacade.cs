@@ -4,7 +4,11 @@ using IBM.WMQ;
 using IBM.WMQ.PCF;
 using Logging;
 
-class MqQueueManagerFacade(MQQueueManager queueManager, SanitizeResourceName resourceNameFormatter, ILog log)
+class MqQueueManagerFacade(
+    ILog log,
+    MQQueueManager queueManager,
+    SanitizeResourceName resourceNameFormatter
+    )
 {
     readonly DestinationCache<MQQueue> queueCache = new(log, 100);
     readonly DestinationCache<MQTopic> topicCache = new(log, 100);
