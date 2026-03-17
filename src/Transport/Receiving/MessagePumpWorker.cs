@@ -10,7 +10,11 @@ sealed class MessagePumpWorker(
     ILog log,
     IServiceScopeFactory scopeFactory,
     MessagePumpSettings settings,
-    Action<string, Exception, CancellationToken> criticalError
+    Action<string, Exception, CancellationToken> criticalError,
+    string queueName,
+    OnMessage onMessage,
+    OnError onError,
+    int workerIndex
 ) : IAsyncDisposable
 {
     const int ReconnectBaseDelayMs = 1000;
@@ -18,20 +22,8 @@ sealed class MessagePumpWorker(
 
     readonly CancellationTokenSource stopCts = new();
     readonly CancellationTokenSource cancellationCts = new();
+    readonly ReceiveContext receiveContext = new(queueName, workerIndex, onMessage, onError, criticalError);
     Task? pumpTask;
-
-    string queueName = null!;
-    OnMessage onMessage = null!;
-    OnError onError = null!;
-    int workerIndex;
-
-    public void Initialize(string queueName, OnMessage onMessage, OnError onError, int workerIndex)
-    {
-        this.queueName = queueName;
-        this.onMessage = onMessage;
-        this.onError = onError;
-        this.workerIndex = workerIndex;
-    }
 
     public void Start()
     {
@@ -92,9 +84,8 @@ sealed class MessagePumpWorker(
                 var scope = scopeFactory.CreateAsyncScope();
                 await using var _ = scope
                     .ConfigureAwait(false);
-                var strategy = scope.ServiceProvider.GetRequiredService<ReceiveStrategy>();
-                strategy.Initialize(queueName, onMessage, onError, workerIndex);
-                strategy.CriticalError = criticalError;
+                var createStrategy = scope.ServiceProvider.GetRequiredService<CreateReceiveStrategy>();
+                var strategy = createStrategy(receiveContext);
 
                 MQQueue? queue = null;
                 try
@@ -117,14 +108,32 @@ sealed class MessagePumpWorker(
 
                         if (!received)
                         {
-                            await Task.Yield(); // prevent tight spin on empty queue
+                            // The MQ Get() call above is a blocking wait (WaitInterval),
+                            // so the thread was already yielded during the MQ wait itself.
+                            // However, this entire while loop is synchronous — queue.Get()
+                            // is a blocking call with no async alternative. Task.Yield()
+                            // ensures this task relinquishes the thread pool thread between
+                            // iterations so other queued tasks can make progress. Without it,
+                            // the thread would immediately loop back into another blocking Get().
+                            await Task.Yield();
                         }
                     }
                 }
-                catch (MQException ex) when (ex.ReasonCode != MQC.MQRC_NO_MSG_AVAILABLE)
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
-                    log.ErrorFormat("Worker {0} MQ error on {1} - Reason: {2}, CompCode: {3}",
-                        workerIndex, queueName, ex.Reason, ex.CompCode);
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    if (ex is MQException mqEx)
+                    {
+                        log.ErrorFormat("Worker {0} MQ error on {1} - Reason: {2}, CompCode: {3}",
+                            workerIndex, queueName, mqEx.Reason, mqEx.CompCode);
+                    }
+                    else
+                    {
+                        log.Error($"Worker {workerIndex} error on {queueName}", ex);
+                    }
 
                     // Scope disposal handles: MqConnection -> caches -> disconnect
                     // Fall through to outer loop which creates fresh scope

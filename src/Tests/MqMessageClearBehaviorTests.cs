@@ -3,28 +3,15 @@
 namespace NServiceBus.Transport.IBMMQ.Tests;
 
 using System;
-using System.Collections;
 using IBM.WMQ;
 using NUnit.Framework;
 
 [TestFixture]
 [Order(1)]
+[Category("RequiresBroker")]
 public class MqMessageClearBehaviorTests
 {
-    static readonly Hashtable ConnectionProperties = new()
-    {
-        { MQC.TRANSPORT_PROPERTY, MQC.TRANSPORT_MQSERIES_MANAGED },
-        { MQC.HOST_NAME_PROPERTY, TestConnectionDetails.Host },
-        { MQC.PORT_PROPERTY, TestConnectionDetails.Port },
-        { MQC.CHANNEL_PROPERTY, TestConnectionDetails.Channel },
-        { MQC.USER_ID_PROPERTY, TestConnectionDetails.User },
-        { MQC.PASSWORD_PROPERTY, TestConnectionDetails.Password }
-    };
-
     const string QueueName = "SYSTEM.DEFAULT.LOCAL.QUEUE";
-
-    static MQQueueManager Connect() =>
-        new(TestConnectionDetails.QueueManagerName, ConnectionProperties);
 
     static MQPropertyDescriptor CreatePropertyDescriptor() =>
         new() { Support = MQC.MQPD_SUPPORT_OPTIONAL };
@@ -42,11 +29,14 @@ public class MqMessageClearBehaviorTests
         }
     }
 
+    [OneTimeSetUp]
+    public void Setup() => BrokerRequirement.Verify();
+
     [Test]
     [Order(1)]
     public void ClearMessage_does_not_clear_named_properties_on_put()
     {
-        using var qm = Connect();
+        using var qm = TestBrokerConnection.Connect();
         using var outputQueue = qm.AccessQueue(QueueName, MQC.MQOO_OUTPUT);
         var pmo = new MQPutMessageOptions();
 
@@ -110,7 +100,7 @@ public class MqMessageClearBehaviorTests
         // 2. Get() DOES replace named properties — stale properties from previous message don't leak
         // Without explicit identifier reset, the default MatchOptions
         // (MQMO_MATCH_MSG_ID | MQMO_MATCH_CORREL_ID) would match the previous message's identifiers.
-        using var qm = Connect();
+        using var qm = TestBrokerConnection.Connect();
         using var outputQueue = qm.AccessQueue(QueueName, MQC.MQOO_OUTPUT);
         var pmo = new MQPutMessageOptions();
 

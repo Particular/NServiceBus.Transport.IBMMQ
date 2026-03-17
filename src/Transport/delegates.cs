@@ -11,6 +11,16 @@ delegate MqAdminConnection CreateMqAdminConnection();
 delegate void CreateTopic(string topicName, string topicString);
 
 /// <summary>
+/// Creates a ReceiveStrategy for processing messages with the given runtime context
+/// </summary>
+delegate ReceiveStrategy CreateReceiveStrategy(ReceiveContext context);
+
+/// <summary>
+/// Creates a MessagePumpWorker with the given runtime context
+/// </summary>
+delegate MessagePumpWorker CreateMessagePumpWorker(string queueName, OnMessage onMessage, OnError onError, int workerIndex);
+
+/// <summary>
 /// Sanitizer topic and queue resource names
 /// </summary>
 public delegate string SanitizeResourceName(string queueName);

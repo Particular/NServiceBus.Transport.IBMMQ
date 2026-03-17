@@ -5,9 +5,6 @@ using IBM.WMQ;
 sealed class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology, IBMMQMessageConverter messageConverter)
     : IMessageDispatcher
 {
-    const int PutFlags = MQC.MQPMO_FAIL_IF_QUIESCING;
-    const int SyncpointPutFlags = MQC.MQPMO_FAIL_IF_QUIESCING | MQC.MQPMO_SYNCPOINT;
-
     public Task Dispatch(TransportOperations outgoingMessages, TransportTransaction transaction,
         CancellationToken cancellationToken = default)
     {
@@ -20,7 +17,7 @@ sealed class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology
         }
         else
         {
-            var conn = sendPool.Rent();
+            var conn = sendPool.Rent(cancellationToken);
             try
             {
                 SendAll(conn, outgoingMessages, atomic: false);
@@ -29,6 +26,8 @@ sealed class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology
             }
             catch (MQException ex) when (IsConnectionLevelError(ex))
             {
+                // MQException with a connection-level reason code means the connection
+                // is dirty/broken — discard it rather than returning it to the pool.
                 if (conn != null)
                 {
                     sendPool.Discard(conn);
@@ -57,13 +56,13 @@ sealed class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology
             conn.PutToQueue(
                 op.Destination,
                 messageConverter.ToNative(op),
-                ResolvePutOptions(atomic, op.RequiredDispatchConsistency)
+                CreatePutOptions(syncpoint: atomic && op.RequiredDispatchConsistency != DispatchConsistency.Isolated)
             );
         }
 
         foreach (var op in outgoingMessages.MulticastTransportOperations)
         {
-            var putOptions = ResolvePutOptions(atomic, op.RequiredDispatchConsistency);
+            var syncpoint = atomic && op.RequiredDispatchConsistency != DispatchConsistency.Isolated;
 
             foreach (var destination in topology.GetPublishDestinations(op.MessageType))
             {
@@ -71,13 +70,17 @@ sealed class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology
                     destination.TopicName,
                     destination.TopicString,
                     messageConverter.ToNative(op),
-                    putOptions);
+                    CreatePutOptions(syncpoint));
             }
         }
     }
 
-    static MQPutMessageOptions ResolvePutOptions(bool atomic, DispatchConsistency consistency) =>
-        new() { Options = atomic && consistency != DispatchConsistency.Isolated ? SyncpointPutFlags : PutFlags };
+    static MQPutMessageOptions CreatePutOptions(bool syncpoint) => new()
+    {
+        // MQPutMessageOptions is mutable — the MQ client writes back fields (ResolvedQueueName,
+        // CompletionCode, ReasonCode, etc.) after each Put() call, so a fresh instance is needed per Put.
+        Options = MQC.MQPMO_FAIL_IF_QUIESCING | (syncpoint ? MQC.MQPMO_SYNCPOINT : 0)
+    };
 
     static bool IsConnectionLevelError(MQException ex) =>
         ex.ReasonCode is MQC.MQRC_CONNECTION_BROKEN

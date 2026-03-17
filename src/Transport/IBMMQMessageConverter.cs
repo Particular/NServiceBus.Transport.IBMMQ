@@ -76,6 +76,8 @@ class IBMMQMessageConverter(MqPropertyNameEncoder propertyNameEncoder)
         return messageBody;
     }
 
+    /// Always creates a new MQMessage — do not attempt to reuse MQMessage instances
+    /// because ClearMessage does not fully reset all properties (see MqMessageClearBehaviorTests).
     public MQMessage ToNative(IOutgoingTransportOperation outgoingTransportOperation)
     {
         var isNonDurable = outgoingTransportOperation.Message.Headers.ContainsKey(Headers.NonDurableMessage);

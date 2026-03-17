@@ -5,24 +5,25 @@ using Logging;
 
 record ReceivedMessage(string Id, byte[] Body, IReadOnlyDictionary<string, string> Headers);
 
-abstract class ReceiveStrategy(MqConnection connection, IBMMQMessageConverter messageConverter, ILog log)
+sealed record ReceiveContext(
+    string QueueName,
+    int WorkerIndex,
+    OnMessage OnMessage,
+    OnError OnError,
+    Action<string, Exception, CancellationToken> CriticalError);
+
+abstract class ReceiveStrategy(MqConnection connection, IBMMQMessageConverter messageConverter, ILog log, ReceiveContext context)
 {
+    protected const int BaseGetOptions = MQC.MQGMO_WAIT | MQC.MQGMO_FAIL_IF_QUIESCING | MQC.MQGMO_PROPERTIES_IN_HANDLE;
+    protected const int SyncpointGetOptions = BaseGetOptions | MQC.MQGMO_SYNCPOINT;
+
+    // Reused across receives to avoid per-message allocation. Safe on the receive path
+    // because Get() replaces all named properties on each receive — stale properties
+    // from the previous message do not leak through.
+    // See MqMessageClearBehaviorTests.Get_replaces_properties_and_identifiers_on_reused_message.
     readonly MQMessage receivedMessage = new();
 
     public MqConnection Connection => connection;
-
-    public void Initialize(
-        string queueName,
-        OnMessage onMessage,
-        OnError onError,
-        int workerIndex
-    )
-    {
-        QueueName = queueName;
-        this.onMessage = onMessage;
-        this.onError = onError;
-        WorkerIndex = workerIndex;
-    }
 
     public abstract int GetOptionsFlags { get; }
 
@@ -42,6 +43,10 @@ abstract class ReceiveStrategy(MqConnection connection, IBMMQMessageConverter me
 
         try
         {
+            // Blocking call — the IBM MQ managed client has no async API. This runs on a
+            // thread pool thread (via Task.Run in MessagePumpWorker.Start) so the impact
+            // is bounded by MaxConcurrency workers. Wrapping in another Task.Run would not
+            // free a thread — it would just move the block to a different pool thread.
             queue.Get(receivedMessage, getOptions);
         }
         catch (MQException ex) when (ex.ReasonCode == MQC.MQRC_NO_MSG_AVAILABLE)
@@ -49,13 +54,20 @@ abstract class ReceiveStrategy(MqConnection connection, IBMMQMessageConverter me
             return false;
         }
 
+        // If cancellation was requested while we were blocked in Get(), bail out
+        // without processing. The message stays under syncpoint and is implicitly
+        // backed out when the connection scope is disposed. This prevents a race
+        // where another worker picks up a message that was backed out during
+        // cancellation and re-processes it.
+        cancellationToken.ThrowIfCancellationRequested();
+
         string messageId = string.Empty;
         Dictionary<string, string> messageHeaders = [];
         var messageBody = messageConverter.FromNative(receivedMessage, messageHeaders, ref messageId);
 
         if (log.IsDebugEnabled)
         {
-            log.DebugFormat("Worker {0} received message {1}", WorkerIndex, messageId);
+            log.DebugFormat("Worker {0} received message {1}", context.WorkerIndex, messageId);
         }
 
         var msg = new ReceivedMessage(messageId, messageBody, messageHeaders);
@@ -73,12 +85,12 @@ abstract class ReceiveStrategy(MqConnection connection, IBMMQMessageConverter me
     protected Task ProcessMessage(
         ReceivedMessage msg, TransportTransaction tx,
         Extensibility.ContextBag ctx, CancellationToken cancellationToken = default) =>
-        onMessage(CreateMessageContext(msg, tx, ctx), cancellationToken);
+        context.OnMessage(CreateMessageContext(msg, tx, ctx), cancellationToken);
 
     protected Task<ErrorHandleResult> ProcessError(
         ReceivedMessage msg, TransportTransaction tx, Exception ex,
         int failures, Extensibility.ContextBag ctx, CancellationToken cancellationToken = default) =>
-        onError.Invoke(CreateErrorContext(msg, tx, ex, failures, ctx), cancellationToken);
+        context.OnError.Invoke(CreateErrorContext(msg, tx, ex, failures, ctx), cancellationToken);
 
     protected async Task<ErrorHandleResult> InvokeOnError(
         ReceivedMessage msg, TransportTransaction tx, Exception ex,
@@ -95,7 +107,7 @@ abstract class ReceiveStrategy(MqConnection connection, IBMMQMessageConverter me
         }
         catch (Exception onErrorEx)
         {
-            CriticalError?.Invoke(
+            context.CriticalError(
                 $"Failed to execute recoverability policy for message with native ID: `{msg.Id}`",
                 onErrorEx, cancellationToken);
             return ErrorHandleResult.RetryRequired;
@@ -104,17 +116,13 @@ abstract class ReceiveStrategy(MqConnection connection, IBMMQMessageConverter me
 
     MessageContext CreateMessageContext(
         ReceivedMessage msg, TransportTransaction tx, Extensibility.ContextBag ctx) =>
-        new(msg.Id, new Dictionary<string, string>(msg.Headers), msg.Body, tx, QueueName, ctx);
+        new(msg.Id, new Dictionary<string, string>(msg.Headers), msg.Body, tx, context.QueueName, ctx);
 
     ErrorContext CreateErrorContext(
         ReceivedMessage msg, TransportTransaction tx, Exception ex,
         int failures, Extensibility.ContextBag ctx) =>
-        new(ex, new Dictionary<string, string>(msg.Headers), msg.Id, msg.Body, tx, failures, QueueName, ctx);
+        new(ex, new Dictionary<string, string>(msg.Headers), msg.Id, msg.Body, tx, failures, context.QueueName, ctx);
 
-    OnMessage onMessage = null!;
-    OnError onError = null!;
     protected ILog Log => log;
-    protected string QueueName { get; private set; } = null!;
-    protected int WorkerIndex { get; private set; }
-    public Action<string, Exception, CancellationToken>? CriticalError { get; set; }
+    protected ReceiveContext Context => context;
 }

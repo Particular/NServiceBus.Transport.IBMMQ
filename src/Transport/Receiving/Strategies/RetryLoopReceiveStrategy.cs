@@ -5,8 +5,9 @@ using Logging;
 abstract class RetryLoopReceiveStrategy(
     ILog log,
     MqConnection connection,
-    IBMMQMessageConverter converter
-) : ReceiveStrategy(connection, converter, log)
+    IBMMQMessageConverter converter,
+    ReceiveContext context
+) : ReceiveStrategy(connection, converter, log, context)
 {
     protected override async Task ProcessReceivedMessage(
         ReceivedMessage msg,
@@ -16,6 +17,9 @@ abstract class RetryLoopReceiveStrategy(
         var transportTransaction = new TransportTransaction();
         int failureCount = 0;
 
+        // The number of iterations is bounded by the NServiceBus immediate retries
+        // configuration (Recoverability.Immediate.NumberOfRetries). Once exhausted,
+        // ProcessError returns Handled (moved to error queue) and the loop exits.
         while (true)
         {
             var contextBag = new Extensibility.ContextBag();
@@ -34,48 +38,34 @@ abstract class RetryLoopReceiveStrategy(
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
+                OnCancellation();
                 throw;
             }
             catch (Exception ex)
             {
                 failureCount++;
 
-                try
-                {
-                    var result = await ProcessError(
-                        msg,
-                        transportTransaction,
-                        ex,
-                        failureCount,
-                        contextBag,
-                        cancellationToken
-                    ).ConfigureAwait(false);
+                var result = await InvokeOnError(
+                    msg,
+                    transportTransaction,
+                    ex,
+                    failureCount,
+                    contextBag,
+                    cancellationToken
+                ).ConfigureAwait(false);
 
-                    if (result is ErrorHandleResult.Handled)
-                    {
-                        OnErrorHandled();
-                        return;
-                    }
-
-                    // RetryRequired: loop back for immediate retry
-                }
-                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                if (result is ErrorHandleResult.Handled)
                 {
-                    throw;
-                }
-                catch (Exception onErrorEx)
-                {
-                    CriticalError?.Invoke(
-                        $"Failed to execute recoverability policy for message with native ID: `{msg.Id}`",
-                        onErrorEx, cancellationToken);
-                    OnCriticalFailure();
+                    OnErrorHandled();
                     return;
                 }
+
+                // RetryRequired: loop back for immediate retry
             }
         }
     }
 
     protected virtual void OnSuccess() { }
     protected virtual void OnErrorHandled() { }
-    protected virtual void OnCriticalFailure() { }
+    protected virtual void OnCancellation() { }
 }

@@ -10,7 +10,7 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
 
     readonly ILog log;
     readonly ServiceProvider serviceProvider;
-    bool _disposed;
+    int _disposed;
 
     public IBMMQTransportInfrastructure(
         ILog log,
@@ -54,12 +54,10 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
 
     public async ValueTask DisposeAsync()
     {
-        if (_disposed)
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
         {
             return;
         }
-
-        _disposed = true;
 
         log.Debug("Disposing");
         await serviceProvider.DisposeAsync()
@@ -85,31 +83,48 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         CreateMqAdminConnection createAdmin = () =>
             new MqAdminConnection(new MQQueueManager(queueManagerName, connectionProperties), resourceNameFormatter);
 
+        // Cache created topics across all connections to avoid redundant admin connection
+        // creation. Topic creation is idempotent; the cache prevents repeated attempts for
+        // topics that have already been created successfully. GetOrAdd ensures the entry is
+        // only stored on success — if CreateTopic throws, the next call will retry.
+        var createdTopics = new System.Collections.Concurrent.ConcurrentDictionary<string, byte>();
         CreateTopic createTopic = (topicName, topicString) =>
-        {
-            using var admin = createAdmin();
-            admin.CreateTopic(topicName, topicString);
-        };
+            createdTopics.GetOrAdd(topicName, _ =>
+            {
+                using var admin = createAdmin();
+                admin.CreateTopic(topicName, topicString);
+                return 0;
+            });
+
+        var pumpSettings = new MessagePumpSettings(messageWaitInterval);
+
+        MqConnection createDataPathConnection() => new(
+            LogManager.GetLogger<MqConnection>(),
+            new MQQueueManager(queueManagerName, connectionProperties),
+            resourceNameFormatter,
+            createTopic,
+            DefaultDestinationCacheCapacity);
 
         services
             .AddSingleton(topology)
             .AddSingleton<MqPropertyNameEncoder>()
             .AddSingleton<IBMMQMessageConverter>()
-            .AddSingleton(new MqConnectionPool(
-                () => new MqConnection(
-                    LogManager.GetLogger<MqConnection>(),
-                    new MQQueueManager(queueManagerName, connectionProperties),
-                    resourceNameFormatter,
-                    createTopic,
-                    DefaultDestinationCacheCapacity),
-                Environment.ProcessorCount))
+            .AddSingleton(new MqConnectionPool(LogManager.GetLogger<MqConnectionPool>(), createDataPathConnection, Environment.ProcessorCount))
             .AddSingleton<IMessageDispatcher>(sp =>
                 new MessageDispatcher(
                     sp.GetRequiredService<MqConnectionPool>(),
                     sp.GetRequiredService<TopicTopology>(),
                     sp.GetRequiredService<IBMMQMessageConverter>()))
             .AddSingleton(createAdmin)
-            .AddSingleton(new MessagePumpSettings(messageWaitInterval));
+            .AddSingleton(pumpSettings)
+            .AddSingleton<CreateMessagePumpWorker>(sp =>
+                (queueName, onMessage, onError, workerIndex) => new MessagePumpWorker(
+                    LogManager.GetLogger<MessagePumpWorker>(),
+                    sp.GetRequiredService<IServiceScopeFactory>(),
+                    sp.GetRequiredService<MessagePumpSettings>(),
+                    criticalError,
+                    queueName, onMessage, onError, workerIndex
+                ));
 
         if (transactionMode == TransportTransactionMode.SendsAtomicWithReceive)
         {
@@ -117,36 +132,27 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         }
 
         services
-            .AddScoped(_ => new MqConnection(
-                LogManager.GetLogger<MqConnection>(),
-                new MQQueueManager(queueManagerName, connectionProperties),
-                resourceNameFormatter,
-                createTopic,
-                DefaultDestinationCacheCapacity))
-            .AddScoped<ReceiveStrategy>(sp =>
-            {
-                var conn = sp.GetRequiredService<MqConnection>();
-                var converter = sp.GetRequiredService<IBMMQMessageConverter>();
-                var strategyLog = LogManager.GetLogger<ReceiveStrategy>();
-                return transactionMode switch
+            .AddScoped(_ => createDataPathConnection())
+            .AddScoped<CreateReceiveStrategy>(sp =>
+                ctx =>
                 {
-                    TransportTransactionMode.None =>
-                        new NoTransactionReceiveStrategy(strategyLog, conn, converter),
-                    TransportTransactionMode.ReceiveOnly =>
-                        new ReceiveOnlyReceiveStrategy(strategyLog, conn, converter),
-                    TransportTransactionMode.SendsAtomicWithReceive =>
-                        new AtomicReceiveStrategy(strategyLog, conn, converter, sp.GetRequiredService<IFailureInfoStorage>()),
-                    TransportTransactionMode.TransactionScope =>
-                        throw new NotSupportedException("TransactionScope is not supported"),
-                    _ => throw new ArgumentOutOfRangeException(nameof(transactionMode), transactionMode, "Unsupported transaction mode")
-                };
-            })
-            .AddScoped(sp => new MessagePumpWorker(
-                LogManager.GetLogger<MessagePumpWorker>(),
-                sp.GetRequiredService<IServiceScopeFactory>(),
-                sp.GetRequiredService<MessagePumpSettings>(),
-                criticalError
-            ));
+                    var conn = sp.GetRequiredService<MqConnection>();
+                    var converter = sp.GetRequiredService<IBMMQMessageConverter>();
+                    var strategyLog = LogManager.GetLogger<ReceiveStrategy>();
+                    return transactionMode switch
+                    {
+                        TransportTransactionMode.None =>
+                            new NoTransactionReceiveStrategy(strategyLog, conn, converter, ctx),
+                        TransportTransactionMode.ReceiveOnly =>
+                            new ReceiveOnlyReceiveStrategy(strategyLog, conn, converter, ctx),
+                        TransportTransactionMode.SendsAtomicWithReceive =>
+                            new AtomicReceiveStrategy(strategyLog, conn, converter, sp.GetRequiredService<IFailureInfoStorage>(), ctx),
+                        TransportTransactionMode.TransactionScope =>
+                            throw new NotSupportedException("TransactionScope is not supported"),
+                        _ => throw new ArgumentOutOfRangeException(nameof(transactionMode), transactionMode, "Unsupported transaction mode")
+                    };
+                }
+            );
 
         foreach (var rs in receiverSettings)
         {
@@ -161,11 +167,11 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
                 })
                 .AddSingleton<IMessageReceiver>(sp =>
                 {
-                    var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
+                    var workerFactory = sp.GetRequiredService<CreateMessagePumpWorker>();
                     var subMgr = sp.GetRequiredKeyedService<ISubscriptionManager>(rs.Id);
                     return new IBMMQMessageReceiver(
                         LogManager.GetLogger<IBMMQMessageReceiver>(),
-                        scopeFactory, subMgr, rs, resourceNameFormatter);
+                        workerFactory, subMgr, rs, resourceNameFormatter);
                 });
         }
     }

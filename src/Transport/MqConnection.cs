@@ -13,6 +13,7 @@ sealed class MqConnection(
 {
     readonly DestinationCache<MQQueue> queueCache = new(log, cacheCapacity);
     readonly DestinationCache<MQTopic> topicCache = new(log, cacheCapacity);
+    int _disposed;
 
     public void PutToQueue(string destination, MQMessage message, MQPutMessageOptions options)
     {
@@ -80,11 +81,30 @@ sealed class MqConnection(
 
     public void Disconnect()
     {
-        queueCache.Dispose();
-        topicCache.Dispose();
-        using (queueManager)
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
         {
-            queueManager.Disconnect();
+            return;
+        }
+        try
+        {
+            queueCache.Dispose();
+        }
+        finally
+        {
+            try
+            {
+                topicCache.Dispose();
+            }
+            finally
+            {
+                // Disconnect() performs a graceful close of the connection; the subsequent
+                // Dispose() is a no-op if already disconnected but ensures cleanup if
+                // Disconnect() throws.
+                using (queueManager)
+                {
+                    queueManager.Disconnect();
+                }
+            }
         }
     }
 

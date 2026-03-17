@@ -1,6 +1,5 @@
 namespace NServiceBus.Transport.IBMMQ;
 
-using IBM.WMQ;
 using Logging;
 
 /// <summary>
@@ -16,11 +15,11 @@ sealed class AtomicReceiveStrategy(
     ILog log,
     MqConnection connection,
     IBMMQMessageConverter converter,
-    IFailureInfoStorage failureInfoStorage
-) : ReceiveStrategy(connection, converter, log)
+    IFailureInfoStorage failureInfoStorage,
+    ReceiveContext context
+) : ReceiveStrategy(connection, converter, log, context)
 {
-    public override int GetOptionsFlags =>
-        MQC.MQGMO_WAIT | MQC.MQGMO_FAIL_IF_QUIESCING | MQC.MQGMO_PROPERTIES_IN_HANDLE | MQC.MQGMO_SYNCPOINT;
+    public override int GetOptionsFlags => SyncpointGetOptions;
 
     protected override async Task ProcessReceivedMessage(
         ReceivedMessage msg,
@@ -30,36 +29,47 @@ sealed class AtomicReceiveStrategy(
         var transportTransaction = new TransportTransaction();
         transportTransaction.Set(Connection);
 
-        if (failureInfoStorage.TryGetFailureInfo(msg.Id, out var failureRecord))
-        {
-            if (Log.IsDebugEnabled)
-            {
-                Log.DebugFormat("Worker {0} handling previously failed message {1}", WorkerIndex, msg.Id);
-            }
-
-            var errorResult = await InvokeOnError(
-                msg,
-                transportTransaction,
-                failureRecord!.Exception,
-                failureRecord.NumberOfProcessingAttempts,
-                failureRecord.Context,
-                cancellationToken
-            ).ConfigureAwait(false);
-
-            if (errorResult == ErrorHandleResult.Handled)
-            {
-                Connection.Commit();
-                failureInfoStorage.ClearFailure(msg.Id);
-                return;
-            }
-
-            // RetryRequired: fall through to onMessage below
-        }
-
-        var contextBag = new Extensibility.ContextBag();
+        // Use the ContextBag from the failure record on re-delivery so that state set
+        // during earlier processing survives into the ErrorContext and any subsequent
+        // retry. Core's recoverability pipeline (RecoverabilityPipelineExecutor) uses
+        // errorContext.Extensions as the parent ContextBag, and transport tests assert
+        // that context items round-trip through the error path. MSMQ and Learning
+        // transports follow the same pattern.
+        //
+        // Trade-off: the stored ContextBag can hold large object graphs alive for the
+        // duration of the InMemoryFailureInfoStorage TTL. This is bounded by the short
+        // TTL (1 minute) and periodic sweeps.
+        failureInfoStorage.TryGetFailureInfo(msg.Id, out var failureRecord);
+        var contextBag = failureRecord?.Context ?? new Extensibility.ContextBag();
 
         try
         {
+            if (failureRecord != null)
+            {
+                if (Log.IsDebugEnabled)
+                {
+                    Log.DebugFormat("Worker {0} handling previously failed message {1}", Context.WorkerIndex, msg.Id);
+                }
+
+                var errorResult = await InvokeOnError(
+                    msg,
+                    transportTransaction,
+                    failureRecord.Exception,
+                    failureRecord.NumberOfProcessingAttempts,
+                    failureRecord.Context,
+                    cancellationToken
+                ).ConfigureAwait(false);
+
+                if (errorResult == ErrorHandleResult.Handled)
+                {
+                    Connection.Commit();
+                    failureInfoStorage.ClearFailure(msg.Id);
+                    return;
+                }
+
+                // RetryRequired: fall through to onMessage below
+            }
+
             await ProcessMessage(
                 msg,
                 transportTransaction,
@@ -72,6 +82,7 @@ sealed class AtomicReceiveStrategy(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            Connection.Backout();
             throw;
         }
         catch (Exception ex)

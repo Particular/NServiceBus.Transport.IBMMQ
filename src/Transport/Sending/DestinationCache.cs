@@ -13,33 +13,18 @@ sealed class DestinationCache<T>(ILog log, int capacity) : IDisposable where T :
 
     public T GetOrAdd(string key, Func<string, T> factory)
     {
-        ObjectDisposedException.ThrowIf(disposed, this);
-
         lock (gate)
         {
+            ObjectDisposedException.ThrowIf(disposed, this);
+
             if (map.TryGetValue(key, out var node))
             {
                 list.Remove(node);
                 list.AddFirst(node);
                 return node.Value.Value;
             }
-        }
 
-        // Factory called outside the lock to avoid blocking all
-        // concurrent dispatchers during MQ network round-trips.
-        var value = factory(key);
-
-        lock (gate)
-        {
-            // Another thread may have added the same key while we
-            // were outside the lock, so use that entry instead.
-            if (map.TryGetValue(key, out var existing))
-            {
-                list.Remove(existing);
-                list.AddFirst(existing);
-                CloseQuietly(value);
-                return existing.Value.Value;
-            }
+            var value = factory(key);
 
             if (list.Count >= capacity)
             {

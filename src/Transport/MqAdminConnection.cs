@@ -5,6 +5,7 @@ using IBM.WMQ.PCF;
 
 sealed class MqAdminConnection(MQQueueManager queueManager, SanitizeResourceName resourceNameFormatter) : IDisposable
 {
+    int _disposed;
     public void CreateTopic(string topicName, string topicString)
     {
         var agent = new PCFMessageAgent(queueManager);
@@ -105,6 +106,11 @@ sealed class MqAdminConnection(MQQueueManager queueManager, SanitizeResourceName
 
     public void Dispose()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
         using (queueManager)
         {
             queueManager.Disconnect();

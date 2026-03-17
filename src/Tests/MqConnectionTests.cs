@@ -1,37 +1,27 @@
 namespace NServiceBus.Transport.IBMMQ.Tests;
 
-using System.Collections;
 using IBM.WMQ;
 using NUnit.Framework;
 
 [TestFixture]
+[Category("RequiresBroker")]
 public class MqConnectionTests
 {
-    static readonly Hashtable ConnectionProperties = new()
-    {
-        { MQC.TRANSPORT_PROPERTY, MQC.TRANSPORT_MQSERIES_MANAGED },
-        { MQC.HOST_NAME_PROPERTY, TestConnectionDetails.Host },
-        { MQC.PORT_PROPERTY, TestConnectionDetails.Port },
-        { MQC.CHANNEL_PROPERTY, TestConnectionDetails.Channel },
-        { MQC.USER_ID_PROPERTY, TestConnectionDetails.User },
-        { MQC.PASSWORD_PROPERTY, TestConnectionDetails.Password }
-    };
-
-    static MQQueueManager Connect() =>
-        new(TestConnectionDetails.QueueManagerName, ConnectionProperties);
+    [OneTimeSetUp]
+    public void Setup() => BrokerRequirement.Verify();
 
     [Test]
     public void Each_connection_has_independent_queue_handle_cache()
     {
         using var connA = new MqConnection(
             NServiceBus.Logging.LogManager.GetLogger<MqConnection>(),
-            Connect(),
+            TestBrokerConnection.Connect(),
             name => name,
             (_, _) => { },
             100);
         using var connB = new MqConnection(
             NServiceBus.Logging.LogManager.GetLogger<MqConnection>(),
-            Connect(),
+            TestBrokerConnection.Connect(),
             name => name,
             (_, _) => { },
             100);
@@ -50,7 +40,7 @@ public class MqConnectionTests
     {
         var connA = new MqConnection(
             NServiceBus.Logging.LogManager.GetLogger<MqConnection>(),
-            Connect(),
+            TestBrokerConnection.Connect(),
             name => name,
             (_, _) => { },
             100);
