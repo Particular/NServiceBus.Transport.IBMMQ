@@ -1,3 +1,4 @@
+#pragma warning disable PS0024 // "I" in IBMMQ is from IBM, not an interface prefix
 namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
 {
     using System;
