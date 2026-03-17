@@ -1,11 +1,10 @@
 namespace NServiceBus.Transport.IBMMQ;
 
-using System.Collections.Concurrent;
 using IBM.WMQ;
 using Logging;
 using Microsoft.Extensions.DependencyInjection;
 
-sealed record MessagePumpSettings(TimeSpan MessageWaitInterval, TransportTransactionMode TransactionMode);
+sealed record MessagePumpSettings(TimeSpan MessageWaitInterval);
 
 sealed class MessagePumpWorker(
     ILog log,
@@ -25,20 +24,13 @@ sealed class MessagePumpWorker(
     OnMessage onMessage = null!;
     OnError onError = null!;
     int workerIndex;
-    ConcurrentDictionary<string, (Exception Exception, Extensibility.ContextBag ContextBag)>? failedMessages;
-    ConcurrentDictionary<string, int>? failureCounts;
 
-    public void Initialize(
-        string queueName, OnMessage onMessage, OnError onError, int workerIndex,
-        ConcurrentDictionary<string, (Exception Exception, Extensibility.ContextBag ContextBag)>? failedMessages = null,
-        ConcurrentDictionary<string, int>? failureCounts = null)
+    public void Initialize(string queueName, OnMessage onMessage, OnError onError, int workerIndex)
     {
         this.queueName = queueName;
         this.onMessage = onMessage;
         this.onError = onError;
         this.workerIndex = workerIndex;
-        this.failedMessages = failedMessages;
-        this.failureCounts = failureCounts;
     }
 
     public void Start()
@@ -60,22 +52,26 @@ sealed class MessagePumpWorker(
                 registration = cancellationToken.Register(() => cts.Cancel());
             }
 
-            await stopCts.CancelAsync().ConfigureAwait(false);
+            await stopCts.CancelAsync()
+                .ConfigureAwait(false);
 
             if (pumpTask != null)
             {
-                await pumpTask.ConfigureAwait(false);
+                await pumpTask
+                    .ConfigureAwait(false);
             }
         }
         finally
         {
-            await registration.DisposeAsync().ConfigureAwait(false);
+            await registration.DisposeAsync()
+                .ConfigureAwait(false);
         }
     }
 
     public async ValueTask DisposeAsync()
     {
-        await StopAsync().ConfigureAwait(false);
+        await StopAsync()
+            .ConfigureAwait(false);
         cancellationCts.Dispose();
         stopCts.Dispose();
         log.DebugFormat("Worker {0} disposed", workerIndex);
@@ -94,20 +90,11 @@ sealed class MessagePumpWorker(
             while (!stopCts.IsCancellationRequested)
             {
                 var scope = scopeFactory.CreateAsyncScope();
-                await using var _ = scope.ConfigureAwait(false);
+                await using var _ = scope
+                    .ConfigureAwait(false);
                 var strategy = scope.ServiceProvider.GetRequiredService<ReceiveStrategy>();
                 strategy.Initialize(queueName, onMessage, onError, workerIndex);
                 strategy.CriticalError = criticalError;
-
-                // Pass shared cross-worker state
-                if (strategy is ReceiveOnlyReceiveStrategy receiveOnly)
-                {
-                    receiveOnly.SetFailureCounts(failureCounts);
-                }
-                else if (strategy is AtomicReceiveStrategy atomic)
-                {
-                    atomic.SetFailedMessages(failedMessages);
-                }
 
                 MQQueue? queue = null;
                 try
@@ -139,11 +126,6 @@ sealed class MessagePumpWorker(
                     log.ErrorFormat("Worker {0} MQ error on {1} - Reason: {2}, CompCode: {3}",
                         workerIndex, queueName, ex.Reason, ex.CompCode);
 
-                    if (queue != null)
-                    {
-                        ((IDisposable)queue).Dispose();
-                    }
-
                     // Scope disposal handles: MqConnection -> caches -> disconnect
                     // Fall through to outer loop which creates fresh scope
 
@@ -154,7 +136,15 @@ sealed class MessagePumpWorker(
 
                     log.WarnFormat("Worker {0} reconnecting to {1} in {2}ms (attempt {3})",
                         workerIndex, queueName, delay, reconnectAttempt);
-                    await Task.Delay(delay, cancellationToken).ConfigureAwait(false);
+                    await Task.Delay(delay, cancellationToken)
+                        .ConfigureAwait(false);
+                }
+                finally
+                {
+                    if (queue != null)
+                    {
+                        ((IDisposable)queue).Dispose();
+                    }
                 }
             }
         }
@@ -169,7 +159,8 @@ sealed class MessagePumpWorker(
         }
         finally
         {
-            await cancellationLogging.DisposeAsync().ConfigureAwait(false);
+            await cancellationLogging.DisposeAsync()
+                .ConfigureAwait(false);
         }
     }
 }

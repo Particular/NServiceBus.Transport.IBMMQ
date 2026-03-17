@@ -2,6 +2,7 @@
 
 namespace NServiceBus.Transport.IBMMQ.Tests;
 
+using System;
 using System.Collections;
 using IBM.WMQ;
 using NUnit.Framework;
@@ -101,63 +102,68 @@ public class MqMessageClearBehaviorTests
 
     [Test]
     [Order(2)]
-    public void ClearMessage_properties_are_replaced_by_get()
+    public void Get_replaces_properties_and_identifiers_on_reused_message()
     {
+        // Requires a broker: this test proves the receive (Get) behavior when reusing
+        // an MQMessage across multiple receives. It documents that:
+        // 1. ClearMessage does NOT reset MessageId/CorrelationId — explicit reset is required
+        // 2. Get() DOES replace named properties — stale properties from previous message don't leak
+        // Without explicit identifier reset, the default MatchOptions
+        // (MQMO_MATCH_MSG_ID | MQMO_MATCH_CORREL_ID) would match the previous message's identifiers.
         using var qm = Connect();
         using var outputQueue = qm.AccessQueue(QueueName, MQC.MQOO_OUTPUT);
         var pmo = new MQPutMessageOptions();
 
         // Send message A with PropA
         var msgA = new MQMessage();
-        var pdA = CreatePropertyDescriptor();
-        msgA.SetStringProperty("PropA", pdA, "a");
+        msgA.SetStringProperty("PropA", CreatePropertyDescriptor(), "a");
         msgA.WriteString("messageA");
         outputQueue.Put(msgA, pmo);
         var messageIdA = (byte[])msgA.MessageId.Clone();
 
         // Send message B with PropB only (no PropA)
         var msgB = new MQMessage();
-        var pdB = CreatePropertyDescriptor();
-        msgB.SetStringProperty("PropB", pdB, "b");
+        msgB.SetStringProperty("PropB", CreatePropertyDescriptor(), "b");
         msgB.WriteString("messageB");
         outputQueue.Put(msgB, pmo);
         var messageIdB = (byte[])msgB.MessageId.Clone();
 
-        // Read messages using a single reused MQMessage
+        // Receive both messages using a single reused MQMessage
         using var inputQueue = qm.AccessQueue(QueueName, MQC.MQOO_INPUT_SHARED);
-        var gmo = new MQGetMessageOptions { Options = MQC.MQGMO_NO_WAIT };
+        var gmo = new MQGetMessageOptions
+        {
+            Options = MQC.MQGMO_NO_WAIT,
+            MatchOptions = MQC.MQMO_MATCH_MSG_ID
+        };
 
         var reused = new MQMessage { MessageId = messageIdA };
-
-        // Get message A
-        gmo.MatchOptions = MQC.MQMO_MATCH_MSG_ID;
         inputQueue.Get(reused, gmo);
 
-        var propAFromA = TryGetStringProperty(reused, "PropA");
-        Assert.That(propAFromA, Is.EqualTo("a"), "Message A should have PropA=a");
+        Assert.That(TryGetStringProperty(reused, "PropA"), Is.EqualTo("a"),
+            "Message A should have PropA=a");
 
-        // ClearMessage and reset identifiers before reuse
+        // ClearMessage resets body but NOT identifiers
         reused.ClearMessage();
+
+        Assert.That(reused.MessageId, Is.Not.EqualTo(MQC.MQMI_NONE),
+            "ClearMessage should NOT reset MessageId — explicit reset to MQMI_NONE is required");
+
+        // Explicit reset required before next Get
         reused.MessageId = MQC.MQMI_NONE;
         reused.CorrelationId = MQC.MQCI_NONE;
 
         // Get message B
         reused.MessageId = messageIdB;
-        gmo.MatchOptions = MQC.MQMO_MATCH_MSG_ID;
         inputQueue.Get(reused, gmo);
 
-        var propBFromB = TryGetStringProperty(reused, "PropB");
-        Assert.That(propBFromB, Is.EqualTo("b"), "Message B should have PropB=b");
+        // Get() replaces identifiers with message B's values
+        Assert.That(reused.MessageId, Is.EqualTo(messageIdB),
+            "Get should replace MessageId with message B's identifier");
 
-        // Key assertion: does Get() replace all properties, or does PropA leak through?
-        var propAFromB = TryGetStringProperty(reused, "PropA");
-
-        // If Get() fully replaces properties, PropA should be null
-        // If ClearMessage didn't clear and Get doesn't replace, PropA will still be "a"
-        TestContext.Out.WriteLine($"PropA after getting message B: {propAFromB ?? "(null)"}");
-        TestContext.Out.WriteLine($"PropB after getting message B: {propBFromB ?? "(null)"}");
-
-        Assert.That(propAFromB, Is.Null,
-            "Get() should replace all properties — PropA should not be present after getting message B");
+        // Get() replaces named properties — PropA from message A should not leak through
+        Assert.That(TryGetStringProperty(reused, "PropB"), Is.EqualTo("b"),
+            "Message B should have PropB=b");
+        Assert.That(TryGetStringProperty(reused, "PropA"), Is.Null,
+            "Get() should replace all properties — PropA from message A should not be present");
     }
 }

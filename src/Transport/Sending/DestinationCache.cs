@@ -99,7 +99,7 @@ sealed class DestinationCache<T>(ILog log, int capacity) : IDisposable where T :
             if (isDebugEnabled)
             {
                 // Handle may be stale if the underlying connection was closed
-                log.Debug($"Failed to close {typeof(T).Name} handle: reason code {ex.ReasonCode}", ex);
+                log.DebugFormat("Failed to close {0} handle: reason code {1} {2}", typeof(T).Name, ex.ReasonCode, ex.Reason);
             }
         }
     }

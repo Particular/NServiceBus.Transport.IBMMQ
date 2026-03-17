@@ -5,186 +5,83 @@ using IBM.WMQ;
 sealed class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology, IBMMQMessageConverter messageConverter)
     : IMessageDispatcher
 {
+    const int PutFlags = MQC.MQPMO_FAIL_IF_QUIESCING;
+    const int SyncpointPutFlags = MQC.MQPMO_FAIL_IF_QUIESCING | MQC.MQPMO_SYNCPOINT;
+
     public Task Dispatch(TransportOperations outgoingMessages, TransportTransaction transaction,
         CancellationToken cancellationToken = default)
     {
-        if (transaction.TryGet<MqConnection>(out var receiveConnection))
+        if (transaction.TryGet<MqConnection>(out var receiveConn))
         {
             // Sends atomic with receive: dispatch uses the receive connection's SYNCPOINT.
             // Connection-level errors are not handled here — the message pump's reconnect
             // loop owns the lifecycle of this connection and will restart on failure.
-            DispatchAtomic(outgoingMessages, receiveConnection);
+            SendAll(receiveConn, outgoingMessages, atomic: true);
         }
         else
         {
-            DispatchPooled(outgoingMessages);
+            var conn = sendPool.Rent();
+            try
+            {
+                SendAll(conn, outgoingMessages, atomic: false);
+                sendPool.Return(conn);
+                conn = null;
+            }
+            catch (MQException ex) when (IsConnectionLevelError(ex))
+            {
+                if (conn != null)
+                {
+                    sendPool.Discard(conn);
+                }
+
+                throw;
+            }
+            catch
+            {
+                if (conn != null)
+                {
+                    sendPool.Return(conn);
+                }
+
+                throw;
+            }
         }
 
         return Task.CompletedTask;
     }
 
-    void DispatchPooled(TransportOperations outgoingMessages)
+    void SendAll(MqConnection conn, TransportOperations outgoingMessages, bool atomic)
     {
-        var conn = sendPool.Rent();
-        var putOptions = new MQPutMessageOptions { Options = MQC.MQPMO_FAIL_IF_QUIESCING };
-
-        try
+        foreach (var op in outgoingMessages.UnicastTransportOperations)
         {
-            foreach (var operation in outgoingMessages.UnicastTransportOperations)
-            {
-                var queue = conn.GetOrOpenSendQueue(operation.Destination);
-                var message = messageConverter.ToNative(operation);
-
-                try
-                {
-                    queue.Put(message, putOptions);
-                }
-                catch (MQException)
-                {
-                    conn.EvictQueue(operation.Destination);
-                    throw;
-                }
-            }
-
-            foreach (var operation in outgoingMessages.MulticastTransportOperations)
-            {
-                foreach (var destination in topology.GetPublishDestinations(operation.MessageType))
-                {
-                    var topic = conn.GetOrOpenTopic(destination.TopicName, destination.TopicString);
-                    var message = messageConverter.ToNative(operation);
-
-                    try
-                    {
-                        topic.Put(message, putOptions);
-                    }
-                    catch (MQException)
-                    {
-                        conn.EvictTopic(destination.TopicName);
-                        throw;
-                    }
-                }
-            }
-
-            sendPool.Return(conn);
-            conn = null; // prevent discard in catch
+            conn.PutToQueue(
+                op.Destination,
+                messageConverter.ToNative(op),
+                ResolvePutOptions(atomic, op.RequiredDispatchConsistency)
+            );
         }
-        catch (MQException ex) when (IsConnectionLevelError(ex))
-        {
-            if (conn != null)
-            {
-                sendPool.Discard(conn);
-            }
 
-            throw;
-        }
-        catch
+        foreach (var op in outgoingMessages.MulticastTransportOperations)
         {
-            if (conn != null)
-            {
-                sendPool.Return(conn);
-            }
+            var putOptions = ResolvePutOptions(atomic, op.RequiredDispatchConsistency);
 
-            throw;
+            foreach (var destination in topology.GetPublishDestinations(op.MessageType))
+            {
+                conn.PutToTopic(
+                    destination.TopicName,
+                    destination.TopicString,
+                    messageConverter.ToNative(op),
+                    putOptions);
+            }
         }
     }
 
-    void DispatchAtomic(TransportOperations outgoingMessages, MqConnection receiveConn)
-    {
-        var atomicPutOptions = new MQPutMessageOptions
-        {
-            Options = MQC.MQPMO_FAIL_IF_QUIESCING | MQC.MQPMO_SYNCPOINT
-        };
-        var isolatedPutOptions = new MQPutMessageOptions
-        {
-            Options = MQC.MQPMO_FAIL_IF_QUIESCING
-        };
-
-        Dictionary<string, MQQueue>? atomicQueues = null;
-        Dictionary<string, MQTopic>? atomicTopics = null;
-        MqConnection? isolatedConn = null;
-
-        try
-        {
-            foreach (var operation in outgoingMessages.UnicastTransportOperations)
-            {
-                if (operation.RequiredDispatchConsistency == DispatchConsistency.Isolated)
-                {
-                    isolatedConn ??= sendPool.Rent();
-                    var queue = isolatedConn.GetOrOpenSendQueue(operation.Destination);
-                    var message = messageConverter.ToNative(operation);
-                    queue.Put(message, isolatedPutOptions);
-                }
-                else
-                {
-                    atomicQueues ??= [];
-                    if (!atomicQueues.TryGetValue(operation.Destination, out var queue))
-                    {
-                        queue = receiveConn.AccessSendQueue(operation.Destination);
-                        atomicQueues[operation.Destination] = queue;
-                    }
-
-                    var message = messageConverter.ToNative(operation);
-                    queue.Put(message, atomicPutOptions);
-                }
-            }
-
-            foreach (var operation in outgoingMessages.MulticastTransportOperations)
-            {
-                foreach (var destination in topology.GetPublishDestinations(operation.MessageType))
-                {
-                    if (operation.RequiredDispatchConsistency == DispatchConsistency.Isolated)
-                    {
-                        isolatedConn ??= sendPool.Rent();
-                        var topic = isolatedConn.GetOrOpenTopic(destination.TopicName, destination.TopicString);
-                        var message = messageConverter.ToNative(operation);
-                        topic.Put(message, isolatedPutOptions);
-                    }
-                    else
-                    {
-                        atomicTopics ??= [];
-                        if (!atomicTopics.TryGetValue(destination.TopicName, out var topic))
-                        {
-                            topic = receiveConn.EnsureTopic(destination.TopicName, destination.TopicString);
-                            atomicTopics[destination.TopicName] = topic;
-                        }
-
-                        var message = messageConverter.ToNative(operation);
-                        topic.Put(message, atomicPutOptions);
-                    }
-                }
-            }
-        }
-        finally
-        {
-            CloseAll(atomicQueues);
-            CloseAll(atomicTopics);
-
-            if (isolatedConn != null)
-            {
-                sendPool.Return(isolatedConn);
-            }
-        }
-    }
+    static MQPutMessageOptions ResolvePutOptions(bool atomic, DispatchConsistency consistency) =>
+        new() { Options = atomic && consistency != DispatchConsistency.Isolated ? SyncpointPutFlags : PutFlags };
 
     static bool IsConnectionLevelError(MQException ex) =>
         ex.ReasonCode is MQC.MQRC_CONNECTION_BROKEN
             or MQC.MQRC_Q_MGR_NOT_AVAILABLE
             or MQC.MQRC_CONNECTION_QUIESCING
             or MQC.MQRC_CONNECTION_STOPPING;
-
-    static void CloseAll<T>(Dictionary<string, T>? destinations) where T : MQDestination
-    {
-        if (destinations == null)
-        {
-            return;
-        }
-
-        foreach (var destination in destinations.Values)
-        {
-            using (destination)
-            {
-                destination.Close();
-            }
-        }
-    }
 }

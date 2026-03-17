@@ -1,6 +1,5 @@
 namespace NServiceBus.Transport.IBMMQ;
 
-using System.Collections.Concurrent;
 using Logging;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -9,24 +8,11 @@ sealed class IBMMQMessageReceiver(
     IServiceScopeFactory scopeFactory,
     ISubscriptionManager subscriptions,
     ReceiveSettings receiveSettings,
-    MessagePumpSettings pumpSettings,
-    SanitizeResourceName resourceNameFormatter,
-    Action<string, Exception, CancellationToken> criticalError
+    SanitizeResourceName resourceNameFormatter
 ) : IMessageReceiver, IAsyncDisposable
 {
-
-    readonly List<MessagePumpWorker> workers = [];
+    readonly List<(AsyncServiceScope Scope, MessagePumpWorker Worker)> workers = [];
     readonly string formattedReceiveAddress = resourceNameFormatter(ToTransportAddress(receiveSettings.ReceiveAddress));
-
-    // Shared across all workers to coordinate SendsAtomicWithReceive error handling
-    readonly ConcurrentDictionary<string, (Exception Exception, Extensibility.ContextBag ContextBag)>? failedMessages =
-        pumpSettings.TransactionMode == TransportTransactionMode.SendsAtomicWithReceive
-            ? new() : null;
-
-    // Shared across all workers to track per-message failure counts for ReceiveOnly/None modes
-    readonly ConcurrentDictionary<string, int>? failureCounts =
-        pumpSettings.TransactionMode != TransportTransactionMode.SendsAtomicWithReceive
-            ? new() : null;
 
     int concurrency;
     OnMessage? onMessage;
@@ -50,26 +36,23 @@ sealed class IBMMQMessageReceiver(
         {
             if (newConcurrency > concurrency)
             {
-                // Scale up - add more workers
                 for (int i = concurrency; i < newConcurrency; i++)
                 {
-                    var worker = CreateWorker(i);
-                    workers.Add(worker);
-                    worker.Start();
+                    var entry = CreateScopedWorker(i);
+                    workers.Add(entry);
+                    entry.Worker.Start();
                     log.DebugFormat("Added worker {0}", i);
                 }
             }
             else if (newConcurrency < concurrency)
             {
-                // Scale down - remove excess workers
-                var workersToRemove = workers.Skip(newConcurrency).ToList();
+                var entriesToRemove = workers.Skip(newConcurrency).ToList();
                 workers.RemoveRange(newConcurrency, workers.Count - newConcurrency);
 
-                // Stop and dispose removed workers asynchronously
-                var tasks = new List<Task>(workersToRemove.Count);
-                foreach (var worker in workersToRemove)
+                var tasks = new List<Task>(entriesToRemove.Count);
+                foreach (var entry in entriesToRemove)
                 {
-                    tasks.Add(StopAndDisposeWorker(worker, cancellationToken));
+                    tasks.Add(StopAndDisposeWorker(entry, cancellationToken));
                 }
 
                 await Task.WhenAll(tasks)
@@ -112,10 +95,10 @@ sealed class IBMMQMessageReceiver(
             var tasks = new List<Task>(concurrency);
             for (int i = 0; i < concurrency; i++)
             {
-                var worker = CreateWorker(i);
-                workers.Add(worker);
+                var entry = CreateScopedWorker(i);
+                workers.Add(entry);
 
-                tasks.Add(Task.Run(() => worker.Start(), cancellationToken));
+                tasks.Add(Task.Run(() => entry.Worker.Start(), cancellationToken));
             }
 
             await Task.WhenAll(tasks)
@@ -136,15 +119,14 @@ sealed class IBMMQMessageReceiver(
 
         try
         {
-            List<MessagePumpWorker> workersToStop = [.. workers];
+            List<(AsyncServiceScope Scope, MessagePumpWorker Worker)> entriesToStop = [.. workers];
             workers.Clear();
 
-            var tasks = new List<Task>(workersToStop.Count);
+            var tasks = new List<Task>(entriesToStop.Count);
 
-            // Stop all workers, passing the cancellation token so in-flight messages can be cancelled
-            foreach (var worker in workersToStop)
+            foreach (var entry in entriesToStop)
             {
-                tasks.Add(StopAndDisposeWorker(worker, cancellationToken));
+                tasks.Add(StopAndDisposeWorker(entry, cancellationToken));
             }
 
             await Task.WhenAll(tasks)
@@ -160,30 +142,32 @@ sealed class IBMMQMessageReceiver(
 
     public async ValueTask DisposeAsync()
     {
-        // Should already be done, so dispose is quick, no need for concurrent disposal
-        foreach (var worker in workers)
+        // Should already be done via StopReceive, so this is a safety net
+        foreach (var entry in workers)
         {
-            await worker.DisposeAsync().ConfigureAwait(false);
+            await entry.Scope.DisposeAsync()
+                .ConfigureAwait(false);
         }
 
         receiveLock.Dispose();
     }
 
-    MessagePumpWorker CreateWorker(int index)
+    (AsyncServiceScope Scope, MessagePumpWorker Worker) CreateScopedWorker(int index)
     {
-        var worker = new MessagePumpWorker(
-            LogManager.GetLogger<MessagePumpWorker>(),
-            scopeFactory, pumpSettings, criticalError);
-        worker.Initialize(formattedReceiveAddress, onMessage!, onError!, index, failedMessages, failureCounts);
-        return worker;
+        var scope = scopeFactory.CreateAsyncScope();
+        var worker = scope.ServiceProvider.GetRequiredService<MessagePumpWorker>();
+        worker.Initialize(formattedReceiveAddress, onMessage!, onError!, index);
+        return (scope, worker);
     }
 
     static async Task StopAndDisposeWorker(
-        MessagePumpWorker worker,
+        (AsyncServiceScope Scope, MessagePumpWorker Worker) entry,
         CancellationToken cancellationToken)
     {
-        await worker.StopAsync(cancellationToken).ConfigureAwait(false);
-        await worker.DisposeAsync().ConfigureAwait(false);
+        await entry.Worker.StopAsync(cancellationToken)
+            .ConfigureAwait(false);
+        await entry.Scope.DisposeAsync()
+            .ConfigureAwait(false);
     }
 
     internal static string ToTransportAddress(QueueAddress address)

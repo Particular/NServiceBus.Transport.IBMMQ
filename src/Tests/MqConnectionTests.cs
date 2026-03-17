@@ -23,8 +23,18 @@ public class MqConnectionTests
     [Test]
     public void Each_connection_has_independent_queue_handle_cache()
     {
-        using var connA = new MqConnection(Connect(), name => name, 100);
-        using var connB = new MqConnection(Connect(), name => name, 100);
+        using var connA = new MqConnection(
+            NServiceBus.Logging.LogManager.GetLogger<MqConnection>(),
+            Connect(),
+            name => name,
+            (_, _) => { },
+            100);
+        using var connB = new MqConnection(
+            NServiceBus.Logging.LogManager.GetLogger<MqConnection>(),
+            Connect(),
+            name => name,
+            (_, _) => { },
+            100);
 
         var handleA = connA.GetOrOpenSendQueue("SYSTEM.DEFAULT.LOCAL.QUEUE");
         var handleB = connB.GetOrOpenSendQueue("SYSTEM.DEFAULT.LOCAL.QUEUE");
@@ -38,7 +48,12 @@ public class MqConnectionTests
     [Test]
     public void Dispose_closes_cached_handles()
     {
-        var connA = new MqConnection(Connect(), name => name, 100);
+        var connA = new MqConnection(
+            NServiceBus.Logging.LogManager.GetLogger<MqConnection>(),
+            Connect(),
+            name => name,
+            (_, _) => { },
+            100);
         var handle = connA.GetOrOpenSendQueue("SYSTEM.DEFAULT.LOCAL.QUEUE");
 
         connA.Disconnect();

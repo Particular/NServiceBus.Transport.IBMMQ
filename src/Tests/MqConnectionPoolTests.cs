@@ -23,8 +23,11 @@ public class MqConnectionPoolTests
     {
         var pool = new MqConnectionPool(
             () => new MqConnection(
+                NServiceBus.Logging.LogManager.GetLogger<MqConnection>(),
                 new MQQueueManager(TestConnectionDetails.QueueManagerName, ConnectionProperties),
-                name => name, 100),
+                name => name,
+                (_, _) => { },
+                100),
             maxSize: 1);
 
         var conn1 = pool.Rent();
