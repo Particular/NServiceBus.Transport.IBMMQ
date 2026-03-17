@@ -2,7 +2,11 @@ namespace NServiceBus.Transport.IBMMQ;
 
 using IBM.WMQ;
 
-class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology, IBMMQMessageConverter messageConverter, DestinationCache<MQQueue> queueCache, DestinationCache<MQTopic> topicCache) : IMessageDispatcher
+class MessageDispatcher(
+    MqConnectionPool sendPool,
+    TopicTopology topology,
+    IBMMQMessageConverter messageConverter
+) : IMessageDispatcher
 {
     protected readonly record struct DispatchContext(MqQueueManagerFacade Facade, int PutOptions);
 
@@ -15,7 +19,7 @@ class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology, IBMMQ
         {
             foreach (var operation in outgoingMessages.UnicastTransportOperations)
             {
-                var queue = queueCache.GetOrAdd(operation.Destination, context.Facade.AccessSendQueue);
+                var queue = context.Facade.GetOrOpenSendQueue(operation.Destination);
                 var message = messageConverter.ToNative(operation);
 
                 try
@@ -24,7 +28,7 @@ class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology, IBMMQ
                 }
                 catch (MQException)
                 {
-                    queueCache.Evict(operation.Destination);
+                    context.Facade.EvictSendQueue(operation.Destination);
                     throw;
                 }
             }
@@ -33,8 +37,7 @@ class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology, IBMMQ
             {
                 foreach (var destination in topology.GetPublishDestinations(operation.MessageType))
                 {
-                    var topic = topicCache.GetOrAdd(destination.TopicName, _ =>
-                        context.Facade.EnsureTopic(destination.TopicName, destination.TopicString));
+                    var topic = context.Facade.GetOrEnsureTopic(destination.TopicName, destination.TopicString);
 
                     // Message cannot be re-used, is modified by .Put(..)
                     var message = messageConverter.ToNative(operation);
@@ -45,7 +48,7 @@ class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology, IBMMQ
                     }
                     catch (MQException)
                     {
-                        topicCache.Evict(destination.TopicName);
+                        context.Facade.EvictTopic(destination.TopicName);
                         throw;
                     }
                 }

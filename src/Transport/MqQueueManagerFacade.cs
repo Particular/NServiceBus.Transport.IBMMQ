@@ -2,16 +2,36 @@ namespace NServiceBus.Transport.IBMMQ;
 
 using IBM.WMQ;
 using IBM.WMQ.PCF;
+using Logging;
 
-class MqQueueManagerFacade(MQQueueManager queueManager, SanitizeResourceName resourceNameFormatter)
+class MqQueueManagerFacade(
+    ILog log,
+    MQQueueManager queueManager,
+    SanitizeResourceName resourceNameFormatter
+    )
 {
+    readonly DestinationCache<MQQueue> queueCache = new(log, 100);
+    readonly DestinationCache<MQTopic> topicCache = new(log, 100);
+
     public void Disconnect()
     {
+        queueCache.Dispose();
+        topicCache.Dispose();
+
         using (queueManager)
         {
             queueManager.Disconnect();
         }
     }
+
+    public MQQueue GetOrOpenSendQueue(string name) => queueCache.GetOrAdd(name, AccessSendQueue);
+
+    public MQTopic GetOrEnsureTopic(string topicName, string topicString) =>
+        topicCache.GetOrAdd(topicName, _ => EnsureTopic(topicName, topicString));
+
+    public void EvictSendQueue(string name) => queueCache.Evict(name);
+
+    public void EvictTopic(string name) => topicCache.Evict(name);
 
     public MQQueue AccessSendQueue(string name)
     {
@@ -37,6 +57,12 @@ class MqQueueManagerFacade(MQQueueManager queueManager, SanitizeResourceName res
         }
         catch (MQException)
         {
+            // IBM MQ does not return a single distinguishable reason code for
+            // "topic object does not exist"; the error depends on queue manager
+            // configuration. Optimistically attempt to create the admin object
+            // on any failure. CreateTopicOrThrow is idempotent (ignores
+            // "already exists") and translates authorization errors into a
+            // descriptive exception.
             CreateTopicOrThrow(topicName, topicString);
             return AccessTopic(topicString);
         }
