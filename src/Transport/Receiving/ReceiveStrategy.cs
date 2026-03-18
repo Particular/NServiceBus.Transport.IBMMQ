@@ -3,7 +3,7 @@ namespace NServiceBus.Transport.IBMMQ;
 using IBM.WMQ;
 using Logging;
 
-record ReceivedMessage(string Id, byte[] Body, IReadOnlyDictionary<string, string> Headers);
+readonly record struct ReceivedMessage(string Id, byte[] Body, IReadOnlyDictionary<string, string> Headers);
 
 sealed record ReceiveContext(
     string QueueName,
@@ -31,7 +31,7 @@ abstract class ReceiveStrategy(MqConnection connection, IBMMQMessageConverter me
     /// Receives and processes one message. Returns false if no message was available.
     /// Throws MQException on connection-level failure (caller should recreate scope).
     /// </summary>
-    public async Task<bool> ReceiveMessage(
+    public async ValueTask<bool> ReceiveMessage(
         MQQueue queue,
         MQGetMessageOptions getOptions,
         CancellationToken cancellationToken = default
@@ -77,22 +77,22 @@ abstract class ReceiveStrategy(MqConnection connection, IBMMQMessageConverter me
         return true;
     }
 
-    protected abstract Task ProcessReceivedMessage(
+    protected abstract ValueTask ProcessReceivedMessage(
         ReceivedMessage msg,
         CancellationToken cancellationToken = default
     );
 
-    protected Task ProcessMessage(
+    protected ValueTask ProcessMessage(
         ReceivedMessage msg, TransportTransaction tx,
         Extensibility.ContextBag ctx, CancellationToken cancellationToken = default) =>
-        context.OnMessage(CreateMessageContext(msg, tx, ctx), cancellationToken);
+        new(context.OnMessage(CreateMessageContext(msg, tx, ctx), cancellationToken));
 
-    protected Task<ErrorHandleResult> ProcessError(
+    protected ValueTask<ErrorHandleResult> ProcessError(
         ReceivedMessage msg, TransportTransaction tx, Exception ex,
         int failures, Extensibility.ContextBag ctx, CancellationToken cancellationToken = default) =>
-        context.OnError.Invoke(CreateErrorContext(msg, tx, ex, failures, ctx), cancellationToken);
+        new(context.OnError.Invoke(CreateErrorContext(msg, tx, ex, failures, ctx), cancellationToken));
 
-    protected async Task<ErrorHandleResult> InvokeOnError(
+    protected async ValueTask<ErrorHandleResult> InvokeOnError(
         ReceivedMessage msg, TransportTransaction tx, Exception ex,
         int failures, Extensibility.ContextBag ctx, CancellationToken cancellationToken = default)
     {

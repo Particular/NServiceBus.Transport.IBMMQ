@@ -9,7 +9,7 @@ abstract class RetryLoopReceiveStrategy(
     ReceiveContext context
 ) : ReceiveStrategy(connection, converter, log, context)
 {
-    protected override async Task ProcessReceivedMessage(
+    protected override async ValueTask ProcessReceivedMessage(
         ReceivedMessage msg,
         CancellationToken cancellationToken = default
     )
