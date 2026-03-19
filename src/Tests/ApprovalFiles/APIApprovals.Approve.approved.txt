@@ -27,6 +27,7 @@ namespace NServiceBus.Transport.IBMMQ
         public NServiceBus.Transport.IBMMQ.SanitizeResourceName ResourceNameSanitizer { get; set; }
         public string? SslKeyRepository { get; set; }
         public string? SslPeerName { get; set; }
+        public System.TimeSpan TimeToWaitBeforeTriggeringCircuitBreaker { get; set; }
         public NServiceBus.Transport.IBMMQ.TopicNaming TopicNaming { get; set; }
         public NServiceBus.Transport.IBMMQ.TopicTopology Topology { get; set; }
         public string? User { get; set; }

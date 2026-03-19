@@ -105,6 +105,8 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
             createTopic,
             DefaultDestinationCacheCapacity);
 
+        var circuitBreakerTimeout = options.TimeToWaitBeforeTriggeringCircuitBreaker;
+
         services
             .AddSingleton(topology)
             .AddSingleton<MqPropertyNameEncoder>()
@@ -116,15 +118,7 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
                     sp.GetRequiredService<TopicTopology>(),
                     sp.GetRequiredService<IBMMQMessageConverter>()))
             .AddSingleton(createAdmin)
-            .AddSingleton(pumpSettings)
-            .AddSingleton<CreateMessagePumpWorker>(sp =>
-                (queueName, onMessage, onError, workerIndex) => new MessagePumpWorker(
-                    LogManager.GetLogger<MessagePumpWorker>(),
-                    sp.GetRequiredService<IServiceScopeFactory>(),
-                    sp.GetRequiredService<MessagePumpSettings>(),
-                    criticalError,
-                    queueName, onMessage, onError, workerIndex
-                ));
+            .AddSingleton(pumpSettings);
 
         if (transactionMode == TransportTransactionMode.SendsAtomicWithReceive)
         {
@@ -156,6 +150,8 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
 
         foreach (var rs in receiverSettings)
         {
+            var receiveAddress = resourceNameFormatter(IBMMQMessageReceiver.ToTransportAddress(rs.ReceiveAddress));
+
             services
                 .AddKeyedSingleton<ISubscriptionManager>(rs.Id, (sp, _) =>
                 {
@@ -165,9 +161,21 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
                         LogManager.GetLogger<IBMMQSubscriptionManager>(),
                         topo, createAdmin, rs.ReceiveAddress.BaseAddress);
                 })
+                .AddKeyedSingleton(rs.Id, (_, _) =>
+                    new RepeatedFailuresOverTimeCircuitBreaker(
+                        $"'{receiveAddress}'",
+                        circuitBreakerTimeout,
+                        ex => criticalError($"Failed to receive from {receiveAddress}", ex, CancellationToken.None)))
                 .AddSingleton<IMessageReceiver>(sp =>
                 {
-                    var workerFactory = sp.GetRequiredService<CreateMessagePumpWorker>();
+                    var cb = sp.GetRequiredKeyedService<RepeatedFailuresOverTimeCircuitBreaker>(rs.Id);
+                    var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
+                    var settings = sp.GetRequiredService<MessagePumpSettings>();
+                    CreateMessagePumpWorker workerFactory = (queueName, onMessage, onError, workerIndex) =>
+                        new MessagePumpWorker(
+                            LogManager.GetLogger<MessagePumpWorker>(),
+                            scopeFactory, settings, criticalError, cb,
+                            queueName, onMessage, onError, workerIndex);
                     var subMgr = sp.GetRequiredKeyedService<ISubscriptionManager>(rs.Id);
                     return new IBMMQMessageReceiver(
                         LogManager.GetLogger<IBMMQMessageReceiver>(),

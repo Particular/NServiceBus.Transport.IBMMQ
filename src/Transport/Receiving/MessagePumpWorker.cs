@@ -11,15 +11,13 @@ sealed class MessagePumpWorker(
     IServiceScopeFactory scopeFactory,
     MessagePumpSettings settings,
     Action<string, Exception, CancellationToken> criticalError,
+    RepeatedFailuresOverTimeCircuitBreaker circuitBreaker,
     string queueName,
     OnMessage onMessage,
     OnError onError,
     int workerIndex
 ) : IAsyncDisposable
 {
-    const int ReconnectBaseDelayMs = 1000;
-    const int ReconnectMaxDelayMs = 60_000;
-
     readonly CancellationTokenSource stopCts = new();
     readonly CancellationTokenSource cancellationCts = new();
     readonly ReceiveContext receiveContext = new(queueName, workerIndex, onMessage, onError, criticalError);
@@ -76,8 +74,6 @@ sealed class MessagePumpWorker(
 
         try
         {
-            int reconnectAttempt = 0;
-
             // Outer loop: scope lifecycle (reconnection)
             while (!stopCts.IsCancellationRequested)
             {
@@ -98,7 +94,7 @@ sealed class MessagePumpWorker(
                         WaitInterval = (int)settings.MessageWaitInterval.TotalMilliseconds
                     };
 
-                    reconnectAttempt = 0;
+                    circuitBreaker.Success();
 
                     // Inner loop: message processing
                     while (!stopCts.IsCancellationRequested)
@@ -138,14 +134,7 @@ sealed class MessagePumpWorker(
                     // Scope disposal handles: MqConnection -> caches -> disconnect
                     // Fall through to outer loop which creates fresh scope
 
-                    var maxDelay = Math.Min(ReconnectMaxDelayMs,
-                        ReconnectBaseDelayMs * (1 << Math.Min(reconnectAttempt, 30)));
-                    var delay = Random.Shared.Next(0, maxDelay);
-                    reconnectAttempt++;
-
-                    log.WarnFormat("Worker {0} reconnecting to {1} in {2}ms (attempt {3})",
-                        workerIndex, queueName, delay, reconnectAttempt);
-                    await Task.Delay(delay, cancellationToken)
+                    await circuitBreaker.Failure(ex, cancellationToken)
                         .ConfigureAwait(false);
                 }
                 finally

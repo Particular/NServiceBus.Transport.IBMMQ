@@ -145,6 +145,22 @@ public class IBMMQTransportOptions
     public TopicNaming TopicNaming { get; set; } = new();
 
     /// <summary>
+    /// The time to wait before triggering the circuit breaker when the endpoint
+    /// cannot communicate with the broker. When the circuit breaker triggers,
+    /// the critical error action is invoked.
+    /// Default: 2 minutes.
+    /// </summary>
+    public TimeSpan TimeToWaitBeforeTriggeringCircuitBreaker
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value.Ticks, nameof(TimeToWaitBeforeTriggeringCircuitBreaker));
+            field = value;
+        }
+    } = TimeSpan.FromMinutes(2);
+
+    /// <summary>
     /// Sanitizer for queue resource names.
     /// Override to customize sanitization (e.g., replacing invalid characters, truncating long names).
     /// </summary>
