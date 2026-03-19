@@ -2,87 +2,10 @@ namespace NServiceBus.Transport.IBMMQ;
 
 using IBM.WMQ;
 using IBM.WMQ.PCF;
-using Logging;
 
-class MqQueueManagerFacade(
-    ILog log,
-    MQQueueManager queueManager,
-    SanitizeResourceName resourceNameFormatter
-    )
+sealed class MqAdminConnection(MQQueueManager queueManager, SanitizeResourceName resourceNameFormatter) : IDisposable
 {
-    readonly DestinationCache<MQQueue> queueCache = new(log, 100);
-    readonly DestinationCache<MQTopic> topicCache = new(log, 100);
-
-    public void Disconnect()
-    {
-        queueCache.Dispose();
-        topicCache.Dispose();
-
-        using (queueManager)
-        {
-            queueManager.Disconnect();
-        }
-    }
-
-    public MQQueue GetOrOpenSendQueue(string name) => queueCache.GetOrAdd(name, AccessSendQueue);
-
-    public MQTopic GetOrEnsureTopic(string topicName, string topicString) =>
-        topicCache.GetOrAdd(topicName, _ => EnsureTopic(topicName, topicString));
-
-    public void EvictSendQueue(string name) => queueCache.Evict(name);
-
-    public void EvictTopic(string name) => topicCache.Evict(name);
-
-    public MQQueue AccessSendQueue(string name)
-    {
-        var formatted = resourceNameFormatter(name);
-        return queueManager.AccessQueue(formatted, MQC.MQOO_OUTPUT);
-    }
-
-    public MQTopic AccessTopic(string topicString)
-    {
-        return queueManager.AccessTopic(
-            topicString,
-            null,
-            MQC.MQTOPIC_OPEN_AS_PUBLICATION,
-            MQC.MQOO_OUTPUT
-        );
-    }
-
-    public MQTopic EnsureTopic(string topicName, string topicString)
-    {
-        try
-        {
-            return AccessTopic(topicString);
-        }
-        catch (MQException)
-        {
-            // IBM MQ does not return a single distinguishable reason code for
-            // "topic object does not exist"; the error depends on queue manager
-            // configuration. Optimistically attempt to create the admin object
-            // on any failure. CreateTopicOrThrow is idempotent (ignores
-            // "already exists") and translates authorization errors into a
-            // descriptive exception.
-            CreateTopicOrThrow(topicName, topicString);
-            return AccessTopic(topicString);
-        }
-    }
-
-    void CreateTopicOrThrow(string topicName, string topicString)
-    {
-        try
-        {
-            CreateTopic(topicName, topicString);
-        }
-        catch (MQException ex) when (ex.ReasonCode == MQC.MQRC_NOT_AUTHORIZED)
-        {
-            throw new InvalidOperationException(
-                $"Topic '{topicName}' does not exist and the current user is not authorized to create it. " +
-                "Pre-create topics by running the endpoint with EnableInstallers using an account with administrative permissions, " +
-                "or have an MQ administrator create the topic.", ex);
-        }
-    }
-
+    int _disposed;
     public void CreateTopic(string topicName, string topicString)
     {
         var agent = new PCFMessageAgent(queueManager);
@@ -179,5 +102,18 @@ class MqQueueManagerFacade(
             null,
             subscriptionName
         );
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
+        using (queueManager)
+        {
+            queueManager.Disconnect();
+        }
     }
 }

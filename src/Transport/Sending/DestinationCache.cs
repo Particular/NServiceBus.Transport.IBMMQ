@@ -13,33 +13,18 @@ sealed class DestinationCache<T>(ILog log, int capacity) : IDisposable where T :
 
     public T GetOrAdd(string key, Func<string, T> factory)
     {
-        ObjectDisposedException.ThrowIf(disposed, this);
-
         lock (gate)
         {
+            ObjectDisposedException.ThrowIf(disposed, this);
+
             if (map.TryGetValue(key, out var node))
             {
                 list.Remove(node);
                 list.AddFirst(node);
                 return node.Value.Value;
             }
-        }
 
-        // Factory called outside the lock to avoid blocking all
-        // concurrent dispatchers during MQ network round-trips.
-        var value = factory(key);
-
-        lock (gate)
-        {
-            // Another thread may have added the same key while we
-            // were outside the lock, so use that entry instead.
-            if (map.TryGetValue(key, out var existing))
-            {
-                list.Remove(existing);
-                list.AddFirst(existing);
-                CloseQuietly(value);
-                return existing.Value.Value;
-            }
+            var value = factory(key);
 
             if (list.Count >= capacity)
             {
@@ -99,7 +84,7 @@ sealed class DestinationCache<T>(ILog log, int capacity) : IDisposable where T :
             if (isDebugEnabled)
             {
                 // Handle may be stale if the underlying connection was closed
-                log.Debug($"Failed to close {typeof(T).Name} handle: reason code {ex.ReasonCode}", ex);
+                log.DebugFormat("Failed to close {0} handle: reason code {1} {2}", typeof(T).Name, ex.ReasonCode, ex.Reason);
             }
         }
     }

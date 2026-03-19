@@ -1,16 +1,24 @@
 namespace NServiceBus.Transport.IBMMQ;
 
-using IBM.WMQ;
+/// <summary>
+/// Creates a MqAdminConnection for admin/subscription operations
+/// </summary>
+delegate MqAdminConnection CreateMqAdminConnection();
 
 /// <summary>
-/// Creates a new queue manager connection
+/// Creates a topic on the queue manager if it does not already exist
 /// </summary>
-delegate MQQueueManager CreateQueueManager();
+delegate void CreateTopic(string topicName, string topicString);
 
 /// <summary>
-/// Creates a MqQueueManagerFacade for a given queue manager
+/// Creates a ReceiveStrategy for processing messages with the given runtime context
 /// </summary>
-delegate MqQueueManagerFacade CreateQueueManagerFacade(MQQueueManager queueManager);
+delegate ReceiveStrategy CreateReceiveStrategy(ReceiveContext context);
+
+/// <summary>
+/// Creates a MessagePumpWorker with the given runtime context
+/// </summary>
+delegate MessagePumpWorker CreateMessagePumpWorker(string queueName, OnMessage onMessage, OnError onError, int workerIndex);
 
 /// <summary>
 /// Sanitizer topic and queue resource names
