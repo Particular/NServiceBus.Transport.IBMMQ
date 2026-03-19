@@ -17,12 +17,6 @@ abstract class ReceiveStrategy(MqConnection connection, IBMMQMessageConverter me
     protected const int BaseGetOptions = MQC.MQGMO_WAIT | MQC.MQGMO_FAIL_IF_QUIESCING | MQC.MQGMO_PROPERTIES_IN_HANDLE;
     protected const int SyncpointGetOptions = BaseGetOptions | MQC.MQGMO_SYNCPOINT;
 
-    // Reused across receives to avoid per-message allocation. Safe on the receive path
-    // because Get() replaces all named properties on each receive — stale properties
-    // from the previous message do not leak through.
-    // See MqMessageClearBehaviorTests.Get_replaces_properties_and_identifiers_on_reused_message.
-    readonly MQMessage receivedMessage = new();
-
     public MqConnection Connection => connection;
 
     public abstract int GetOptionsFlags { get; }
@@ -37,9 +31,11 @@ abstract class ReceiveStrategy(MqConnection connection, IBMMQMessageConverter me
         CancellationToken cancellationToken = default
     )
     {
-        receivedMessage.ClearMessage();
-        receivedMessage.MessageId = MQC.MQMI_NONE;
-        receivedMessage.CorrelationId = MQC.MQCI_NONE;
+        // New MQMessage per receive. ClearMessage() does not reset the property handle
+        // used by MQGMO_PROPERTIES_IN_HANDLE, causing stale properties from the previous
+        // message to leak through to the next receive. This corrupts raw (non-NServiceBus)
+        // messages with headers from a previously received NServiceBus message.
+        var receivedMessage = new MQMessage();
 
         try
         {
