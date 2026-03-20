@@ -3,7 +3,9 @@
 namespace NServiceBus.Transport.IBMMQ.Tests;
 
 using System;
+using System.Collections.Generic;
 using IBM.WMQ;
+using NServiceBus.Transport;
 using NUnit.Framework;
 
 [TestFixture]
@@ -95,11 +97,9 @@ public class MqMessageClearBehaviorTests
     public void Get_replaces_properties_and_identifiers_on_reused_message()
     {
         // Requires a broker: this test proves the receive (Get) behavior when reusing
-        // an MQMessage across multiple receives. It documents that:
+        // an MQMessage across multiple receives WITHOUT PROPERTIES_IN_HANDLE.
         // 1. ClearMessage does NOT reset MessageId/CorrelationId — explicit reset is required
         // 2. Get() DOES replace named properties — stale properties from previous message don't leak
-        // Without explicit identifier reset, the default MatchOptions
-        // (MQMO_MATCH_MSG_ID | MQMO_MATCH_CORREL_ID) would match the previous message's identifiers.
         using var qm = TestBrokerConnection.Connect();
         using var outputQueue = qm.AccessQueue(QueueName, MQC.MQOO_OUTPUT);
         var pmo = new MQPutMessageOptions();
@@ -132,28 +132,130 @@ public class MqMessageClearBehaviorTests
         Assert.That(TryGetStringProperty(reused, "PropA"), Is.EqualTo("a"),
             "Message A should have PropA=a");
 
-        // ClearMessage resets body but NOT identifiers
         reused.ClearMessage();
-
-        Assert.That(reused.MessageId, Is.Not.EqualTo(MQC.MQMI_NONE),
-            "ClearMessage should NOT reset MessageId — explicit reset to MQMI_NONE is required");
-
-        // Explicit reset required before next Get
-        reused.MessageId = MQC.MQMI_NONE;
-        reused.CorrelationId = MQC.MQCI_NONE;
-
-        // Get message B
         reused.MessageId = messageIdB;
+        reused.CorrelationId = MQC.MQCI_NONE;
         inputQueue.Get(reused, gmo);
 
-        // Get() replaces identifiers with message B's values
-        Assert.That(reused.MessageId, Is.EqualTo(messageIdB),
-            "Get should replace MessageId with message B's identifier");
-
-        // Get() replaces named properties — PropA from message A should not leak through
         Assert.That(TryGetStringProperty(reused, "PropB"), Is.EqualTo("b"),
             "Message B should have PropB=b");
         Assert.That(TryGetStringProperty(reused, "PropA"), Is.Null,
-            "Get() should replace all properties — PropA from message A should not be present");
+            "Get() without PROPERTIES_IN_HANDLE replaces properties — PropA should not leak");
+    }
+
+    [Test]
+    [Order(3)]
+    public void Get_with_PROPERTIES_IN_HANDLE_leaks_stale_properties_on_reused_message()
+    {
+        // Demonstrates that MQGMO_PROPERTIES_IN_HANDLE causes stale properties to leak
+        // when reusing an MQMessage across receives. ClearMessage() does not reset the
+        // property handle, so properties from message A appear on message B.
+        // This is why the receive strategy must allocate a new MQMessage per receive.
+        using var qm = TestBrokerConnection.Connect();
+        using var outputQueue = qm.AccessQueue(QueueName, MQC.MQOO_OUTPUT);
+        var pmo = new MQPutMessageOptions();
+
+        // Send message A with PropA
+        var msgA = new MQMessage();
+        msgA.SetStringProperty("PropA", CreatePropertyDescriptor(), "a");
+        msgA.WriteString("messageA");
+        outputQueue.Put(msgA, pmo);
+
+        // Send message B with NO properties, just a body
+        var msgB = new MQMessage();
+        msgB.WriteString("messageB");
+        outputQueue.Put(msgB, pmo);
+
+        // Receive both using a reused MQMessage with PROPERTIES_IN_HANDLE
+        using var inputQueue = qm.AccessQueue(QueueName, MQC.MQOO_INPUT_SHARED);
+        var gmo = new MQGetMessageOptions
+        {
+            Options = MQC.MQGMO_NO_WAIT | MQC.MQGMO_PROPERTIES_IN_HANDLE,
+            MatchOptions = MQC.MQMO_NONE
+        };
+
+        var reused = new MQMessage();
+        inputQueue.Get(reused, gmo);
+
+        Assert.That(TryGetStringProperty(reused, "PropA"), Is.EqualTo("a"),
+            "Message A should have PropA=a");
+
+        // ClearMessage + reset identifiers (same as ReceiveStrategy did)
+        reused.ClearMessage();
+        reused.MessageId = MQC.MQMI_NONE;
+        reused.CorrelationId = MQC.MQCI_NONE;
+
+        inputQueue.Get(reused, gmo);
+
+        var body = reused.ReadString(reused.MessageLength);
+        Assert.That(body, Is.EqualTo("messageB"), "Should have received message B");
+
+        // With PROPERTIES_IN_HANDLE, PropA from message A leaks through to message B
+        var leakedPropA = TryGetStringProperty(reused, "PropA");
+        Assert.That(leakedPropA, Is.EqualTo("a"),
+            "PROPERTIES_IN_HANDLE causes stale properties to leak — PropA from message A " +
+            "is visible on message B. This is why MQMessage must not be reused across receives.");
+    }
+
+    [Test]
+    [Order(4)]
+    public void Receiving_raw_message_after_NServiceBus_message_must_not_leak_headers()
+    {
+        // Simulates the envelope handler scenario: a NServiceBus message with headers
+        // is received first, then a raw message (e.g. EBCDIC from a mainframe) with no
+        // headers. The raw message must have zero headers after FromNative conversion.
+        // With the old reused MQMessage approach, PROPERTIES_IN_HANDLE caused stale
+        // NServiceBus headers to leak onto the raw message.
+        var converter = new IBMMQMessageConverter(new MqPropertyNameEncoder());
+
+        using var qm = TestBrokerConnection.Connect();
+        using var outputQueue = qm.AccessQueue(QueueName, MQC.MQOO_OUTPUT);
+
+        // Send a NServiceBus message (with headers) via the converter
+        var nsbHeaders = new Dictionary<string, string>
+        {
+            { Headers.MessageId, Guid.NewGuid().ToString() },
+            { Headers.EnclosedMessageTypes, "MyNamespace.MyEvent, MyAssembly" },
+            { Headers.ContentType, "application/json" },
+        };
+        var nsbBody = System.Text.Encoding.UTF8.GetBytes("{\"Key\":\"Value\"}");
+        var nsbOp = new UnicastTransportOperation(
+            new OutgoingMessage(nsbHeaders[Headers.MessageId], nsbHeaders, nsbBody),
+            QueueName, []);
+        var nsbMqMsg = converter.ToNative(nsbOp);
+        outputQueue.Put(nsbMqMsg, new MQPutMessageOptions());
+
+        // Send a raw message (no properties, no headers — like a mainframe EBCDIC message)
+        var rawMsg = new MQMessage();
+        rawMsg.Write(new byte[70]); // 70-byte EBCDIC-like payload
+        outputQueue.Put(rawMsg, new MQPutMessageOptions());
+
+        // Receive both using a NEW MQMessage per receive (the fix)
+        using var inputQueue = qm.AccessQueue(QueueName, MQC.MQOO_INPUT_SHARED);
+        var gmo = new MQGetMessageOptions
+        {
+            Options = MQC.MQGMO_NO_WAIT | MQC.MQGMO_PROPERTIES_IN_HANDLE,
+            MatchOptions = MQC.MQMO_NONE
+        };
+
+        // Receive message 1 (NServiceBus message)
+        var recv1 = new MQMessage();
+        inputQueue.Get(recv1, gmo);
+        var headers1 = new Dictionary<string, string>();
+        string id1 = string.Empty;
+        converter.FromNative(recv1, headers1, ref id1);
+        Assert.That(headers1, Is.Not.Empty, "NServiceBus message should have headers");
+
+        // Receive message 2 (raw message) — new MQMessage prevents property handle leak
+        var recv2 = new MQMessage();
+        inputQueue.Get(recv2, gmo);
+        var headers2 = new Dictionary<string, string>();
+        string id2 = string.Empty;
+        converter.FromNative(recv2, headers2, ref id2);
+
+        Assert.That(headers2, Is.Empty,
+            "Raw message received after NServiceBus message must have zero headers. " +
+            "If headers leaked, the MQMessage was reused and PROPERTIES_IN_HANDLE " +
+            "carried stale properties from the previous receive.");
     }
 }
