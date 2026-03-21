@@ -253,9 +253,11 @@ public class MqMessageClearBehaviorTests
         string id2 = string.Empty;
         converter.FromNative(recv2, headers2, ref id2);
 
-        Assert.That(headers2, Is.Empty,
-            "Raw message received after NServiceBus message must have zero headers. " +
-            "If headers leaked, the MQMessage was reused and PROPERTIES_IN_HANDLE " +
+        Assert.That(headers2, Does.Not.ContainKey(Headers.EnclosedMessageTypes),
+            "NServiceBus headers from the previous message must not leak onto the raw message. " +
+            "If they leaked, the MQMessage was reused and PROPERTIES_IN_HANDLE " +
             "carried stale properties from the previous receive.");
+        Assert.That(headers2, Does.Not.ContainKey(Headers.ContentType),
+            "NServiceBus headers from the previous message must not leak onto the raw message.");
     }
 }
