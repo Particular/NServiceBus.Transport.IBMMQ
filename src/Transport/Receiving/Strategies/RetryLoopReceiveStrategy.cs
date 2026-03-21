@@ -1,5 +1,6 @@
 namespace NServiceBus.Transport.IBMMQ;
 
+using System.Diagnostics;
 using Logging;
 
 abstract class RetryLoopReceiveStrategy(
@@ -23,6 +24,7 @@ abstract class RetryLoopReceiveStrategy(
         while (true)
         {
             var contextBag = new Extensibility.ContextBag();
+            using var attemptActivity = ActivitySources.Main.StartActivity(ActivitySources.Attempt, ActivityKind.Internal);
 
             try
             {
@@ -44,6 +46,8 @@ abstract class RetryLoopReceiveStrategy(
             catch (Exception ex)
             {
                 failureCount++;
+                attemptActivity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+                attemptActivity?.SetTag(ActivitySources.TagFailureCount, failureCount);
 
                 var result = await InvokeOnError(
                     msg,
@@ -56,6 +60,7 @@ abstract class RetryLoopReceiveStrategy(
 
                 if (result is ErrorHandleResult.Handled)
                 {
+                    RecordError(ex, failureCount);
                     OnErrorHandled();
                     return;
                 }

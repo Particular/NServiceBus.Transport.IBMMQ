@@ -1,5 +1,6 @@
 namespace NServiceBus.Transport.IBMMQ;
 
+using System.Diagnostics;
 using IBM.WMQ;
 using Logging;
 
@@ -17,13 +18,27 @@ sealed class MqConnection(
 
     public void PutToQueue(string destination, MQMessage message, MQPutMessageOptions options)
     {
+        using var activity = ActivitySources.Main.StartActivity(ActivitySources.PutToQueue, ActivityKind.Producer);
+        if (activity is { IsAllDataRequested: true })
+        {
+            activity.DisplayName = $"send {destination}";
+            activity.SetTag(ActivitySources.TagMessagingSystem, ActivitySources.TagMessagingSystemValue);
+            activity.SetTag(ActivitySources.TagDestinationName, destination);
+            activity.SetTag(ActivitySources.TagOperationType, ActivitySources.OperationSend);
+        }
+
         var queue = queueCache.GetOrAdd(destination, OpenSendQueue);
         try
         {
             queue.Put(message, options);
+            if (activity is { IsAllDataRequested: true } && message.MessageId is { Length: > 0 })
+            {
+                activity.SetTag(ActivitySources.TagMessageId, Convert.ToHexString(message.MessageId));
+            }
         }
-        catch (MQException)
+        catch (MQException ex)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             queueCache.Evict(destination);
             throw;
         }
@@ -31,13 +46,28 @@ sealed class MqConnection(
 
     public void PutToTopic(string topicName, string topicString, MQMessage message, MQPutMessageOptions options)
     {
+        using var activity = ActivitySources.Main.StartActivity(ActivitySources.PutToTopic, ActivityKind.Producer);
+        if (activity is { IsAllDataRequested: true })
+        {
+            activity.DisplayName = $"publish {topicName}";
+            activity.SetTag(ActivitySources.TagMessagingSystem, ActivitySources.TagMessagingSystemValue);
+            activity.SetTag(ActivitySources.TagDestinationName, topicName);
+            activity.SetTag(ActivitySources.TagTopicString, topicString);
+            activity.SetTag(ActivitySources.TagOperationType, ActivitySources.OperationPublish);
+        }
+
         var topic = topicCache.GetOrAdd(topicName, _ => EnsureTopic(topicName, topicString));
         try
         {
             topic.Put(message, options);
+            if (activity is { IsAllDataRequested: true } && message.MessageId is { Length: > 0 })
+            {
+                activity.SetTag(ActivitySources.TagMessageId, Convert.ToHexString(message.MessageId));
+            }
         }
-        catch (MQException)
+        catch (MQException ex)
         {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
             topicCache.Evict(topicName);
             throw;
         }
@@ -76,8 +106,17 @@ sealed class MqConnection(
     public MQQueue OpenInputQueue(string name) =>
         queueManager.AccessQueue(name, MQC.MQOO_INPUT_AS_Q_DEF);
 
-    public void Commit() => queueManager.Commit();
-    public void Backout() => queueManager.Backout();
+    public void Commit()
+    {
+        queueManager.Commit();
+        Activity.Current?.AddEvent(new ActivityEvent(ActivitySources.CommitEvent));
+    }
+
+    public void Backout()
+    {
+        queueManager.Backout();
+        Activity.Current?.AddEvent(new ActivityEvent(ActivitySources.BackoutEvent));
+    }
 
     public void Disconnect()
     {

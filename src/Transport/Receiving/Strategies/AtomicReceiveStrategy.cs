@@ -62,6 +62,7 @@ sealed class AtomicReceiveStrategy(
 
                 if (errorResult == ErrorHandleResult.Handled)
                 {
+                    RecordError(failureRecord.Exception, failureRecord.NumberOfProcessingAttempts);
                     Connection.Commit();
                     failureInfoStorage.ClearFailure(msg.Id);
                     return;
@@ -87,6 +88,7 @@ sealed class AtomicReceiveStrategy(
         }
         catch (Exception ex)
         {
+            RecordError(ex, (failureRecord?.NumberOfProcessingAttempts ?? 0) + 1);
             failureInfoStorage.RecordFailure(msg.Id, ex, contextBag);
             Connection.Backout();
         }

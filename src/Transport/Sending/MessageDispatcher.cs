@@ -1,5 +1,6 @@
 namespace NServiceBus.Transport.IBMMQ;
 
+using System.Diagnostics;
 using IBM.WMQ;
 
 sealed class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology, IBMMQMessageConverter messageConverter)
@@ -8,42 +9,59 @@ sealed class MessageDispatcher(MqConnectionPool sendPool, TopicTopology topology
     public Task Dispatch(TransportOperations outgoingMessages, TransportTransaction transaction,
         CancellationToken cancellationToken = default)
     {
-        if (transaction.TryGet<MqConnection>(out var receiveConn))
+        using var activity = ActivitySources.Main.StartActivity(ActivitySources.Dispatch, ActivityKind.Internal);
+        if (activity is { IsAllDataRequested: true })
         {
-            // Sends atomic with receive: dispatch uses the receive connection's SYNCPOINT.
-            // Connection-level errors are not handled here — the message pump's reconnect
-            // loop owns the lifecycle of this connection and will restart on failure.
-            SendAll(receiveConn, outgoingMessages, atomic: true);
+            activity.DisplayName = "dispatch";
+            activity.SetTag(ActivitySources.TagMessagingSystem, ActivitySources.TagMessagingSystemValue);
+            activity.SetTag(ActivitySources.TagBatchMessageCount,
+                outgoingMessages.UnicastTransportOperations.Count + outgoingMessages.MulticastTransportOperations.Count);
         }
-        else
+
+        try
         {
-            var conn = sendPool.Rent(cancellationToken);
-            try
+            if (transaction.TryGet<MqConnection>(out var receiveConn))
             {
-                SendAll(conn, outgoingMessages, atomic: false);
-                sendPool.Return(conn);
-                conn = null;
+                // Sends atomic with receive: dispatch uses the receive connection's SYNCPOINT.
+                // Connection-level errors are not handled here — the message pump's reconnect
+                // loop owns the lifecycle of this connection and will restart on failure.
+                SendAll(receiveConn, outgoingMessages, atomic: true);
             }
-            catch (MQException ex) when (IsConnectionLevelError(ex))
+            else
             {
-                // MQException with a connection-level reason code means the connection
-                // is dirty/broken — discard it rather than returning it to the pool.
-                if (conn != null)
+                var conn = sendPool.Rent(cancellationToken);
+                try
                 {
-                    sendPool.Discard(conn);
-                }
-
-                throw;
-            }
-            catch
-            {
-                if (conn != null)
-                {
+                    SendAll(conn, outgoingMessages, atomic: false);
                     sendPool.Return(conn);
+                    conn = null;
                 }
+                catch (MQException ex) when (IsConnectionLevelError(ex))
+                {
+                    // MQException with a connection-level reason code means the connection
+                    // is dirty/broken — discard it rather than returning it to the pool.
+                    if (conn != null)
+                    {
+                        sendPool.Discard(conn);
+                    }
 
-                throw;
+                    throw;
+                }
+                catch
+                {
+                    if (conn != null)
+                    {
+                        sendPool.Return(conn);
+                    }
+
+                    throw;
+                }
             }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+        {
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            throw;
         }
 
         return Task.CompletedTask;
