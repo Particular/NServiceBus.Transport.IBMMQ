@@ -1,5 +1,6 @@
 namespace NServiceBus.Transport.IBMMQ;
 
+using System.Diagnostics;
 using IBM.WMQ;
 using Logging;
 
@@ -61,6 +62,22 @@ abstract class ReceiveStrategy(MqConnection connection, IBMMQMessageConverter me
         Dictionary<string, string> messageHeaders = [];
         var messageBody = messageConverter.FromNative(receivedMessage, messageHeaders, ref messageId);
 
+        // Start transport-level activity after a message is dequeued. NServiceBus core
+        // parents its ReceiveMessage activity to this transport activity when it finds
+        // it in the MessageContext extensions (set in ProcessMessage below).
+        using var activity = ActivitySources.Main.StartActivity(ActivitySources.Receive, ActivityKind.Consumer);
+        if (activity != null)
+        {
+            activity.DisplayName = $"receive {context.QueueName}";
+            if (activity.IsAllDataRequested)
+            {
+                activity.SetTag(ActivitySources.TagMessagingSystem, ActivitySources.TagMessagingSystemValue);
+                activity.SetTag(ActivitySources.TagDestinationName, context.QueueName);
+                activity.SetTag(ActivitySources.TagOperationType, ActivitySources.OperationReceive);
+                activity.SetTag(ActivitySources.TagMessageId, messageId);
+            }
+        }
+
         if (log.IsDebugEnabled)
         {
             log.DebugFormat("Worker {0} received message {1}", context.WorkerIndex, messageId);
@@ -80,8 +97,17 @@ abstract class ReceiveStrategy(MqConnection connection, IBMMQMessageConverter me
 
     protected ValueTask ProcessMessage(
         ReceivedMessage msg, TransportTransaction tx,
-        Extensibility.ContextBag ctx, CancellationToken cancellationToken = default) =>
-        new(context.OnMessage(CreateMessageContext(msg, tx, ctx), cancellationToken));
+        Extensibility.ContextBag ctx, CancellationToken cancellationToken = default)
+    {
+        // Set the current transport activity so NServiceBus core can parent its
+        // receive pipeline activity to this transport activity.
+        if (Activity.Current is { } transportActivity)
+        {
+            ctx.Set(transportActivity);
+        }
+
+        return new(context.OnMessage(CreateMessageContext(msg, tx, ctx), cancellationToken));
+    }
 
     protected ValueTask<ErrorHandleResult> ProcessError(
         ReceivedMessage msg, TransportTransaction tx, Exception ex,
@@ -108,6 +134,21 @@ abstract class ReceiveStrategy(MqConnection connection, IBMMQMessageConverter me
                 onErrorEx, cancellationToken);
             return ErrorHandleResult.RetryRequired;
         }
+    }
+
+    /// <summary>
+    /// Records error status and failure count on the current transport activity.
+    /// Called from receive strategies when message processing fails.
+    /// </summary>
+    protected static void RecordError(Exception ex, int failureCount)
+    {
+        if (Activity.Current is not { } activity)
+        {
+            return;
+        }
+
+        activity.SetStatus(ActivityStatusCode.Error, ex.Message);
+        activity.SetTag(ActivitySources.TagFailureCount, failureCount);
     }
 
     MessageContext CreateMessageContext(
