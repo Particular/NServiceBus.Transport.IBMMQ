@@ -6,22 +6,6 @@ static class IBMMQTransportValidator
     {
         ValidateConnection(transport);
         ValidateSslConfiguration(transport);
-        ValidateMessageProcessing(transport);
-
-        if (transport.Topology == null)
-        {
-            throw new ArgumentException("Topology must be assigned", nameof(transport.Topology));
-        }
-
-        if (transport.TopicNaming == null)
-        {
-            throw new ArgumentException("TopicNaming must be assigned", nameof(transport.TopicNaming));
-        }
-
-        if (transport.ResourceNameSanitizer == null)
-        {
-            throw new ArgumentException("ResourceNameSanitizer must be assigned", nameof(transport.ResourceNameSanitizer));
-        }
     }
 
     static void ValidateConnection(IBMMQTransport transport)
@@ -42,13 +26,6 @@ static class IBMMQTransportValidator
                 throw new ArgumentException(
                     "Host is required when ConnectionNameList is not specified",
                     nameof(transport.Host));
-            }
-
-            if (transport.Port is <= 0 or > 65535)
-            {
-                throw new ArgumentException(
-                    "Port must be between 1 and 65535",
-                    nameof(transport.Port));
             }
         }
 
@@ -75,30 +52,6 @@ static class IBMMQTransportValidator
             throw new ArgumentException(
                 "SslKeyRepository is required when CipherSpec is specified",
                 nameof(transport.SslKeyRepository));
-        }
-
-        if (transport.KeyResetCount < 0)
-        {
-            throw new ArgumentException(
-                "KeyResetCount must be 0 or greater",
-                nameof(transport.KeyResetCount));
-        }
-    }
-
-    static void ValidateMessageProcessing(IBMMQTransport transport)
-    {
-        if (transport.MessageWaitInterval.TotalMilliseconds is < 100 or > 30000)
-        {
-            throw new ArgumentException(
-                "MessageWaitInterval must be between 100 and 30000 milliseconds",
-                nameof(transport.MessageWaitInterval));
-        }
-
-        if (transport.CharacterSet <= 0)
-        {
-            throw new ArgumentException(
-                "CharacterSet must be a positive CCSID value",
-                nameof(transport.CharacterSet));
         }
     }
 

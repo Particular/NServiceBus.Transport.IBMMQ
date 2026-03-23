@@ -77,19 +77,18 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
         [TestCase(0)]
         [TestCase(-1)]
         [TestCase(65536)]
-        public void Validation_fails_for_invalid_port(int port)
+        public void Port_rejects_invalid_value(int port)
         {
-            Assert.That(() => IBMMQTransportValidator.Validate(new IBMMQTransport { Port = port }),
-                Throws.TypeOf<ArgumentException>()
-                    .With.Message.Contains("Port must be between 1 and 65535"));
+            Assert.That(() => new IBMMQTransport { Port = port },
+                Throws.TypeOf<ArgumentOutOfRangeException>());
         }
 
         [TestCase(1)]
         [TestCase(1414)]
         [TestCase(65535)]
-        public void Validation_passes_for_valid_port(int port)
+        public void Port_accepts_valid_value(int port)
         {
-            Assert.DoesNotThrow(() => IBMMQTransportValidator.Validate(new IBMMQTransport { Port = port }));
+            Assert.DoesNotThrow(() => new IBMMQTransport { Port = port });
         }
 
         [Test]
@@ -169,8 +168,7 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
         {
             var transport = new IBMMQTransport
             {
-                Host = null,
-                Port = 0
+                Host = null
             };
             transport.Connections.Add("mqhost1(1414)");
 
@@ -206,18 +204,17 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
         }
 
         [Test]
-        public void Validation_fails_when_key_reset_count_is_negative()
+        public void KeyResetCount_rejects_negative_value()
         {
-            Assert.That(() => IBMMQTransportValidator.Validate(new IBMMQTransport { KeyResetCount = -1 }),
-                Throws.TypeOf<ArgumentException>()
-                    .With.Message.Contains("KeyResetCount must be 0 or greater"));
+            Assert.That(() => new IBMMQTransport { KeyResetCount = -1 },
+                Throws.TypeOf<ArgumentOutOfRangeException>());
         }
 
         [TestCase(0)]
         [TestCase(40000)]
-        public void Validation_passes_for_valid_key_reset_count(int count)
+        public void KeyResetCount_accepts_valid_value(int count)
         {
-            Assert.DoesNotThrow(() => IBMMQTransportValidator.Validate(new IBMMQTransport { KeyResetCount = count }));
+            Assert.DoesNotThrow(() => new IBMMQTransport { KeyResetCount = count });
         }
 
         // Message processing validation
@@ -226,36 +223,34 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
         [TestCase(0)]
         [TestCase(-1)]
         [TestCase(30001)]
-        public void Validation_fails_for_invalid_message_wait_interval(int interval)
+        public void MessageWaitInterval_rejects_invalid_value(int interval)
         {
-            Assert.That(() => IBMMQTransportValidator.Validate(new IBMMQTransport { MessageWaitInterval = TimeSpan.FromMilliseconds(interval) }),
-                Throws.TypeOf<ArgumentException>()
-                    .With.Message.Contains("MessageWaitInterval must be between 100 and 30000"));
+            Assert.That(() => new IBMMQTransport { MessageWaitInterval = TimeSpan.FromMilliseconds(interval) },
+                Throws.TypeOf<ArgumentOutOfRangeException>());
         }
 
         [TestCase(100)]
         [TestCase(5000)]
         [TestCase(30000)]
-        public void Validation_passes_for_valid_message_wait_interval(int interval)
+        public void MessageWaitInterval_accepts_valid_value(int interval)
         {
-            Assert.DoesNotThrow(() => IBMMQTransportValidator.Validate(new IBMMQTransport { MessageWaitInterval = TimeSpan.FromMilliseconds(interval) }));
+            Assert.DoesNotThrow(() => new IBMMQTransport { MessageWaitInterval = TimeSpan.FromMilliseconds(interval) });
         }
 
         [TestCase(0)]
         [TestCase(-1)]
-        public void Validation_fails_for_invalid_character_set(int ccsid)
+        public void CharacterSet_rejects_invalid_value(int ccsid)
         {
-            Assert.That(() => IBMMQTransportValidator.Validate(new IBMMQTransport { CharacterSet = ccsid }),
-                Throws.TypeOf<ArgumentException>()
-                    .With.Message.Contains("CharacterSet must be a positive CCSID value"));
+            Assert.That(() => new IBMMQTransport { CharacterSet = ccsid },
+                Throws.TypeOf<ArgumentOutOfRangeException>());
         }
 
         [TestCase(1208)]
         [TestCase(819)]
         [TestCase(1252)]
-        public void Validation_passes_for_valid_character_set(int ccsid)
+        public void CharacterSet_accepts_valid_value(int ccsid)
         {
-            Assert.DoesNotThrow(() => IBMMQTransportValidator.Validate(new IBMMQTransport { CharacterSet = ccsid }));
+            Assert.DoesNotThrow(() => new IBMMQTransport { CharacterSet = ccsid });
         }
     }
 }

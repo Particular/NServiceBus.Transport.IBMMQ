@@ -31,7 +31,16 @@ public sealed class IBMMQTransport : TransportDefinition
     /// Only used when Connections is not specified.
     /// Default: 1414
     /// </summary>
-    public int Port { get; set; } = 1414;
+    public int Port
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, 65535);
+            field = value;
+        }
+    } = 1414;
 
     /// <summary>
     /// Connection channel name.
@@ -100,7 +109,15 @@ public sealed class IBMMQTransport : TransportDefinition
     /// Typical value: 40000 (40KB)
     /// Default: 0 (disabled)
     /// </summary>
-    public int KeyResetCount { get; set; } = 0;
+    public int KeyResetCount
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            field = value;
+        }
+    }
 
     //  Message Processing Settings
 
@@ -111,7 +128,16 @@ public sealed class IBMMQTransport : TransportDefinition
     /// Default: 5000ms (5 seconds)
     /// Valid range: 100-30000ms
     /// </summary>
-    public TimeSpan MessageWaitInterval { get; set; } = TimeSpan.FromMilliseconds(5000);
+    public TimeSpan MessageWaitInterval
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, TimeSpan.FromMilliseconds(100));
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, TimeSpan.FromMilliseconds(30000));
+            field = value;
+        }
+    } = TimeSpan.FromMilliseconds(5000);
 
     /// <summary>
     /// Coded Character Set Identifier (CCSID) for the message body.
@@ -124,26 +150,58 @@ public sealed class IBMMQTransport : TransportDefinition
     /// - 1252: Windows Latin-1
     /// Default: CODESET_UTF / 1208 (UTF-8)
     /// </summary>
-    public int CharacterSet { get; set; } = MQC.CODESET_UTF;
+    public int CharacterSet
+    {
+        get;
+        set
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
+            field = value;
+        }
+    } = MQC.CODESET_UTF;
 
     /// <summary>
     /// Controls how events are mapped to IBM MQ topics for pub/sub.
     /// Default: <see cref="TopicTopology.TopicPerEvent"/> (flat topology, one topic per concrete event type).
     /// </summary>
-    public TopicTopology Topology { get; set; } = TopicTopology.TopicPerEvent();
+    public TopicTopology Topology
+    {
+        get;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            field = value;
+        }
+    } = TopicTopology.TopicPerEvent();
 
     /// <summary>
     /// Controls how event types are mapped to IBM MQ topic names and topic strings.
     /// Subclass <see cref="IBMMQ.TopicNaming"/> to customize naming conventions for your environment.
     /// Default: <see cref="IBMMQ.TopicNaming"/> with prefix "DEV".
     /// </summary>
-    public TopicNaming TopicNaming { get; set; } = new();
+    public TopicNaming TopicNaming
+    {
+        get;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            field = value;
+        }
+    } = new();
 
     /// <summary>
     /// Sanitizer for queue resource names.
     /// Override to customize sanitization (e.g., replacing invalid characters, truncating long names).
     /// </summary>
-    public SanitizeResourceName ResourceNameSanitizer { get; set; } = s => s;
+    public SanitizeResourceName ResourceNameSanitizer
+    {
+        get;
+        set
+        {
+            ArgumentNullException.ThrowIfNull(value);
+            field = value;
+        }
+    } = s => s;
 
     /// <summary>
     /// The time to wait before triggering the circuit breaker when the endpoint
