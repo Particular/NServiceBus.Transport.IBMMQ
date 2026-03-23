@@ -115,8 +115,8 @@ public sealed class IBMMQTransport : TransportDefinition
 
     /// <summary>
     /// Coded Character Set Identifier (CCSID) for the message body.
-    /// This value is stored in the MQRFH2 header's CodedCharSetId field and
-    /// describes the encoding of the payload that follows the header.
+    /// This value is set on the MQMessage's CharacterSet property (MQMD CodedCharSetId field)
+    /// and describes the encoding of the payload.
     /// Common values:
     /// - 1208: UTF-8 (recommended, default) — correct for JSON and XML serializers
     /// - 819: ISO 8859-1 (Latin-1)
