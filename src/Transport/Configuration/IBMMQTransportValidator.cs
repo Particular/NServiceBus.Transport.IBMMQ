@@ -57,7 +57,7 @@ static class IBMMQTransportValidator
 
     static bool IsValidConnectionNameList(List<string> connectionNameList)
     {
-        if (!connectionNameList.Any())
+        if (connectionNameList.Count == 0)
         {
             return false;
         }

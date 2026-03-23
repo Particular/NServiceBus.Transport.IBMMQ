@@ -374,7 +374,7 @@ public sealed class IBMMQTransport : TransportDefinition
             Connections = Connections.Count > 0 ? string.Join(",", Connections) : null,
             QueueManagerName,
             connectionConfiguration.ApplicationName,
-            Topology = Topology?.GetType().ToString(),
+            Topology = Topology.GetType().ToString(),
             MessageWaitInterval = MessageWaitInterval.ToString(),
             CharacterSet,
             SslEnabled = !string.IsNullOrWhiteSpace(CipherSpec),

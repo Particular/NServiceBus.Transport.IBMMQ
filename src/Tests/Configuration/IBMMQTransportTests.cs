@@ -237,6 +237,41 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
             Assert.DoesNotThrow(() => new IBMMQTransport { MessageWaitInterval = TimeSpan.FromMilliseconds(interval) });
         }
 
+        [Test]
+        public void Topology_rejects_null()
+        {
+            Assert.That(() => new IBMMQTransport { Topology = null! },
+                Throws.TypeOf<ArgumentNullException>());
+        }
+
+        [Test]
+        public void TopicNaming_rejects_null()
+        {
+            Assert.That(() => new IBMMQTransport { TopicNaming = null! },
+                Throws.TypeOf<ArgumentNullException>());
+        }
+
+        [Test]
+        public void ResourceNameSanitizer_rejects_null()
+        {
+            Assert.That(() => new IBMMQTransport { ResourceNameSanitizer = null! },
+                Throws.TypeOf<ArgumentNullException>());
+        }
+
+        [Test]
+        public void TimeToWaitBeforeTriggeringCircuitBreaker_rejects_zero()
+        {
+            Assert.That(() => new IBMMQTransport { TimeToWaitBeforeTriggeringCircuitBreaker = TimeSpan.Zero },
+                Throws.TypeOf<ArgumentOutOfRangeException>());
+        }
+
+        [Test]
+        public void TimeToWaitBeforeTriggeringCircuitBreaker_rejects_negative()
+        {
+            Assert.That(() => new IBMMQTransport { TimeToWaitBeforeTriggeringCircuitBreaker = TimeSpan.FromSeconds(-1) },
+                Throws.TypeOf<ArgumentOutOfRangeException>());
+        }
+
         [TestCase(0)]
         [TestCase(-1)]
         public void CharacterSet_rejects_invalid_value(int ccsid)
