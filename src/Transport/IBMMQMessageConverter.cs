@@ -68,6 +68,11 @@ class IBMMQMessageConverter(MqPropertyNameEncoder propertyNameEncoder)
             }
         }
 
+        // Lift native MQ message properties to headers when no header value already exists.
+        // This enables interoperability with non-NServiceBus senders that set native MQ
+        // fields directly instead of encoding them as named string properties.
+        LiftNativeProperties(receivedMessage, messageHeaders);
+
         // Get message ID from NServiceBus headers, or fall back to native MQ message ID
         messageId = messageHeaders.TryGetValue(Headers.MessageId, out var msgId) && !string.IsNullOrEmpty(msgId)
             ? msgId
@@ -75,6 +80,40 @@ class IBMMQMessageConverter(MqPropertyNameEncoder propertyNameEncoder)
 
         return messageBody;
     }
+
+    static void LiftNativeProperties(MQMessage message, Dictionary<string, string> headers)
+    {
+        if (!headers.ContainsKey(Headers.MessageId) && !IsEmpty(message.MessageId))
+        {
+            headers[Headers.MessageId] = Convert.ToHexString(message.MessageId);
+        }
+
+        if (!headers.ContainsKey(Headers.CorrelationId) && !IsEmpty(message.CorrelationId))
+        {
+            headers[Headers.CorrelationId] = Convert.ToHexString(message.CorrelationId);
+        }
+
+        if (!headers.ContainsKey(Headers.ReplyToAddress))
+        {
+            var replyTo = message.ReplyToQueueName?.Trim();
+            if (!string.IsNullOrEmpty(replyTo))
+            {
+                headers[Headers.ReplyToAddress] = replyTo;
+            }
+        }
+
+        if (!headers.ContainsKey(Headers.NonDurableMessage) && message.Persistence == MQC.MQPER_NOT_PERSISTENT)
+        {
+            headers[Headers.NonDurableMessage] = true.ToString();
+        }
+
+        if (!headers.ContainsKey(Headers.TimeToBeReceived) && message.Expiry != MQC.MQEI_UNLIMITED)
+        {
+            headers[Headers.TimeToBeReceived] = TimeSpan.FromSeconds(message.Expiry / 10.0).ToString();
+        }
+    }
+
+    static bool IsEmpty(byte[]? bytes) => bytes is null || Array.TrueForAll(bytes, static b => b == 0);
 
     /// Always creates a new MQMessage — do not attempt to reuse MQMessage instances
     /// because ClearMessage does not fully reset all properties (see MqMessageClearBehaviorTests).
@@ -131,28 +170,52 @@ class IBMMQMessageConverter(MqPropertyNameEncoder propertyNameEncoder)
 
     static void SetCorrelationId(OutgoingMessage outgoingMessage, MQMessage message)
     {
-        if (outgoingMessage.Headers.TryGetValue(Headers.CorrelationId, out var correlationId))
+        if (outgoingMessage.Headers.TryGetValue(Headers.CorrelationId, out var correlationId)
+            && TryConvertToMqId(correlationId, out var correlBytes))
         {
-            if (Guid.TryParse(correlationId, out var correlationGuid))
-            {
-                var correlBytes = new byte[24];
-                Array.Copy(correlationGuid.ToByteArray(), correlBytes, 16);
-                message.CorrelationId = correlBytes;
-            }
+            message.CorrelationId = correlBytes;
         }
     }
 
     static void SetMessageId(OutgoingMessage outgoingMessage, MQMessage message)
     {
-        if (outgoingMessage.Headers.TryGetValue(Headers.MessageId, out var messageId))
+        if (outgoingMessage.Headers.TryGetValue(Headers.MessageId, out var messageId)
+            && TryConvertToMqId(messageId, out var idBytes))
         {
-            if (Guid.TryParse(messageId, out var messageGuid))
+            message.MessageId = idBytes;
+        }
+    }
+
+    static bool TryConvertToMqId(string? value, out byte[] mqId)
+    {
+        mqId = new byte[24];
+
+        if (string.IsNullOrEmpty(value))
+        {
+            return false;
+        }
+
+        if (Guid.TryParse(value, out var guid))
+        {
+            Array.Copy(guid.ToByteArray(), mqId, 16);
+            return true;
+        }
+
+        try
+        {
+            var bytes = Convert.FromHexString(value);
+            if (bytes.Length <= 24)
             {
-                var messageIdByes = new byte[24];
-                Array.Copy(messageGuid.ToByteArray(), messageIdByes, 16);
-                message.MessageId = messageIdByes;
+                Array.Copy(bytes, mqId, bytes.Length);
+                return true;
             }
         }
+        catch (FormatException)
+        {
+            // Not a valid hex string
+        }
+
+        return false;
     }
 
     static void SetReplyToQueueName(OutgoingMessage outgoingMessage, MQMessage message)

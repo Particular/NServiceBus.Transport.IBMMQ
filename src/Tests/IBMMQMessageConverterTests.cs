@@ -117,6 +117,76 @@ public class IBMMQMessageConverterTests
         }
 
         [Test]
+        public void Sets_MessageId_from_hex_string()
+        {
+            var nativeId = new byte[24];
+            Array.Copy(Guid.NewGuid().ToByteArray(), nativeId, 16);
+            var hexId = Convert.ToHexString(nativeId);
+            var headers = new Dictionary<string, string>
+            {
+                { Headers.MessageId, hexId }
+            };
+            var operation = CreateOperation(headers: headers);
+
+            var mqMessage = converter.ToNative(operation);
+
+            Assert.That(mqMessage.MessageId, Is.EqualTo(nativeId));
+        }
+
+        [Test]
+        public void Sets_CorrelationId_from_hex_string()
+        {
+            var nativeCorrel = new byte[24];
+            Array.Copy(Guid.NewGuid().ToByteArray(), nativeCorrel, 16);
+            var hexCorrel = Convert.ToHexString(nativeCorrel);
+            var headers = new Dictionary<string, string>
+            {
+                { Headers.CorrelationId, hexCorrel }
+            };
+            var operation = CreateOperation(headers: headers);
+
+            var mqMessage = converter.ToNative(operation);
+
+            Assert.That(mqMessage.CorrelationId, Is.EqualTo(nativeCorrel));
+        }
+
+        [Test]
+        public void Non_guid_non_hex_MessageId_does_not_set_native_field()
+        {
+            var headers = new Dictionary<string, string>
+            {
+                { Headers.MessageId, "not-a-guid-or-hex" }
+            };
+            var operation = CreateOperation(headers: headers);
+
+            var mqMessage = converter.ToNative(operation);
+
+            Assert.That(mqMessage.MessageId, Is.EqualTo(new byte[24]));
+        }
+
+        [Test]
+        public void Native_MessageId_round_trips_through_hex()
+        {
+            // Simulate receiving a native message, then forwarding it
+            var originalId = new byte[24];
+            new Random(42).NextBytes(originalId);
+
+            var incoming = new MQMessage { MessageId = originalId };
+            incoming.Write(System.Text.Encoding.UTF8.GetBytes("test"));
+            incoming.Seek(0);
+
+            var receivedHeaders = new Dictionary<string, string>();
+            string messageId = string.Empty;
+            converter.FromNative(incoming, receivedHeaders, ref messageId);
+
+            // Forward: use the lifted header to set the native field
+            var operation = CreateOperation(headers: receivedHeaders);
+            var outgoing = converter.ToNative(operation);
+
+            Assert.That(outgoing.MessageId, Is.EqualTo(originalId));
+        }
+
+        [Test]
         public void Sets_ReplyToQueueName_from_header()
         {
             var headers = new Dictionary<string, string>
@@ -269,6 +339,243 @@ public class IBMMQMessageConverterTests
             var mqMessage = converter.ToNative(operation);
 
             Assert.Throws<MQException>(() => mqMessage.GetStringProperty("nsbempty"));
+        }
+    }
+
+    [TestFixture]
+    public class NativePropertyLifting
+    {
+        [Test]
+        public void Lifts_CorrelationId_when_no_header_exists()
+        {
+            var correlationGuid = Guid.NewGuid();
+            var headers = new Dictionary<string, string>
+            {
+                { Headers.MessageId, Guid.NewGuid().ToString() }
+            };
+            var operation = CreateOperation(headers: headers);
+            var mqMessage = converter.ToNative(operation);
+
+            var correlBytes = new byte[24];
+            Array.Copy(correlationGuid.ToByteArray(), correlBytes, 16);
+            mqMessage.CorrelationId = correlBytes;
+
+            mqMessage.Seek(0);
+            var receivedHeaders = new Dictionary<string, string>();
+            string messageId = string.Empty;
+            converter.FromNative(mqMessage, receivedHeaders, ref messageId);
+
+            Assert.That(receivedHeaders, Does.ContainKey(Headers.CorrelationId));
+            Assert.That(receivedHeaders[Headers.CorrelationId], Is.EqualTo(Convert.ToHexString(correlBytes)));
+        }
+
+        [Test]
+        public void Does_not_overwrite_existing_CorrelationId_header()
+        {
+            var headerCorrelationId = Guid.NewGuid().ToString();
+            var headers = new Dictionary<string, string>
+            {
+                { Headers.MessageId, Guid.NewGuid().ToString() },
+                { Headers.CorrelationId, headerCorrelationId }
+            };
+            var operation = CreateOperation(headers: headers);
+            var mqMessage = converter.ToNative(operation);
+
+            var differentCorrel = new byte[24];
+            Array.Copy(Guid.NewGuid().ToByteArray(), differentCorrel, 16);
+            mqMessage.CorrelationId = differentCorrel;
+
+            mqMessage.Seek(0);
+            var receivedHeaders = new Dictionary<string, string>();
+            string messageId = string.Empty;
+            converter.FromNative(mqMessage, receivedHeaders, ref messageId);
+
+            Assert.That(receivedHeaders[Headers.CorrelationId], Is.EqualTo(headerCorrelationId));
+        }
+
+        [Test]
+        public void Does_not_lift_CorrelationId_when_all_zeros()
+        {
+            var headers = new Dictionary<string, string>
+            {
+                { Headers.MessageId, Guid.NewGuid().ToString() }
+            };
+            var operation = CreateOperation(headers: headers);
+            var mqMessage = converter.ToNative(operation);
+
+            mqMessage.CorrelationId = new byte[24];
+
+            mqMessage.Seek(0);
+            var receivedHeaders = new Dictionary<string, string>();
+            string messageId = string.Empty;
+            converter.FromNative(mqMessage, receivedHeaders, ref messageId);
+
+            Assert.That(receivedHeaders, Does.Not.ContainKey(Headers.CorrelationId));
+        }
+
+        [Test]
+        public void Lifts_ReplyToQueueName_when_no_header_exists()
+        {
+            var headers = new Dictionary<string, string>
+            {
+                { Headers.MessageId, Guid.NewGuid().ToString() }
+            };
+            var operation = CreateOperation(headers: headers);
+            var mqMessage = converter.ToNative(operation);
+
+            mqMessage.ReplyToQueueName = "REPLY.QUEUE";
+
+            mqMessage.Seek(0);
+            var receivedHeaders = new Dictionary<string, string>();
+            string messageId = string.Empty;
+            converter.FromNative(mqMessage, receivedHeaders, ref messageId);
+
+            Assert.That(receivedHeaders, Does.ContainKey(Headers.ReplyToAddress));
+            Assert.That(receivedHeaders[Headers.ReplyToAddress], Is.EqualTo("REPLY.QUEUE"));
+        }
+
+        [Test]
+        public void Does_not_overwrite_existing_ReplyToAddress_header()
+        {
+            var headers = new Dictionary<string, string>
+            {
+                { Headers.MessageId, Guid.NewGuid().ToString() },
+                { Headers.ReplyToAddress, "original.reply.queue" }
+            };
+            var operation = CreateOperation(headers: headers);
+            var mqMessage = converter.ToNative(operation);
+
+            // Set a different native ReplyToQueueName
+            mqMessage.ReplyToQueueName = "DIFFERENT.QUEUE";
+
+            mqMessage.Seek(0);
+            var receivedHeaders = new Dictionary<string, string>();
+            string messageId = string.Empty;
+            converter.FromNative(mqMessage, receivedHeaders, ref messageId);
+
+            Assert.That(receivedHeaders[Headers.ReplyToAddress], Is.EqualTo("original.reply.queue"));
+        }
+
+        [Test]
+        public void Lifts_NonDurableMessage_when_persistence_is_non_persistent()
+        {
+            var headers = new Dictionary<string, string>
+            {
+                { Headers.MessageId, Guid.NewGuid().ToString() }
+            };
+            var operation = CreateOperation(headers: headers);
+            var mqMessage = converter.ToNative(operation);
+
+            mqMessage.Persistence = MQC.MQPER_NOT_PERSISTENT;
+
+            mqMessage.Seek(0);
+            var receivedHeaders = new Dictionary<string, string>();
+            string messageId = string.Empty;
+            converter.FromNative(mqMessage, receivedHeaders, ref messageId);
+
+            Assert.That(receivedHeaders, Does.ContainKey(Headers.NonDurableMessage));
+        }
+
+        [Test]
+        public void Does_not_lift_NonDurableMessage_when_persistent()
+        {
+            var headers = new Dictionary<string, string>
+            {
+                { Headers.MessageId, Guid.NewGuid().ToString() }
+            };
+            var operation = CreateOperation(headers: headers);
+            var mqMessage = converter.ToNative(operation);
+
+            mqMessage.Persistence = MQC.MQPER_PERSISTENT;
+
+            mqMessage.Seek(0);
+            var receivedHeaders = new Dictionary<string, string>();
+            string messageId = string.Empty;
+            converter.FromNative(mqMessage, receivedHeaders, ref messageId);
+
+            Assert.That(receivedHeaders, Does.Not.ContainKey(Headers.NonDurableMessage));
+        }
+
+        [Test]
+        public void Lifts_TimeToBeReceived_from_expiry()
+        {
+            var headers = new Dictionary<string, string>
+            {
+                { Headers.MessageId, Guid.NewGuid().ToString() }
+            };
+            var operation = CreateOperation(headers: headers);
+            var mqMessage = converter.ToNative(operation);
+
+            mqMessage.Expiry = 300; // 30 seconds in tenths
+
+            mqMessage.Seek(0);
+            var receivedHeaders = new Dictionary<string, string>();
+            string messageId = string.Empty;
+            converter.FromNative(mqMessage, receivedHeaders, ref messageId);
+
+            Assert.That(receivedHeaders, Does.ContainKey(Headers.TimeToBeReceived));
+            Assert.That(receivedHeaders[Headers.TimeToBeReceived], Is.EqualTo(TimeSpan.FromSeconds(30).ToString()));
+        }
+
+        [Test]
+        public void Does_not_lift_TimeToBeReceived_when_unlimited()
+        {
+            var headers = new Dictionary<string, string>
+            {
+                { Headers.MessageId, Guid.NewGuid().ToString() }
+            };
+            var operation = CreateOperation(headers: headers);
+            var mqMessage = converter.ToNative(operation);
+
+            mqMessage.Expiry = MQC.MQEI_UNLIMITED;
+
+            mqMessage.Seek(0);
+            var receivedHeaders = new Dictionary<string, string>();
+            string messageId = string.Empty;
+            converter.FromNative(mqMessage, receivedHeaders, ref messageId);
+
+            Assert.That(receivedHeaders, Does.Not.ContainKey(Headers.TimeToBeReceived));
+        }
+
+        [Test]
+        public void Does_not_overwrite_existing_TimeToBeReceived_header()
+        {
+            var headers = new Dictionary<string, string>
+            {
+                { Headers.MessageId, Guid.NewGuid().ToString() },
+                { Headers.TimeToBeReceived, TimeSpan.FromMinutes(5).ToString() }
+            };
+            var operation = CreateOperation(headers: headers);
+            var mqMessage = converter.ToNative(operation);
+
+            mqMessage.Expiry = 300; // different value
+
+            mqMessage.Seek(0);
+            var receivedHeaders = new Dictionary<string, string>();
+            string messageId = string.Empty;
+            converter.FromNative(mqMessage, receivedHeaders, ref messageId);
+
+            Assert.That(receivedHeaders[Headers.TimeToBeReceived], Is.EqualTo(TimeSpan.FromMinutes(5).ToString()));
+        }
+
+        [Test]
+        public void Lifts_MessageId_from_native_when_no_header_exists()
+        {
+            // Create a raw MQMessage (no NServiceBus headers)
+            var mqMessage = new MQMessage();
+            var nativeId = new byte[24];
+            Array.Copy(Guid.NewGuid().ToByteArray(), nativeId, 16);
+            mqMessage.MessageId = nativeId;
+            mqMessage.Write(System.Text.Encoding.UTF8.GetBytes("test"));
+
+            mqMessage.Seek(0);
+            var receivedHeaders = new Dictionary<string, string>();
+            string messageId = string.Empty;
+            converter.FromNative(mqMessage, receivedHeaders, ref messageId);
+
+            Assert.That(receivedHeaders, Does.ContainKey(Headers.MessageId));
+            Assert.That(receivedHeaders[Headers.MessageId], Is.EqualTo(Convert.ToHexString(nativeId)));
+            Assert.That(messageId, Is.EqualTo(Convert.ToHexString(nativeId)));
         }
     }
 }
