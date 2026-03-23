@@ -114,17 +114,11 @@ public sealed class IBMMQTransport : TransportDefinition
     public TimeSpan MessageWaitInterval { get; set; } = TimeSpan.FromMilliseconds(5000);
 
     /// <summary>
-    /// Maximum message size in bytes that can be received.
-    /// Should match or be less than the queue manager's MAXMSGL setting.
-    /// Default: 4194304 bytes (4MB)
-    /// Valid range: 1024-104857600 (1KB-100MB)
-    /// </summary>
-    public int MaxMessageLength { get; set; } = 4 * 1024 * 1024; // 4MB
-
-    /// <summary>
-    /// Coded Character Set Identifier (CCSID) for message text encoding.
+    /// Coded Character Set Identifier (CCSID) for the message body.
+    /// This value is stored in the MQRFH2 header's CodedCharSetId field and
+    /// describes the encoding of the payload that follows the header.
     /// Common values:
-    /// - 1208: UTF-8 (recommended, default)
+    /// - 1208: UTF-8 (recommended, default) — correct for JSON and XML serializers
     /// - 819: ISO 8859-1 (Latin-1)
     /// - 437: US English
     /// - 1252: Windows Latin-1
@@ -324,7 +318,6 @@ public sealed class IBMMQTransport : TransportDefinition
             connectionConfiguration.ApplicationName,
             Topology = Topology?.GetType().ToString(),
             MessageWaitInterval = MessageWaitInterval.ToString(),
-            MaxMessageLength,
             CharacterSet,
             SslEnabled = !string.IsNullOrWhiteSpace(CipherSpec),
             Receivers = receivers.Select(r => SanitizeQueueName(IBMMQMessageReceiver.ToTransportAddress(r.ReceiveAddress))).ToArray()

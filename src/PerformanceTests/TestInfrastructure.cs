@@ -11,7 +11,7 @@ using Transport.IBMMQ;
 
 static partial class TestInfrastructure
 {
-    static readonly IBMMQMessageConverter Converter = new(new MqPropertyNameEncoder());
+    static readonly IBMMQMessageConverter Converter = new(new MqPropertyNameEncoder(), MQC.CODESET_UTF);
     static readonly Hashtable ConnectionProperties = BuildConnectionProperties();
 
     internal static partial string GetTestSuiteName() =>

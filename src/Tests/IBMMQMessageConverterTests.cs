@@ -11,7 +11,7 @@ using NUnit.Framework;
 [TestFixture]
 public class IBMMQMessageConverterTests
 {
-    static readonly IBMMQMessageConverter converter = new(new MqPropertyNameEncoder());
+    static readonly IBMMQMessageConverter converter = new(new MqPropertyNameEncoder(), MQC.CODESET_UTF);
     static UnicastTransportOperation CreateOperation(
         Dictionary<string, string> headers = null,
         byte[] body = null,
@@ -246,11 +246,12 @@ public class IBMMQMessageConverterTests
         }
 
         [Test]
-        public void CharacterSet_is_UTF8()
+        public void CharacterSet_uses_configured_value()
         {
+            var customConverter = new IBMMQMessageConverter(new MqPropertyNameEncoder(), 819);
             var operation = CreateOperation();
-            var mqMessage = converter.ToNative(operation);
-            Assert.That(mqMessage.CharacterSet, Is.EqualTo(MQC.CODESET_UTF));
+            var mqMessage = customConverter.ToNative(operation);
+            Assert.That(mqMessage.CharacterSet, Is.EqualTo(819));
         }
     }
 

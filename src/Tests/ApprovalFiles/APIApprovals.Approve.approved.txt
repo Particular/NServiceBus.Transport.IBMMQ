@@ -13,7 +13,6 @@ namespace NServiceBus.Transport.IBMMQ
         public System.Collections.Generic.List<string> Connections { get; }
         public string? Host { get; set; }
         public int KeyResetCount { get; set; }
-        public int MaxMessageLength { get; set; }
         public System.TimeSpan MessageWaitInterval { get; set; }
         public string? Password { get; set; }
         public int Port { get; set; }

@@ -29,7 +29,6 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
                 Assert.That(transport.SslPeerName, Is.Null);
                 Assert.That(transport.KeyResetCount, Is.EqualTo(0));
                 Assert.That(transport.MessageWaitInterval, Is.EqualTo(TimeSpan.FromMilliseconds(ExpectedMessageWaitInterval)));
-                Assert.That(transport.MaxMessageLength, Is.EqualTo(4 * 1024 * 1024));
                 Assert.That(transport.CharacterSet, Is.EqualTo(1208));
                 Assert.That(transport.ResourceNameSanitizer, Is.Not.Null);
             }
@@ -240,25 +239,6 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
         public void Validation_passes_for_valid_message_wait_interval(int interval)
         {
             Assert.DoesNotThrow(() => IBMMQTransportValidator.Validate(new IBMMQTransport { MessageWaitInterval = TimeSpan.FromMilliseconds(interval) }));
-        }
-
-        [TestCase(1023)]
-        [TestCase(0)]
-        [TestCase(-1)]
-        [TestCase(104857601)]
-        public void Validation_fails_for_invalid_max_message_length(int length)
-        {
-            Assert.That(() => IBMMQTransportValidator.Validate(new IBMMQTransport { MaxMessageLength = length }),
-                Throws.TypeOf<ArgumentException>()
-                    .With.Message.Contains("MaxMessageLength must be between 1024"));
-        }
-
-        [TestCase(1024)]
-        [TestCase(4 * 1024 * 1024)]
-        [TestCase(104857600)]
-        public void Validation_passes_for_valid_max_message_length(int length)
-        {
-            Assert.DoesNotThrow(() => IBMMQTransportValidator.Validate(new IBMMQTransport { MaxMessageLength = length }));
         }
 
         [TestCase(0)]

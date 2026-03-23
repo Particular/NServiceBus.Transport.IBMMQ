@@ -69,6 +69,7 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         var connectionProperties = connectionConfiguration.ConnectionProperties;
         var messageWaitInterval = connectionConfiguration.MessageWaitInterval;
         SanitizeResourceName resourceNameFormatter = transport.ResourceNameSanitizer;
+        var characterSet = transport.CharacterSet;
         var topology = transport.Topology;
         topology.Naming = transport.TopicNaming;
 
@@ -102,7 +103,7 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         services
             .AddSingleton(topology)
             .AddSingleton<MqPropertyNameEncoder>()
-            .AddSingleton<IBMMQMessageConverter>()
+            .AddSingleton(sp => new IBMMQMessageConverter(sp.GetRequiredService<MqPropertyNameEncoder>(), characterSet))
             .AddSingleton(new MqConnectionPool(LogManager.GetLogger<MqConnectionPool>(), createDataPathConnection, Environment.ProcessorCount))
             .AddSingleton<IMessageDispatcher>(sp =>
                 new MessageDispatcher(

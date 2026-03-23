@@ -206,7 +206,7 @@ public class MqMessageClearBehaviorTests
         // headers. The raw message must have zero headers after FromNative conversion.
         // With the old reused MQMessage approach, PROPERTIES_IN_HANDLE caused stale
         // NServiceBus headers to leak onto the raw message.
-        var converter = new IBMMQMessageConverter(new MqPropertyNameEncoder());
+        var converter = new IBMMQMessageConverter(new MqPropertyNameEncoder(), MQC.CODESET_UTF);
 
         using var qm = TestBrokerConnection.Connect();
         using var outputQueue = qm.AccessQueue(QueueName, MQC.MQOO_OUTPUT);

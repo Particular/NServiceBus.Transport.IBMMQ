@@ -94,13 +94,6 @@ static class IBMMQTransportValidator
                 nameof(transport.MessageWaitInterval));
         }
 
-        if (transport.MaxMessageLength is < 1024 or > 104857600)
-        {
-            throw new ArgumentException(
-                "MaxMessageLength must be between 1024 (1KB) and 104857600 (100MB) bytes",
-                nameof(transport.MaxMessageLength));
-        }
-
         if (transport.CharacterSet <= 0)
         {
             throw new ArgumentException(
