@@ -46,18 +46,24 @@ static class EndpointCommand
             var name = cmd.Argument("name", "Name of the endpoint").IsRequired();
             var eventType = cmd.Argument("event-type", "Fully qualified .NET type name of the event").IsRequired();
             var topicPrefix = cmd.Option("--topic-prefix", "Topic name prefix (default: DEV)", CommandOptionType.SingleValue);
+            var assemblyPath = cmd.Option("--assembly", "Path to assembly containing the event type (enables polymorphic subscriptions)", CommandOptionType.SingleValue);
 
             cmd.OnExecute(() =>
             {
                 using var connection = connectionOptions.Connect();
 
                 var prefix = topicPrefix.Value() ?? "DEV";
-                var topicName = TopicNaming.GenerateTopicName(eventType.Value!, prefix);
-                var topicString = TopicNaming.GenerateTopicString(eventType.Value!, prefix);
-                var subscriptionName = TopicNaming.GenerateSubscriptionName(name.Value!, topicString);
+                var typeNames = ResolveEventTypeNames(eventType.Value!, assemblyPath.Value());
 
-                Topic.Create(connection, topicName, topicString);
-                Subscription.Create(connection, topicString, subscriptionName, name.Value!);
+                foreach (var typeName in typeNames)
+                {
+                    var topicName = TopicNaming.GenerateTopicName(typeName, prefix);
+                    var topicString = TopicNaming.GenerateTopicString(typeName, prefix);
+                    var subscriptionName = TopicNaming.GenerateSubscriptionName(name.Value!, topicString);
+
+                    Topic.Create(connection, topicName, topicString);
+                    Subscription.Create(connection, topicString, subscriptionName, name.Value!);
+                }
             });
         });
     }
@@ -72,17 +78,33 @@ static class EndpointCommand
             var name = cmd.Argument("name", "Name of the endpoint").IsRequired();
             var eventType = cmd.Argument("event-type", "Fully qualified .NET type name of the event").IsRequired();
             var topicPrefix = cmd.Option("--topic-prefix", "Topic name prefix (default: DEV)", CommandOptionType.SingleValue);
+            var assemblyPath = cmd.Option("--assembly", "Path to assembly containing the event type (enables polymorphic unsubscriptions)", CommandOptionType.SingleValue);
 
             cmd.OnExecute(() =>
             {
                 using var connection = connectionOptions.Connect();
 
                 var prefix = topicPrefix.Value() ?? "DEV";
-                var topicString = TopicNaming.GenerateTopicString(eventType.Value!, prefix);
-                var subscriptionName = TopicNaming.GenerateSubscriptionName(name.Value!, topicString);
+                var typeNames = ResolveEventTypeNames(eventType.Value!, assemblyPath.Value());
 
-                Subscription.Delete(connection, subscriptionName);
+                foreach (var typeName in typeNames)
+                {
+                    var topicString = TopicNaming.GenerateTopicString(typeName, prefix);
+                    var subscriptionName = TopicNaming.GenerateSubscriptionName(name.Value!, topicString);
+
+                    Subscription.Delete(connection, subscriptionName);
+                }
             });
         });
+    }
+
+    static IReadOnlyList<string> ResolveEventTypeNames(string eventTypeName, string? assemblyPath)
+    {
+        if (assemblyPath is null)
+        {
+            return [eventTypeName];
+        }
+
+        return EventTypeResolver.Resolve(eventTypeName, assemblyPath);
     }
 }
