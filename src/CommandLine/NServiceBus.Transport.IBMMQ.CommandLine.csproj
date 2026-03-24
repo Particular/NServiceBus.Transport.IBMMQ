@@ -23,6 +23,7 @@
   <ItemGroup>
     <PackageReference Include="IBMMQDotnetClient" />
     <PackageReference Include="McMaster.Extensions.CommandLineUtils" />
+    <PackageReference Include="Particular.Packaging" PrivateAssets="All" />
   </ItemGroup>
 
 </Project>
