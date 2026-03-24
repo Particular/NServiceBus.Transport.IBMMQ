@@ -5,13 +5,7 @@ namespace NServiceBus.Transport.IBMMQ
 {
     public sealed class IBMMQTransport : NServiceBus.Transport.TransportDefinition
     {
-        public IBMMQTransport(System.Action<NServiceBus.Transport.IBMMQ.IBMMQTransportOptions> configure) { }
-        public override System.Collections.Generic.IReadOnlyCollection<NServiceBus.TransportTransactionMode> GetSupportedTransactionModes() { }
-        public override System.Threading.Tasks.Task<NServiceBus.Transport.TransportInfrastructure> Initialize(NServiceBus.Transport.HostSettings hostSettings, NServiceBus.Transport.ReceiveSettings[] receivers, string[] sendingAddresses, System.Threading.CancellationToken cancellationToken = default) { }
-    }
-    public class IBMMQTransportOptions
-    {
-        public IBMMQTransportOptions() { }
+        public IBMMQTransport() { }
         public string? ApplicationName { get; set; }
         public string? Channel { get; set; }
         public int CharacterSet { get; set; }
@@ -19,7 +13,6 @@ namespace NServiceBus.Transport.IBMMQ
         public System.Collections.Generic.List<string> Connections { get; }
         public string? Host { get; set; }
         public int KeyResetCount { get; set; }
-        public int MaxMessageLength { get; set; }
         public System.TimeSpan MessageWaitInterval { get; set; }
         public string? Password { get; set; }
         public int Port { get; set; }
@@ -31,6 +24,8 @@ namespace NServiceBus.Transport.IBMMQ
         public NServiceBus.Transport.IBMMQ.TopicNaming TopicNaming { get; set; }
         public NServiceBus.Transport.IBMMQ.TopicTopology Topology { get; set; }
         public string? User { get; set; }
+        public override System.Collections.Generic.IReadOnlyCollection<NServiceBus.TransportTransactionMode> GetSupportedTransactionModes() { }
+        public override System.Threading.Tasks.Task<NServiceBus.Transport.TransportInfrastructure> Initialize(NServiceBus.Transport.HostSettings hostSettings, NServiceBus.Transport.ReceiveSettings[] receivers, string[] sendingAddresses, System.Threading.CancellationToken cancellationToken = default) { }
     }
     public delegate string SanitizeResourceName(string queueName);
     public class TopicNaming

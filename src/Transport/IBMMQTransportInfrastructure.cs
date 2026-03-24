@@ -14,7 +14,7 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
 
     public IBMMQTransportInfrastructure(
         ILog log,
-        IBMMQTransportOptions options,
+        IBMMQTransport transport,
         ConnectionConfiguration connectionConfiguration,
         ReceiveSettings[] receiverSettings,
         TransportTransactionMode transactionMode,
@@ -26,15 +26,7 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         ArgumentNullException.ThrowIfNull(receiverSettings);
 
         var services = new ServiceCollection();
-        ConfigureServices(
-            services,
-            options,
-            connectionConfiguration,
-            receiverSettings,
-            transactionMode,
-            criticalError
-        );
-
+        ConfigureServices(services, transport, connectionConfiguration, receiverSettings, transactionMode, criticalError);
         serviceProvider = services.BuildServiceProvider();
 
         Dispatcher = serviceProvider.GetRequiredService<IMessageDispatcher>();
@@ -66,7 +58,7 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
 
     static void ConfigureServices(
         IServiceCollection services,
-        IBMMQTransportOptions options,
+        IBMMQTransport transport,
         ConnectionConfiguration connectionConfiguration,
         ReceiveSettings[] receiverSettings,
         TransportTransactionMode transactionMode,
@@ -76,9 +68,10 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         var queueManagerName = connectionConfiguration.QueueManagerName;
         var connectionProperties = connectionConfiguration.ConnectionProperties;
         var messageWaitInterval = connectionConfiguration.MessageWaitInterval;
-        SanitizeResourceName resourceNameFormatter = options.ResourceNameSanitizer;
-        var topology = options.Topology;
-        topology.Naming = options.TopicNaming;
+        SanitizeResourceName resourceNameFormatter = transport.ResourceNameSanitizer;
+        var characterSet = transport.CharacterSet;
+        var topology = transport.Topology;
+        topology.Naming = transport.TopicNaming;
 
         CreateMqAdminConnection createAdmin = () =>
             new MqAdminConnection(new MQQueueManager(queueManagerName, connectionProperties), resourceNameFormatter);
@@ -105,12 +98,12 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
             createTopic,
             DefaultDestinationCacheCapacity);
 
-        var circuitBreakerTimeout = options.TimeToWaitBeforeTriggeringCircuitBreaker;
+        var circuitBreakerTimeout = transport.TimeToWaitBeforeTriggeringCircuitBreaker;
 
         services
             .AddSingleton(topology)
             .AddSingleton<MqPropertyNameEncoder>()
-            .AddSingleton<IBMMQMessageConverter>()
+            .AddSingleton(sp => new IBMMQMessageConverter(sp.GetRequiredService<MqPropertyNameEncoder>(), characterSet))
             .AddSingleton(new MqConnectionPool(LogManager.GetLogger<MqConnectionPool>(), createDataPathConnection, Environment.ProcessorCount))
             .AddSingleton<IMessageDispatcher>(sp =>
                 new MessageDispatcher(

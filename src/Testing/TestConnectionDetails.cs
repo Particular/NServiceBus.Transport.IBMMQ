@@ -19,30 +19,30 @@ static class TestConnectionDetails
 
     public static TopicNaming CreateTopicNaming() => new ShortenedTopicNaming(TopicPrefix);
 
-    public static void Apply(IBMMQTransportOptions options)
+    public static void Apply(IBMMQTransport transport)
     {
-        options.Host = Host;
-        options.Port = Port;
-        options.User = User;
-        options.Password = Password;
-        options.QueueManagerName = QueueManagerName;
-        options.Channel = Channel;
+        transport.Host = Host;
+        transport.Port = Port;
+        transport.User = User;
+        transport.Password = Password;
+        transport.QueueManagerName = QueueManagerName;
+        transport.Channel = Channel;
 
         if (Query["appname"] is { } appName)
         {
-            options.ApplicationName = appName;
+            transport.ApplicationName = appName;
         }
         if (Query["sslkeyrepo"] is { } sslKeyRepo)
         {
-            options.SslKeyRepository = sslKeyRepo;
+            transport.SslKeyRepository = sslKeyRepo;
         }
         if (Query["cipherspec"] is { } cipherSpec)
         {
-            options.CipherSpec = cipherSpec;
+            transport.CipherSpec = cipherSpec;
         }
         if (Query["sslpeername"] is { } sslPeerName)
         {
-            options.SslPeerName = sslPeerName;
+            transport.SslPeerName = sslPeerName;
         }
     }
 }

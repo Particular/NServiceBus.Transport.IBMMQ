@@ -2,7 +2,7 @@ namespace NServiceBus.Transport.IBMMQ;
 
 using IBM.WMQ;
 
-class IBMMQMessageConverter(MqPropertyNameEncoder propertyNameEncoder)
+class IBMMQMessageConverter(MqPropertyNameEncoder propertyNameEncoder, int characterSet)
 {
     // IBM MQ silently discards string properties set to "" — they cannot be enumerated via
     // GetPropertyNames nor retrieved via GetStringProperty.  Work around this by:
@@ -125,7 +125,7 @@ class IBMMQMessageConverter(MqPropertyNameEncoder propertyNameEncoder)
         {
             MessageType = MQC.MQMT_DATAGRAM,
             Persistence = isNonDurable ? MQC.MQPER_NOT_PERSISTENT : MQC.MQPER_PERSISTENT,
-            CharacterSet = MQC.CODESET_UTF // UTF-8
+            CharacterSet = characterSet
         };
 
         var outgoingMessage = outgoingTransportOperation.Message;

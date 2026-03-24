@@ -24,14 +24,13 @@ public class ConfigureEndpointIBMMQTransport : IConfigureEndpointTestExecution
     {
         this.endpointName = endpointName;
 
-        var transport = new IBMMQTransport(s =>
-            {
-                TestConnectionDetails.Apply(s);
-                s.MessageWaitInterval = TimeSpan.FromMilliseconds(100);
-                s.TopicNaming = TestConnectionDetails.CreateTopicNaming();
-                s.ResourceNameSanitizer = Sanitize;
-            }
-        );
+        var transport = new IBMMQTransport
+        {
+            MessageWaitInterval = TimeSpan.FromMilliseconds(100),
+            TopicNaming = TestConnectionDetails.CreateTopicNaming(),
+            ResourceNameSanitizer = Sanitize
+        };
+        TestConnectionDetails.Apply(transport);
 
         configuration.UseTransport(transport);
 
