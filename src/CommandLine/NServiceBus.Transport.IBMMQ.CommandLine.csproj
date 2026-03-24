@@ -24,6 +24,7 @@
     <PackageReference Include="IBMMQDotnetClient" />
     <PackageReference Include="McMaster.Extensions.CommandLineUtils" />
     <PackageReference Include="Particular.Packaging" PrivateAssets="All" />
+    <PackageReference Include="System.Reflection.MetadataLoadContext" />
   </ItemGroup>
 
 </Project>

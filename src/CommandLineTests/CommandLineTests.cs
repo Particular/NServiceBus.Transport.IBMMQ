@@ -134,6 +134,22 @@ public class CommandLineTests
         Assert.That(output, Does.Contain("--topic-prefix"));
     }
 
+    [Test]
+    public async Task Endpoint_subscribe_help_shows_assembly_option()
+    {
+        var (output, _, _) = await Execute("endpoint subscribe --help").ConfigureAwait(false);
+
+        Assert.That(output, Does.Contain("--assembly"));
+    }
+
+    [Test]
+    public async Task Endpoint_unsubscribe_help_shows_assembly_option()
+    {
+        var (output, _, _) = await Execute("endpoint unsubscribe --help").ConfigureAwait(false);
+
+        Assert.That(output, Does.Contain("--assembly"));
+    }
+
 #pragma warning disable PS0018
     static async Task<(string output, string error, int exitCode)> Execute(string command)
 #pragma warning restore PS0018
