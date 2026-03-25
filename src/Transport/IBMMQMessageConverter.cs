@@ -44,13 +44,16 @@ class IBMMQMessageConverter(MqPropertyNameEncoder propertyNameEncoder, int chara
             }
 
             var emptySet = new HashSet<string>(
-                string.IsNullOrEmpty(emptyRaw) ? Array.Empty<string>() : emptyRaw.Split(','));
+                string.IsNullOrEmpty(emptyRaw) ? Array.Empty<string>() : emptyRaw.Split(',')
+                );
 
             foreach (var escapedName in manifest.Split(','))
             {
-                messageHeaders.Add(
-                    propertyNameEncoder.Decode(escapedName),
-                    emptySet.Contains(escapedName) ? "" : receivedMessage.GetStringProperty(escapedName));
+                var value = emptySet.Contains(escapedName)
+                    ? string.Empty
+                    : receivedMessage.GetStringProperty(escapedName);
+
+                messageHeaders.Add(propertyNameEncoder.Decode(escapedName), value);
             }
         }
         else
@@ -104,12 +107,12 @@ class IBMMQMessageConverter(MqPropertyNameEncoder propertyNameEncoder, int chara
 
         if (!headers.ContainsKey(Headers.NonDurableMessage) && message.Persistence == MQC.MQPER_NOT_PERSISTENT)
         {
-            headers[Headers.NonDurableMessage] = true.ToString();
+            headers[Headers.NonDurableMessage] = bool.TrueString;
         }
 
         if (!headers.ContainsKey(Headers.TimeToBeReceived) && message.Expiry != MQC.MQEI_UNLIMITED)
         {
-            headers[Headers.TimeToBeReceived] = TimeSpan.FromSeconds(message.Expiry / 10.0).ToString();
+            headers[Headers.TimeToBeReceived] = TimeSpan.FromSeconds(message.Expiry / 10d).ToString();
         }
     }
 
@@ -124,7 +127,9 @@ class IBMMQMessageConverter(MqPropertyNameEncoder propertyNameEncoder, int chara
         MQMessage message = new()
         {
             MessageType = MQC.MQMT_DATAGRAM,
-            Persistence = isNonDurable ? MQC.MQPER_NOT_PERSISTENT : MQC.MQPER_PERSISTENT,
+            Persistence = isNonDurable
+                ? MQC.MQPER_NOT_PERSISTENT
+                : MQC.MQPER_PERSISTENT,
             CharacterSet = characterSet
         };
 
@@ -156,11 +161,11 @@ class IBMMQMessageConverter(MqPropertyNameEncoder propertyNameEncoder, int chara
             }
         }
 
-        message.SetStringProperty(HeaderManifestProperty, pd, string.Join(",", allNames));
+        message.SetStringProperty(HeaderManifestProperty, pd, string.Join(',', allNames));
 
         if (emptyNames.Count > 0)
         {
-            message.SetStringProperty(EmptyHeadersProperty, pd, string.Join(",", emptyNames));
+            message.SetStringProperty(EmptyHeadersProperty, pd, string.Join(',', emptyNames));
         }
 
         message.Write(outgoingMessage.Body.ToArray());
