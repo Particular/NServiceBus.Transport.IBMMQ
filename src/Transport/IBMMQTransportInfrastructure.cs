@@ -18,6 +18,7 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         ConnectionConfiguration connectionConfiguration,
         ReceiveSettings[] receiverSettings,
         TransportTransactionMode transactionMode,
+        bool setupInfrastructure,
         Action<string, Exception, CancellationToken> criticalError
     )
     {
@@ -26,7 +27,15 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         ArgumentNullException.ThrowIfNull(receiverSettings);
 
         var services = new ServiceCollection();
-        ConfigureServices(services, transport, connectionConfiguration, receiverSettings, transactionMode, criticalError);
+        ConfigureServices(
+            services,
+            transport,
+            connectionConfiguration,
+            receiverSettings,
+            transactionMode,
+            setupInfrastructure,
+            criticalError
+            );
         serviceProvider = services.BuildServiceProvider();
 
         Dispatcher = serviceProvider.GetRequiredService<IMessageDispatcher>();
@@ -62,6 +71,7 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         ConnectionConfiguration connectionConfiguration,
         ReceiveSettings[] receiverSettings,
         TransportTransactionMode transactionMode,
+        bool setupInfrastructure,
         Action<string, Exception, CancellationToken> criticalError
     )
     {
@@ -71,7 +81,6 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         SanitizeResourceName resourceNameFormatter = transport.ResourceNameSanitizer;
         var characterSet = transport.CharacterSet;
         var topology = transport.Topology;
-        topology.Naming = transport.TopicNaming;
 
         CreateMqAdminConnection createAdmin = () =>
             new MqAdminConnection(new MQQueueManager(queueManagerName, connectionProperties), resourceNameFormatter);
@@ -152,7 +161,11 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
                     var topo = sp.GetRequiredService<TopicTopology>();
                     return new IBMMQSubscriptionManager(
                         LogManager.GetLogger<IBMMQSubscriptionManager>(),
-                        topo, createAdmin, rs.ReceiveAddress.BaseAddress);
+                        topo,
+                        createAdmin,
+                        rs.ReceiveAddress.BaseAddress,
+                        setupInfrastructure
+                        );
                 })
                 .AddKeyedSingleton(rs.Id, (_, _) =>
                     new RepeatedFailuresOverTimeCircuitBreaker(

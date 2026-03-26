@@ -6,6 +6,26 @@ using IBM.WMQ.PCF;
 sealed class MqAdminConnection(MQQueueManager queueManager, SanitizeResourceName resourceNameFormatter) : IDisposable
 {
     int _disposed;
+
+    public bool TopicExists(string topicString)
+    {
+        try
+        {
+            using var topic = queueManager.AccessTopic(
+                topicString,
+                null,
+                MQC.MQTOPIC_OPEN_AS_PUBLICATION,
+                MQC.MQOO_OUTPUT | MQC.MQOO_FAIL_IF_QUIESCING
+                );
+            topic.Close();
+            return true;
+        }
+        catch (MQException ex) when (ex.ReasonCode is MQC.MQRC_UNKNOWN_OBJECT_NAME or MQC.MQRC_TOPIC_STRING_ERROR)
+        {
+            return false;
+        }
+    }
+
     public void CreateTopic(string topicName, string topicString)
     {
         var agent = new PCFMessageAgent(queueManager);

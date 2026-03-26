@@ -22,7 +22,7 @@ namespace NServiceBus.Transport.IBMMQ
         public string? SslPeerName { get; set; }
         public System.TimeSpan TimeToWaitBeforeTriggeringCircuitBreaker { get; set; }
         public NServiceBus.Transport.IBMMQ.TopicNaming TopicNaming { get; set; }
-        public NServiceBus.Transport.IBMMQ.TopicTopology Topology { get; set; }
+        public NServiceBus.Transport.IBMMQ.TopicTopology Topology { get; }
         public string? User { get; set; }
         public override System.Collections.Generic.IReadOnlyCollection<NServiceBus.TransportTransactionMode> GetSupportedTransactionModes() { }
         public override System.Threading.Tasks.Task<NServiceBus.Transport.TransportInfrastructure> Initialize(NServiceBus.Transport.HostSettings hostSettings, NServiceBus.Transport.ReceiveSettings[] receivers, string[] sendingAddresses, System.Threading.CancellationToken cancellationToken = default) { }
@@ -31,13 +31,23 @@ namespace NServiceBus.Transport.IBMMQ
     public class TopicNaming
     {
         public TopicNaming(string topicPrefix = "DEV") { }
+        public virtual string DeriveTopicName(string topicString) { }
         public virtual string GenerateSubscriptionName(string endpointName, string topicString) { }
         public virtual string GenerateTopicName(System.Type eventType) { }
         public virtual string GenerateTopicString(System.Type eventType) { }
     }
-    public abstract class TopicTopology
+    public sealed class TopicTopology
     {
-        protected TopicTopology() { }
-        public static NServiceBus.Transport.IBMMQ.TopicTopology TopicPerEvent() { }
+        public TopicTopology() { }
+        public bool ThrowOnPolymorphicSubscription { get; set; }
+        public void PublishTo(System.Type eventType, string topicString) { }
+        public void PublishTo(System.Type eventType, string topicName, string topicString) { }
+        public void PublishTo<TEventType>(string topicString) { }
+        public void PublishTo<TEventType>(string topicName, string topicString) { }
+        public void SubscribeTo(System.Type eventType, System.Type topicType) { }
+        public void SubscribeTo(System.Type eventType, string topicString) { }
+        public void SubscribeTo<TEventType>(string topicString) { }
+        public void SubscribeTo<TEventType, TTopicType>()
+            where TTopicType : TEventType { }
     }
 }

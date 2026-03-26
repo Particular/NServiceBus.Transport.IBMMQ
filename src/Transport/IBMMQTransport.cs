@@ -162,17 +162,9 @@ public sealed class IBMMQTransport : TransportDefinition
 
     /// <summary>
     /// Controls how events are mapped to IBM MQ topics for pub/sub.
-    /// Default: <see cref="TopicTopology.TopicPerEvent"/> (flat topology, one topic per concrete event type).
+    /// One topic per concrete event type; no automatic fan-out to descendants.
     /// </summary>
-    public TopicTopology Topology
-    {
-        get;
-        set
-        {
-            ArgumentNullException.ThrowIfNull(value);
-            field = value;
-        }
-    } = TopicTopology.TopicPerEvent();
+    public TopicTopology Topology { get; } = new();
 
     /// <summary>
     /// Controls how event types are mapped to IBM MQ topic names and topic strings.
@@ -186,6 +178,7 @@ public sealed class IBMMQTransport : TransportDefinition
         {
             ArgumentNullException.ThrowIfNull(value);
             field = value;
+            Topology.Naming = value;
         }
     } = new();
 
@@ -225,6 +218,7 @@ public sealed class IBMMQTransport : TransportDefinition
     public IBMMQTransport()
         : base(TransportTransactionMode.ReceiveOnly, supportsDelayedDelivery: false, supportsPublishSubscribe: true, supportsTTBR: true)
     {
+        Topology.Naming = TopicNaming;
     }
 
     /// <inheritdoc />
@@ -248,6 +242,7 @@ public sealed class IBMMQTransport : TransportDefinition
         var connectionConfiguration = new ConnectionConfiguration(this);
 
         using var setupConnection = new MQQueueManager(QueueManagerName, connectionConfiguration.ConnectionProperties);
+        var admin = new MqAdminConnection(setupConnection, ResourceNameSanitizer);
 
         if (hostSettings.SetupInfrastructure)
         {
@@ -271,6 +266,16 @@ public sealed class IBMMQTransport : TransportDefinition
                 log.DebugFormat("Creating send queue {0}", queueName);
                 CreateQueue(setupConnection, queueName);
             }
+
+            foreach (var destination in Topology.GetExplicitTopicDestinations())
+            {
+                log.DebugFormat("Creating topic {0} ({1})", destination.TopicName, destination.TopicString);
+                admin.CreateTopic(destination.TopicName, destination.TopicString);
+            }
+        }
+        else
+        {
+            ValidateExplicitTopics(admin, Topology);
         }
 
         foreach (var receiver in receivers)
@@ -289,7 +294,15 @@ public sealed class IBMMQTransport : TransportDefinition
 
         setupConnection.Disconnect();
 
-        var infrastructure = new IBMMQTransportInfrastructure(log, this, connectionConfiguration, receivers, TransportTransactionMode, hostSettings.CriticalErrorAction);
+        var infrastructure = new IBMMQTransportInfrastructure(
+            log,
+            this,
+            connectionConfiguration,
+            receivers,
+            TransportTransactionMode,
+            hostSettings.SetupInfrastructure,
+            hostSettings.CriticalErrorAction
+            );
         return Task.FromResult<TransportInfrastructure>(infrastructure);
     }
 
@@ -326,6 +339,28 @@ public sealed class IBMMQTransport : TransportDefinition
         finally
         {
             agent.Disconnect();
+        }
+    }
+
+    static void ValidateExplicitTopics(MqAdminConnection admin, TopicTopology topology)
+    {
+        var missing = new List<string>();
+
+        foreach (var destination in topology.GetExplicitTopicDestinations())
+        {
+            if (!admin.TopicExists(destination.TopicString))
+            {
+                missing.Add($"{destination.TopicName} ({destination.TopicString})");
+            }
+        }
+
+        if (missing.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"""
+                The following explicitly configured topics do not exist on the queue manager: [{string.Join(", ", missing)}].
+                Either create them manually, enable infrastructure setup (installers), or verify the topic strings are correct.
+                """);
         }
     }
 
@@ -374,11 +409,16 @@ public sealed class IBMMQTransport : TransportDefinition
             Connections = Connections.Count > 0 ? string.Join(",", Connections) : null,
             QueueManagerName,
             connectionConfiguration.ApplicationName,
-            Topology = Topology.GetType().ToString(),
             MessageWaitInterval = MessageWaitInterval.ToString(),
             CharacterSet,
             SslEnabled = !string.IsNullOrWhiteSpace(CipherSpec),
-            Receivers = receivers.Select(r => SanitizeQueueName(IBMMQMessageReceiver.ToTransportAddress(r.ReceiveAddress))).ToArray()
+            Receivers = receivers.Select(r => SanitizeQueueName(IBMMQMessageReceiver.ToTransportAddress(r.ReceiveAddress))).ToArray(),
+            SubscribeRoutes = Topology.SubscribeRoutes.ToDictionary(
+                kvp => kvp.Key.FullName ?? kvp.Key.Name,
+                kvp => kvp.Value.ToArray()),
+            PublishRoutes = Topology.PublishRoutes.ToDictionary(
+                kvp => kvp.Key.FullName ?? kvp.Key.Name,
+                kvp => kvp.Value.Select(d => new { d.TopicName, d.TopicString }).ToArray())
         });
     }
 

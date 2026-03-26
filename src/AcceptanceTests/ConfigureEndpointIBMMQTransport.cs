@@ -1,11 +1,17 @@
 using System;
 using System.Collections;
 using System.IO.Hashing;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using IBM.WMQ;
 using NServiceBus;
 using NServiceBus.AcceptanceTesting.Support;
+using Conventions = NServiceBus.AcceptanceTesting.Customization.Conventions;
+using NServiceBus.AcceptanceTests.Routing;
+using NServiceBus.AcceptanceTests.Routing.NativePublishSubscribe;
+using NServiceBus.AcceptanceTests.Sagas;
+using NServiceBus.AcceptanceTests.Versioning;
 using NServiceBus.Transport.IBMMQ;
 
 // ReSharper disable once CheckNamespace
@@ -24,17 +30,57 @@ public class ConfigureEndpointIBMMQTransport : IConfigureEndpointTestExecution
     {
         this.endpointName = endpointName;
 
+        var naming = TestConnectionDetails.CreateTopicNaming();
         var transport = new IBMMQTransport
         {
             MessageWaitInterval = TimeSpan.FromMilliseconds(100),
-            TopicNaming = TestConnectionDetails.CreateTopicNaming(),
+            TopicNaming = naming,
             ResourceNameSanitizer = Sanitize
         };
         TestConnectionDetails.Apply(transport);
 
+        foreach (var eventType in publisherMetadata.Publishers.SelectMany(p => p.Events))
+        {
+            var topicString = naming.GenerateTopicString(eventType);
+            transport.Topology.SubscribeTo(eventType, topicString);
+            transport.Topology.PublishTo(eventType, topicString);
+        }
+
+        ApplyMappingsForPolymorphicEvents(endpointName, transport.Topology, naming);
+
         configuration.UseTransport(transport);
 
         return Task.CompletedTask;
+    }
+
+    static void ApplyMappingsForPolymorphicEvents(string endpointName, TopicTopology topology, TopicNaming naming)
+    {
+        if (endpointName == Conventions.EndpointNamingConvention(typeof(MultiSubscribeToPolymorphicEvent.Subscriber)))
+        {
+            topology.SubscribeTo<MultiSubscribeToPolymorphicEvent.IMyEvent>(naming.GenerateTopicString(typeof(MultiSubscribeToPolymorphicEvent.MyEvent1)));
+            topology.SubscribeTo<MultiSubscribeToPolymorphicEvent.IMyEvent>(naming.GenerateTopicString(typeof(MultiSubscribeToPolymorphicEvent.MyEvent2)));
+        }
+
+        if (endpointName == Conventions.EndpointNamingConvention(typeof(When_subscribing_to_a_base_event.GeneralSubscriber)))
+        {
+            topology.SubscribeTo<When_subscribing_to_a_base_event.IBaseEvent>(naming.GenerateTopicString(typeof(When_subscribing_to_a_base_event.SpecificEvent)));
+        }
+
+        if (endpointName == Conventions.EndpointNamingConvention(typeof(When_publishing_an_event_implementing_two_unrelated_interfaces.Subscriber)))
+        {
+            topology.SubscribeTo<When_publishing_an_event_implementing_two_unrelated_interfaces.IEventA>(naming.GenerateTopicString(typeof(When_publishing_an_event_implementing_two_unrelated_interfaces.CompositeEvent)));
+            topology.SubscribeTo<When_publishing_an_event_implementing_two_unrelated_interfaces.IEventB>(naming.GenerateTopicString(typeof(When_publishing_an_event_implementing_two_unrelated_interfaces.CompositeEvent)));
+        }
+
+        if (endpointName == Conventions.EndpointNamingConvention(typeof(When_started_by_base_event_from_other_saga.SagaThatIsStartedByABaseEvent)))
+        {
+            topology.SubscribeTo<When_started_by_base_event_from_other_saga.IBaseEvent>(naming.GenerateTopicString(typeof(When_started_by_base_event_from_other_saga.ISomethingHappenedEvent)));
+        }
+
+        if (endpointName == Conventions.EndpointNamingConvention(typeof(When_multiple_versions_of_a_message_is_published.V1Subscriber)))
+        {
+            topology.SubscribeTo<When_multiple_versions_of_a_message_is_published.V1Event>(naming.GenerateTopicString(typeof(When_multiple_versions_of_a_message_is_published.V2Event)));
+        }
     }
 
     Task IConfigureEndpointTestExecution.Cleanup()
