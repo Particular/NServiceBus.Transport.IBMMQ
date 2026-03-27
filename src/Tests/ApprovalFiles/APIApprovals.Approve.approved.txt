@@ -22,10 +22,23 @@ namespace NServiceBus.Transport.IBMMQ
         public string? SslPeerName { get; set; }
         public System.TimeSpan TimeToWaitBeforeTriggeringCircuitBreaker { get; set; }
         public NServiceBus.Transport.IBMMQ.TopicNaming TopicNaming { get; set; }
-        public NServiceBus.Transport.IBMMQ.TopicTopology Topology { get; set; }
+        public NServiceBus.Transport.IBMMQ.ITopicTopology Topology { get; }
         public string? User { get; set; }
         public override System.Collections.Generic.IReadOnlyCollection<NServiceBus.TransportTransactionMode> GetSupportedTransactionModes() { }
         public override System.Threading.Tasks.Task<NServiceBus.Transport.TransportInfrastructure> Initialize(NServiceBus.Transport.HostSettings hostSettings, NServiceBus.Transport.ReceiveSettings[] receivers, string[] sendingAddresses, System.Threading.CancellationToken cancellationToken = default) { }
+    }
+    public interface ITopicTopology
+    {
+        bool ThrowOnPolymorphicSubscription { get; set; }
+        void PublishTo(System.Type eventType, string topicString);
+        void PublishTo(System.Type eventType, string topicName, string topicString);
+        void PublishTo<TEventType>(string topicString);
+        void PublishTo<TEventType>(string topicName, string topicString);
+        void SubscribeTo(System.Type eventType, System.Type topicType);
+        void SubscribeTo(System.Type eventType, string topicString);
+        void SubscribeTo<TEventType>(string topicString);
+        void SubscribeTo<TEventType, TTopicType>()
+            where TTopicType : TEventType;
     }
     public delegate string SanitizeResourceName(string queueName);
     public class TopicNaming
@@ -34,10 +47,5 @@ namespace NServiceBus.Transport.IBMMQ
         public virtual string GenerateSubscriptionName(string endpointName, string topicString) { }
         public virtual string GenerateTopicName(System.Type eventType) { }
         public virtual string GenerateTopicString(System.Type eventType) { }
-    }
-    public abstract class TopicTopology
-    {
-        protected TopicTopology() { }
-        public static NServiceBus.Transport.IBMMQ.TopicTopology TopicPerEvent() { }
     }
 }

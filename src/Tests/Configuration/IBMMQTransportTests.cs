@@ -238,13 +238,6 @@ namespace NServiceBus.Transport.IBMMQ.Tests.Configuration
         }
 
         [Test]
-        public void Topology_rejects_null()
-        {
-            Assert.That(() => new IBMMQTransport { Topology = null! },
-                Throws.TypeOf<ArgumentNullException>());
-        }
-
-        [Test]
         public void TopicNaming_rejects_null()
         {
             Assert.That(() => new IBMMQTransport { TopicNaming = null! },

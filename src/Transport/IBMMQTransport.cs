@@ -11,6 +11,8 @@ public sealed class IBMMQTransport : TransportDefinition
 {
     readonly ILog log = LogManager.GetLogger<IBMMQTransport>();
 
+    readonly TopicTopology topicTopology = new();
+
     // Core Connection Settings
 
     /// <summary>
@@ -162,17 +164,9 @@ public sealed class IBMMQTransport : TransportDefinition
 
     /// <summary>
     /// Controls how events are mapped to IBM MQ topics for pub/sub.
-    /// Default: <see cref="TopicTopology.TopicPerEvent"/> (flat topology, one topic per concrete event type).
+    /// One topic per concrete event type; no automatic fan-out to descendants.
     /// </summary>
-    public TopicTopology Topology
-    {
-        get;
-        set
-        {
-            ArgumentNullException.ThrowIfNull(value);
-            field = value;
-        }
-    } = TopicTopology.TopicPerEvent();
+    public ITopicTopology Topology => topicTopology;
 
     /// <summary>
     /// Controls how event types are mapped to IBM MQ topic names and topic strings.
@@ -186,6 +180,7 @@ public sealed class IBMMQTransport : TransportDefinition
         {
             ArgumentNullException.ThrowIfNull(value);
             field = value;
+            topicTopology.Naming = value;
         }
     } = new();
 
@@ -225,6 +220,7 @@ public sealed class IBMMQTransport : TransportDefinition
     public IBMMQTransport()
         : base(TransportTransactionMode.ReceiveOnly, supportsDelayedDelivery: false, supportsPublishSubscribe: true, supportsTTBR: true)
     {
+        topicTopology.Naming = TopicNaming;
     }
 
     /// <inheritdoc />
@@ -248,6 +244,7 @@ public sealed class IBMMQTransport : TransportDefinition
         var connectionConfiguration = new ConnectionConfiguration(this);
 
         using var setupConnection = new MQQueueManager(QueueManagerName, connectionConfiguration.ConnectionProperties);
+        var admin = new MqAdminConnection(setupConnection, ResourceNameSanitizer);
 
         if (hostSettings.SetupInfrastructure)
         {
@@ -273,6 +270,11 @@ public sealed class IBMMQTransport : TransportDefinition
             }
         }
 
+        if (hostSettings.SetupInfrastructure)
+        {
+            new TopologyCreator(log, topicTopology, admin).Create();
+        }
+
         foreach (var receiver in receivers)
         {
             if (receiver.PurgeOnStartup)
@@ -289,7 +291,14 @@ public sealed class IBMMQTransport : TransportDefinition
 
         setupConnection.Disconnect();
 
-        var infrastructure = new IBMMQTransportInfrastructure(log, this, connectionConfiguration, receivers, TransportTransactionMode, hostSettings.CriticalErrorAction);
+        var infrastructure = new IBMMQTransportInfrastructure(
+            log,
+            this,
+            connectionConfiguration,
+            receivers,
+            TransportTransactionMode,
+            hostSettings.CriticalErrorAction
+            );
         return Task.FromResult<TransportInfrastructure>(infrastructure);
     }
 
@@ -374,11 +383,16 @@ public sealed class IBMMQTransport : TransportDefinition
             Connections = Connections.Count > 0 ? string.Join(",", Connections) : null,
             QueueManagerName,
             connectionConfiguration.ApplicationName,
-            Topology = Topology.GetType().ToString(),
             MessageWaitInterval = MessageWaitInterval.ToString(),
             CharacterSet,
             SslEnabled = !string.IsNullOrWhiteSpace(CipherSpec),
-            Receivers = receivers.Select(r => SanitizeQueueName(IBMMQMessageReceiver.ToTransportAddress(r.ReceiveAddress))).ToArray()
+            Receivers = receivers.Select(r => SanitizeQueueName(IBMMQMessageReceiver.ToTransportAddress(r.ReceiveAddress))).ToArray(),
+            SubscribeRoutes = topicTopology.SubscribeRoutes.ToDictionary(
+                kvp => kvp.Key.FullName ?? kvp.Key.Name,
+                kvp => kvp.Value.ToArray()),
+            PublishRoutes = topicTopology.PublishRoutes.ToDictionary(
+                kvp => kvp.Key.FullName ?? kvp.Key.Name,
+                kvp => kvp.Value.Select(d => new { d.TopicName, d.TopicString }).ToArray())
         });
     }
 

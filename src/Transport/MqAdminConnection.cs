@@ -6,6 +6,7 @@ using IBM.WMQ.PCF;
 sealed class MqAdminConnection(MQQueueManager queueManager, SanitizeResourceName resourceNameFormatter) : IDisposable
 {
     int _disposed;
+
     public void CreateTopic(string topicName, string topicString)
     {
         var agent = new PCFMessageAgent(queueManager);
@@ -47,7 +48,7 @@ sealed class MqAdminConnection(MQQueueManager queueManager, SanitizeResourceName
             command.AddParameter(MQC.MQCACF_SUB_NAME, subscriptionName);
             agent.Send(command);
         }
-        catch (PCFException e) when (e.ReasonCode == MQC.MQRCCF_SUB_NAME_ERROR)
+        catch (PCFException e) when (e.ReasonCode == MQC.MQRC_NO_SUBSCRIPTION)
         {
             // Subscription doesn't exist, nothing to remove
         }
