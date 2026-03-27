@@ -9,12 +9,121 @@ using Logging;
 /// One topic per concrete event type. Subscribes only to the exact type specified —
 /// no automatic subscriber-side fan-out to descendant types.
 /// </summary>
-public sealed class TopicTopology
+public interface ITopicTopology
 {
+    /// <summary>
+    /// When enabled (the default), subscribing to a type that has known descendant types
+    /// (subclasses or implementors) in the loaded assemblies will throw an
+    /// <see cref="InvalidOperationException"/>. This prevents accidental under-subscription
+    /// where a handler for a base type or interface silently only receives messages published
+    /// to that exact type's topic, missing messages published as concrete descendants.
+    /// <para>
+    /// This check is bypassed when explicit subscription routes are configured for the subscribed type.
+    /// </para>
+    /// <para>
+    /// Disable this only if you intentionally want to subscribe to a single type's topic
+    /// without receiving messages published as descendant types.
+    /// </para>
+    /// </summary>
+    bool ThrowOnPolymorphicSubscription { get; set; }
+
+    /// <summary>
+    /// Configures the subscriber to create a subscription on <typeparamref name="TTopicType"/>'s topic
+    /// when subscribing to <typeparamref name="TEventType"/>, using the default naming convention
+    /// to derive the topic string. Call multiple times to subscribe to multiple topics.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// topology.SubscribeTo&lt;IOrderStatusChanged, OrderAccepted&gt;();
+    /// topology.SubscribeTo&lt;IOrderStatusChanged, OrderDeclined&gt;();
+    /// </code>
+    /// </example>
+    /// <typeparam name="TEventType">The event type being subscribed to (typically an interface or base class).</typeparam>
+    /// <typeparam name="TTopicType">The type whose topic to subscribe to (typically a concrete event type).</typeparam>
+    void SubscribeTo<TEventType, TTopicType>() where TTopicType : TEventType;
+
+    /// <summary>
+    /// Non-generic overload. See <see cref="TopicTopology.SubscribeTo{TEventType,TTopicType}"/>.
+    /// </summary>
+    void SubscribeTo(Type eventType, Type topicType);
+
+    /// <summary>
+    /// Configures the subscriber to create a subscription on the specified topic string
+    /// when subscribing to <typeparamref name="TEventType"/>. Call multiple times to subscribe to
+    /// multiple topics for the same event type.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// topology.SubscribeTo&lt;IOrderStatusChanged&gt;("prod/orders/orderaccepted/");
+    /// topology.SubscribeTo&lt;IOrderStatusChanged&gt;("prod/orders/orderdeclined/");
+    /// </code>
+    /// </example>
+    /// <typeparam name="TEventType">The event type being subscribed to.</typeparam>
+    /// <param name="topicString">The IBM MQ topic string to subscribe to.</param>
+    void SubscribeTo<TEventType>(string topicString);
+
+    /// <summary>
+    /// Non-generic overload. See <see cref="TopicTopology.SubscribeTo{TEventType}"/>.
+    /// </summary>
+    void SubscribeTo(Type eventType, string topicString);
+
+    /// <summary>
+    /// Adds a publish route for <typeparamref name="TEventType"/> to the specified topic string.
+    /// The topic must already exist on the queue manager — no admin topic object will be created.
+    /// Call multiple times to publish to multiple topics.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// topology.PublishTo&lt;OrderAccepted&gt;("legacy/order/events/");
+    /// </code>
+    /// </example>
+    /// <typeparam name="TEventType">The concrete event type being published.</typeparam>
+    /// <param name="topicString">The IBM MQ topic string to publish to.</param>
+    void PublishTo<TEventType>(string topicString);
+
+    /// <summary>
+    /// Non-generic overload. See <see cref="TopicTopology.PublishTo{TEventType}(string)"/>.
+    /// </summary>
+    void PublishTo(Type eventType, string topicString);
+
+    /// <summary>
+    /// Adds a publish route for <typeparamref name="TEventType"/> with an explicit admin topic object
+    /// name and topic string. Use this when the admin object name cannot be derived from the topic string.
+    /// Call multiple times to publish to multiple topics.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// topology.PublishTo&lt;OrderAccepted&gt;("LEGACY.ORDER.EVENTS", "legacy/order/events/");
+    /// </code>
+    /// </example>
+    /// <typeparam name="TEventType">The concrete event type being published.</typeparam>
+    /// <param name="topicName">The IBM MQ admin topic object name (max 48 characters).</param>
+    /// <param name="topicString">The IBM MQ topic string for message routing.</param>
+    void PublishTo<TEventType>(string topicName, string topicString);
+
+    /// <summary>
+    /// Non-generic overload. See <see cref="TopicTopology.PublishTo{TEventType}(string,string)"/>.
+    /// </summary>
+    void PublishTo(Type eventType, string topicName, string topicString);
+}
+
+sealed class TopicTopology
+    : ITopicTopology
+{
+    internal TopicTopology() { }
+
     static readonly ILog log = LogManager.GetLogger<TopicTopology>();
 
-    readonly ConcurrentDictionary<Type, IReadOnlyList<string>> subscriptionCache = new();
-    readonly ConcurrentDictionary<Type, IReadOnlyList<TopicDestination>> publishCache = new();
+    internal ConcurrentDictionary<Type, IReadOnlyList<string>> SubscribeRoutes { get; } = [];
+    internal ConcurrentDictionary<Type, IReadOnlyList<TopicDestination>> PublishRoutes { get; } = [];
+
+    internal IReadOnlyList<TopicDestination> GetPublishDestinations(Type eventType) =>
+        PublishRoutes.GetOrAdd(eventType, static (type, self) =>
+        [
+            new TopicDestination(
+                self.Naming.GenerateTopicName(type),
+                self.Naming.GenerateTopicString(type))
+        ], this);
 
     /// <summary>
     /// When enabled (the default), subscribing to a type that has known descendant types
@@ -81,13 +190,12 @@ public sealed class TopicTopology
         ArgumentNullException.ThrowIfNull(eventType);
         ArgumentException.ThrowIfNullOrWhiteSpace(topicString);
 
-        if (!SubscribeRoutes.TryGetValue(eventType, out var topics))
-        {
-            topics = [];
-            SubscribeRoutes[eventType] = topics;
-        }
-
-        topics.Add(topicString);
+        SubscribeRoutes.AddOrUpdate(eventType,
+            static (_, ts) => [ts],
+            // Replace existing immutable list
+            static (_, existing, ts) => [.. existing, ts],
+            topicString
+            );
     }
 
     /// <summary>
@@ -140,41 +248,19 @@ public sealed class TopicTopology
         AddPublishRoute(eventType, new TopicDestination(topicName, topicString));
     }
 
-    void AddPublishRoute(Type eventType, TopicDestination destination)
-    {
-        if (!PublishRoutes.TryGetValue(eventType, out var topics))
-        {
-            topics = [];
-            PublishRoutes[eventType] = topics;
-        }
-
-        topics.Add(destination);
-    }
-
-    internal Dictionary<Type, List<string>> SubscribeRoutes { get; } = [];
-    internal Dictionary<Type, List<TopicDestination>> PublishRoutes { get; } = [];
-
-    internal IReadOnlyList<TopicDestination> GetPublishDestinations(Type eventType) =>
-        publishCache.GetOrAdd(eventType, static (type, self) =>
-        {
-            if (self.PublishRoutes.TryGetValue(type, out var routes))
-            {
-                return routes.AsReadOnly();
-            }
-
-            return
-            [
-                new TopicDestination(
-                    self.Naming.GenerateTopicName(type),
-                    self.Naming.GenerateTopicString(type))
-            ];
-        }, this);
+    void AddPublishRoute(Type eventType, TopicDestination destination) =>
+        PublishRoutes.AddOrUpdate(eventType,
+            static (_, d) => [d],
+            // Replace existing immutable list
+            static (_, existing, d) => [.. existing, d],
+            destination
+            );
 
     internal IReadOnlyList<string> GetSubscriptionTopicStrings(Type eventType)
     {
         if (SubscribeRoutes.TryGetValue(eventType, out var routes))
         {
-            return subscriptionCache.GetOrAdd(eventType, static (_, r) => r.AsReadOnly(), routes);
+            return routes;
         }
 
         if (ThrowOnPolymorphicSubscription)
@@ -198,7 +284,7 @@ public sealed class TopicTopology
             }
         }
 
-        return subscriptionCache.GetOrAdd(eventType, static (type, naming) =>
+        return SubscribeRoutes.GetOrAdd(eventType, static (type, naming) =>
             [naming.GenerateTopicString(type)], Naming);
     }
 

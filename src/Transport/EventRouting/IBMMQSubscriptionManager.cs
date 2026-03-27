@@ -16,18 +16,15 @@ sealed class IBMMQSubscriptionManager(
     {
         log.DebugFormat("SubscribeAll");
         using var admin = createAdminConnection();
-
-        var allTopicStrings = eventTypes
-            .SelectMany(et => topology.GetSubscriptionTopicStrings(et.MessageType)
-                .Select(ts => (EventType: et.MessageType, TopicString: ts)))
-            .ToList();
-
-        foreach (var (eventType, topicString) in allTopicStrings)
+        foreach (var eventType in eventTypes)
         {
-            var subscriptionName = topology.GenerateSubscriptionName(receiveAddress, topicString);
-            log.DebugFormat("Subscribing to {0} topic={1} sub={2}", eventType, topicString, subscriptionName);
-            using var topic = admin.EnsureSubscription(topicString, subscriptionName, receiveAddress);
-            topic.Close();
+            foreach (var topicString in topology.GetSubscriptionTopicStrings(eventType.MessageType))
+            {
+                var subscriptionName = topology.GenerateSubscriptionName(receiveAddress, topicString);
+                log.DebugFormat("Subscribing to {0} topic={1} sub={2}", eventType.MessageType, topicString, subscriptionName);
+                using var topic = admin.EnsureSubscription(topicString, subscriptionName, receiveAddress);
+                topic.Close();
+            }
         }
 
         return Task.CompletedTask;

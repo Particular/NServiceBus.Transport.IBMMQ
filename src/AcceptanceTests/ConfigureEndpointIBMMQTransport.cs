@@ -53,7 +53,7 @@ public class ConfigureEndpointIBMMQTransport : IConfigureEndpointTestExecution
         return Task.CompletedTask;
     }
 
-    static void ApplyMappingsForPolymorphicEvents(string endpointName, TopicTopology topology, TopicNaming naming)
+    static void ApplyMappingsForPolymorphicEvents(string endpointName, ITopicTopology topology, TopicNaming naming)
     {
         if (endpointName == Conventions.EndpointNamingConvention(typeof(MultiSubscribeToPolymorphicEvent.Subscriber)))
         {

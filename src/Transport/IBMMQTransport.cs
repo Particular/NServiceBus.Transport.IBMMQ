@@ -11,6 +11,8 @@ public sealed class IBMMQTransport : TransportDefinition
 {
     readonly ILog log = LogManager.GetLogger<IBMMQTransport>();
 
+    readonly TopicTopology topicTopology = new();
+
     // Core Connection Settings
 
     /// <summary>
@@ -164,7 +166,7 @@ public sealed class IBMMQTransport : TransportDefinition
     /// Controls how events are mapped to IBM MQ topics for pub/sub.
     /// One topic per concrete event type; no automatic fan-out to descendants.
     /// </summary>
-    public TopicTopology Topology { get; } = new();
+    public ITopicTopology Topology => topicTopology;
 
     /// <summary>
     /// Controls how event types are mapped to IBM MQ topic names and topic strings.
@@ -178,7 +180,7 @@ public sealed class IBMMQTransport : TransportDefinition
         {
             ArgumentNullException.ThrowIfNull(value);
             field = value;
-            Topology.Naming = value;
+            topicTopology.Naming = value;
         }
     } = new();
 
@@ -218,7 +220,7 @@ public sealed class IBMMQTransport : TransportDefinition
     public IBMMQTransport()
         : base(TransportTransactionMode.ReceiveOnly, supportsDelayedDelivery: false, supportsPublishSubscribe: true, supportsTTBR: true)
     {
-        Topology.Naming = TopicNaming;
+        topicTopology.Naming = TopicNaming;
     }
 
     /// <inheritdoc />
@@ -270,7 +272,7 @@ public sealed class IBMMQTransport : TransportDefinition
 
         if (hostSettings.SetupInfrastructure)
         {
-            new TopologyCreator(log, Topology, admin).Create();
+            new TopologyCreator(log, topicTopology, admin).Create();
         }
 
         foreach (var receiver in receivers)
@@ -385,10 +387,10 @@ public sealed class IBMMQTransport : TransportDefinition
             CharacterSet,
             SslEnabled = !string.IsNullOrWhiteSpace(CipherSpec),
             Receivers = receivers.Select(r => SanitizeQueueName(IBMMQMessageReceiver.ToTransportAddress(r.ReceiveAddress))).ToArray(),
-            SubscribeRoutes = Topology.SubscribeRoutes.ToDictionary(
+            SubscribeRoutes = topicTopology.SubscribeRoutes.ToDictionary(
                 kvp => kvp.Key.FullName ?? kvp.Key.Name,
                 kvp => kvp.Value.ToArray()),
-            PublishRoutes = Topology.PublishRoutes.ToDictionary(
+            PublishRoutes = topicTopology.PublishRoutes.ToDictionary(
                 kvp => kvp.Key.FullName ?? kvp.Key.Name,
                 kvp => kvp.Value.Select(d => new { d.TopicName, d.TopicString }).ToArray())
         });
