@@ -266,16 +266,11 @@ public sealed class IBMMQTransport : TransportDefinition
                 log.DebugFormat("Creating send queue {0}", queueName);
                 CreateQueue(setupConnection, queueName);
             }
-
-            foreach (var destination in Topology.GetExplicitTopicDestinations())
-            {
-                log.DebugFormat("Creating topic {0} ({1})", destination.TopicName, destination.TopicString);
-                admin.CreateTopic(destination.TopicName, destination.TopicString);
-            }
         }
-        else
+
+        if (hostSettings.SetupInfrastructure)
         {
-            ValidateExplicitTopics(admin, Topology);
+            new TopologyCreator(log, Topology, admin).Create();
         }
 
         foreach (var receiver in receivers)
@@ -300,7 +295,6 @@ public sealed class IBMMQTransport : TransportDefinition
             connectionConfiguration,
             receivers,
             TransportTransactionMode,
-            hostSettings.SetupInfrastructure,
             hostSettings.CriticalErrorAction
             );
         return Task.FromResult<TransportInfrastructure>(infrastructure);
@@ -339,28 +333,6 @@ public sealed class IBMMQTransport : TransportDefinition
         finally
         {
             agent.Disconnect();
-        }
-    }
-
-    static void ValidateExplicitTopics(MqAdminConnection admin, TopicTopology topology)
-    {
-        var missing = new List<string>();
-
-        foreach (var destination in topology.GetExplicitTopicDestinations())
-        {
-            if (!admin.TopicExists(destination.TopicString))
-            {
-                missing.Add($"{destination.TopicName} ({destination.TopicString})");
-            }
-        }
-
-        if (missing.Count > 0)
-        {
-            throw new InvalidOperationException(
-                $"""
-                The following explicitly configured topics do not exist on the queue manager: [{string.Join(", ", missing)}].
-                Either create them manually, enable infrastructure setup (installers), or verify the topic strings are correct.
-                """);
         }
     }
 

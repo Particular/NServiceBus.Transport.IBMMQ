@@ -44,19 +44,18 @@ sealed class MqConnection(
         }
     }
 
-    public void PutToTopic(string topicName, string topicString, MQMessage message, MQPutMessageOptions options)
+    public void PutToTopic(string? topicName, string topicString, MQMessage message, MQPutMessageOptions options)
     {
         using var activity = ActivitySources.Main.StartActivity(ActivitySources.PutToTopic, ActivityKind.Producer);
         if (activity is { IsAllDataRequested: true })
         {
-            activity.DisplayName = $"publish {topicName}";
+            activity.DisplayName = $"publish {topicString}";
             activity.SetTag(ActivitySources.TagMessagingSystem, ActivitySources.TagMessagingSystemValue);
-            activity.SetTag(ActivitySources.TagDestinationName, topicName);
             activity.SetTag(ActivitySources.TagTopicString, topicString);
             activity.SetTag(ActivitySources.TagOperationType, ActivitySources.OperationPublish);
         }
 
-        var topic = topicCache.GetOrAdd(topicName, _ => EnsureTopic(topicName, topicString));
+        var topic = topicCache.GetOrAdd(topicString, _ => EnsureTopic(topicName, topicString));
         try
         {
             topic.Put(message, options);
@@ -68,7 +67,7 @@ sealed class MqConnection(
         catch (MQException ex)
         {
             activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
-            topicCache.Evict(topicName);
+            topicCache.Evict(topicString);
             throw;
         }
     }
@@ -85,13 +84,13 @@ sealed class MqConnection(
     MQTopic AccessTopic(string topicString) =>
         queueManager.AccessTopic(topicString, null, MQC.MQTOPIC_OPEN_AS_PUBLICATION, MQC.MQOO_OUTPUT);
 
-    MQTopic EnsureTopic(string topicName, string topicString)
+    MQTopic EnsureTopic(string? topicName, string topicString)
     {
         try
         {
             return AccessTopic(topicString);
         }
-        catch (MQException)
+        catch (MQException) when (topicName is not null)
         {
             // IBM MQ does not return a single distinguishable reason code for
             // "topic object does not exist"; the error depends on queue manager

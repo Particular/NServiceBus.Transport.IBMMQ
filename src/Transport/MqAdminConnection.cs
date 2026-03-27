@@ -7,25 +7,6 @@ sealed class MqAdminConnection(MQQueueManager queueManager, SanitizeResourceName
 {
     int _disposed;
 
-    public bool TopicExists(string topicString)
-    {
-        try
-        {
-            using var topic = queueManager.AccessTopic(
-                topicString,
-                null,
-                MQC.MQTOPIC_OPEN_AS_PUBLICATION,
-                MQC.MQOO_OUTPUT | MQC.MQOO_FAIL_IF_QUIESCING
-                );
-            topic.Close();
-            return true;
-        }
-        catch (MQException ex) when (ex.ReasonCode is MQC.MQRC_UNKNOWN_OBJECT_NAME or MQC.MQRC_TOPIC_STRING_ERROR)
-        {
-            return false;
-        }
-    }
-
     public void CreateTopic(string topicName, string topicString)
     {
         var agent = new PCFMessageAgent(queueManager);
@@ -67,7 +48,7 @@ sealed class MqAdminConnection(MQQueueManager queueManager, SanitizeResourceName
             command.AddParameter(MQC.MQCACF_SUB_NAME, subscriptionName);
             agent.Send(command);
         }
-        catch (PCFException e) when (e.ReasonCode == MQC.MQRCCF_SUB_NAME_ERROR)
+        catch (PCFException e) when (e.ReasonCode == MQC.MQRC_NO_SUBSCRIPTION)
         {
             // Subscription doesn't exist, nothing to remove
         }

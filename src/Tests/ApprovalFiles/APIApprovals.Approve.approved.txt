@@ -31,7 +31,6 @@ namespace NServiceBus.Transport.IBMMQ
     public class TopicNaming
     {
         public TopicNaming(string topicPrefix = "DEV") { }
-        public virtual string DeriveTopicName(string topicString) { }
         public virtual string GenerateSubscriptionName(string endpointName, string topicString) { }
         public virtual string GenerateTopicName(System.Type eventType) { }
         public virtual string GenerateTopicString(System.Type eventType) { }

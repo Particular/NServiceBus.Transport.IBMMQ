@@ -92,7 +92,7 @@ public sealed class TopicTopology
 
     /// <summary>
     /// Adds a publish route for <typeparamref name="TEventType"/> to the specified topic string.
-    /// The admin topic object name is derived from the topic string automatically.
+    /// The topic must already exist on the queue manager — no admin topic object will be created.
     /// Call multiple times to publish to multiple topics.
     /// </summary>
     /// <example>
@@ -111,7 +111,7 @@ public sealed class TopicTopology
     {
         ArgumentNullException.ThrowIfNull(eventType);
         ArgumentException.ThrowIfNullOrWhiteSpace(topicString);
-        AddPublishRoute(eventType, new TopicDestination(Naming.DeriveTopicName(topicString), topicString));
+        AddPublishRoute(eventType, new TopicDestination(null, topicString));
     }
 
     /// <summary>
@@ -206,7 +206,7 @@ public sealed class TopicTopology
         PublishRoutes.Values.SelectMany(r => r)
             .Concat(SubscribeRoutes.Values
                 .SelectMany(r => r)
-                .Select(ts => new TopicDestination(Naming.DeriveTopicName(ts), ts)))
+                .Select(ts => new TopicDestination(null, ts)))
             .DistinctBy(d => d.TopicString, StringComparer.Ordinal);
 
     internal string GenerateSubscriptionName(string endpointName, string topicString) =>

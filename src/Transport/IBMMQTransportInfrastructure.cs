@@ -18,7 +18,6 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         ConnectionConfiguration connectionConfiguration,
         ReceiveSettings[] receiverSettings,
         TransportTransactionMode transactionMode,
-        bool setupInfrastructure,
         Action<string, Exception, CancellationToken> criticalError
     )
     {
@@ -33,7 +32,6 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
             connectionConfiguration,
             receiverSettings,
             transactionMode,
-            setupInfrastructure,
             criticalError
             );
         serviceProvider = services.BuildServiceProvider();
@@ -71,7 +69,6 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         ConnectionConfiguration connectionConfiguration,
         ReceiveSettings[] receiverSettings,
         TransportTransactionMode transactionMode,
-        bool setupInfrastructure,
         Action<string, Exception, CancellationToken> criticalError
     )
     {
@@ -163,8 +160,7 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
                         LogManager.GetLogger<IBMMQSubscriptionManager>(),
                         topo,
                         createAdmin,
-                        rs.ReceiveAddress.BaseAddress,
-                        setupInfrastructure
+                        rs.ReceiveAddress.BaseAddress
                         );
                 })
                 .AddKeyedSingleton(rs.Id, (_, _) =>

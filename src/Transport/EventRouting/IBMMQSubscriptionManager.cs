@@ -8,8 +8,7 @@ sealed class IBMMQSubscriptionManager(
     ILog log,
     TopicTopology topology,
     CreateMqAdminConnection createAdminConnection,
-    string receiveAddress,
-    bool setupInfrastructure
+    string receiveAddress
 ) : ISubscriptionManager
 {
 
@@ -23,11 +22,6 @@ sealed class IBMMQSubscriptionManager(
                 .Select(ts => (EventType: et.MessageType, TopicString: ts)))
             .ToList();
 
-        if (!setupInfrastructure)
-        {
-            ValidateTopicsExist(admin, allTopicStrings);
-        }
-
         foreach (var (eventType, topicString) in allTopicStrings)
         {
             var subscriptionName = topology.GenerateSubscriptionName(receiveAddress, topicString);
@@ -37,28 +31,6 @@ sealed class IBMMQSubscriptionManager(
         }
 
         return Task.CompletedTask;
-    }
-
-    void ValidateTopicsExist(MqAdminConnection admin, List<(Type EventType, string TopicString)> topicStrings)
-    {
-        var missing = new List<string>();
-
-        foreach (var (eventType, topicString) in topicStrings)
-        {
-            if (!admin.TopicExists(topicString))
-            {
-                missing.Add($"'{topicString}' (for {eventType.FullName})");
-            }
-        }
-
-        if (missing.Count > 0)
-        {
-            throw new InvalidOperationException(
-                $"""
-                Cannot subscribe because the following topics do not exist on the queue manager: [{string.Join(", ", missing)}].
-                Either create them manually, enable infrastructure setup (installers), or verify the topic strings are correct.
-                """);
-        }
     }
 
     public Task Unsubscribe(MessageMetadata eventType, ContextBag context, CancellationToken cancellationToken = default)

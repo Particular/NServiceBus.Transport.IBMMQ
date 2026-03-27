@@ -318,6 +318,42 @@ public class TopicPerEventTopologySubscribeToTests
         Assert.That(topicStrings, Does.Contain("custom/orders/accepted/"));
         Assert.That(topicStrings, Does.Contain("custom/orders/declined/"));
     }
+
+    [Test]
+    public void Generic_two_type_overload_uses_topic_type_naming()
+    {
+        var topology = CreateTopology();
+        topology.SubscribeTo<IMyEvent, ConcreteEvent>();
+
+        var topicStrings = topology.GetSubscriptionTopicStrings(typeof(IMyEvent));
+
+        Assert.That(topicStrings, Has.Count.EqualTo(1));
+        Assert.That(topicStrings[0], Is.EqualTo(naming.GenerateTopicString(typeof(ConcreteEvent))));
+    }
+
+    [Test]
+    public void Non_generic_type_overload_uses_topic_type_naming()
+    {
+        var topology = CreateTopology();
+        topology.SubscribeTo(typeof(IMyEvent), typeof(ConcreteEvent));
+
+        var topicStrings = topology.GetSubscriptionTopicStrings(typeof(IMyEvent));
+
+        Assert.That(topicStrings, Has.Count.EqualTo(1));
+        Assert.That(topicStrings[0], Is.EqualTo(naming.GenerateTopicString(typeof(ConcreteEvent))));
+    }
+
+    [Test]
+    public void Non_generic_string_overload()
+    {
+        var topology = CreateTopology();
+        topology.SubscribeTo(typeof(IMyEvent), "custom/topic/");
+
+        var topicStrings = topology.GetSubscriptionTopicStrings(typeof(IMyEvent));
+
+        Assert.That(topicStrings, Has.Count.EqualTo(1));
+        Assert.That(topicStrings[0], Is.EqualTo("custom/topic/"));
+    }
 }
 
 [TestFixture]
@@ -392,7 +428,7 @@ public class TopicPerEventTopologyPublishToTests
     }
 
     [Test]
-    public void Raw_string_route()
+    public void Raw_string_route_has_null_topic_name()
     {
         var topology = CreateTopology();
         topology.PublishTo<ConcreteEvent>("legacy/order/events/");
@@ -401,6 +437,46 @@ public class TopicPerEventTopologyPublishToTests
 
         Assert.That(destinations, Has.Count.EqualTo(1));
         Assert.That(destinations[0].TopicString, Is.EqualTo("legacy/order/events/"));
+        Assert.That(destinations[0].TopicName, Is.Null);
+    }
+
+    [Test]
+    public void Non_generic_string_overload_has_null_topic_name()
+    {
+        var topology = CreateTopology();
+        topology.PublishTo(typeof(ConcreteEvent), "legacy/order/events/");
+
+        var destinations = topology.GetPublishDestinations(typeof(ConcreteEvent));
+
+        Assert.That(destinations, Has.Count.EqualTo(1));
+        Assert.That(destinations[0].TopicString, Is.EqualTo("legacy/order/events/"));
+        Assert.That(destinations[0].TopicName, Is.Null);
+    }
+
+    [Test]
+    public void Explicit_topic_name_overload()
+    {
+        var topology = CreateTopology();
+        topology.PublishTo<ConcreteEvent>("MY.TOPIC", "my/topic/");
+
+        var destinations = topology.GetPublishDestinations(typeof(ConcreteEvent));
+
+        Assert.That(destinations, Has.Count.EqualTo(1));
+        Assert.That(destinations[0].TopicName, Is.EqualTo("MY.TOPIC"));
+        Assert.That(destinations[0].TopicString, Is.EqualTo("my/topic/"));
+    }
+
+    [Test]
+    public void Non_generic_explicit_topic_name_overload()
+    {
+        var topology = CreateTopology();
+        topology.PublishTo(typeof(ConcreteEvent), "MY.TOPIC", "my/topic/");
+
+        var destinations = topology.GetPublishDestinations(typeof(ConcreteEvent));
+
+        Assert.That(destinations, Has.Count.EqualTo(1));
+        Assert.That(destinations[0].TopicName, Is.EqualTo("MY.TOPIC"));
+        Assert.That(destinations[0].TopicString, Is.EqualTo("my/topic/"));
     }
 
     [Test]

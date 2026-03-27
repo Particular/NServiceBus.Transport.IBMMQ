@@ -38,32 +38,6 @@ public class TopicNaming(string topicPrefix = "DEV")
     }
 
     /// <summary>
-    /// Derives an administrative topic object name from a topic string.
-    /// Used when explicit string-based publish routes need an admin object created.
-    /// Throws if the derived name exceeds the IBM MQ 48-character limit.
-    /// Override this method to implement custom shortening strategies.
-    /// </summary>
-    public virtual string DeriveTopicName(string topicString)
-    {
-        var name = topicString
-            .TrimEnd('/')
-            .Replace('/', '.')
-            .ToUpperInvariant();
-
-        if (name.Length > 48)
-        {
-            throw new InvalidOperationException(
-                $"""
-                Derived topic name '{name}' is {name.Length} characters, which exceeds the IBM MQ 48-character limit.
-                Use the {nameof(TopicTopology)}.{nameof(TopicTopology.PublishTo)}(Type, string, string) overload to specify an explicit admin topic name,
-                or override {nameof(DeriveTopicName)} in a custom {nameof(TopicNaming)} subclass to implement a shortening strategy.
-                """);
-        }
-
-        return name;
-    }
-
-    /// <summary>
     /// Generates the durable subscription name for an endpoint subscribing to a topic.
     /// </summary>
     public virtual string GenerateSubscriptionName(string endpointName, string topicString)
