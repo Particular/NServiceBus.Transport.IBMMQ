@@ -15,6 +15,11 @@ public class MqPropertyNameEncoderTests
     [TestCase("has space", "has_x0020space")]
     [TestCase("a.b-c_d", "a_x002Eb_x002Dc__d")]
     [TestCase("", "")]
+    [TestCase("_", "__")]
+    [TestCase("__", "____")]
+    [TestCase("a\0b", "a_x0000b")]
+    [TestCase("tab\there", "tab_x0009here")]
+    [TestCase("_x0041", "__x0041")]
     public void Encode(string input, string expected)
     {
         Assert.That(encoder.Encode(input), Is.EqualTo(expected));
@@ -26,6 +31,12 @@ public class MqPropertyNameEncoderTests
     [TestCase("a_x002Eb_x002Dc__d", "a.b-c_d")]
     [TestCase("", "")]
     [TestCase("a_b", "a_b")]
+    [TestCase("__", "_")]
+    [TestCase("____", "__")]
+    [TestCase("_x0000", "\0")]
+    [TestCase("trailing_", "trailing_")]
+    [TestCase("_xZZZZ", "_xZZZZ")]
+    [TestCase("_x00", "_x00")]
     public void Decode(string input, string expected)
     {
         Assert.That(encoder.Decode(input), Is.EqualTo(expected));
@@ -57,5 +68,21 @@ public class MqPropertyNameEncoderTests
         var encoded = encoder.Encode(original);
         var decoded = encoder.Decode(encoded);
         Assert.That(decoded, Is.EqualTo(original));
+    }
+
+    [Test]
+    public void Encode_caches_results()
+    {
+        var result1 = encoder.Encode("NServiceBus.MessageId");
+        var result2 = encoder.Encode("NServiceBus.MessageId");
+        Assert.That(result1, Is.SameAs(result2));
+    }
+
+    [Test]
+    public void Decode_caches_results()
+    {
+        var result1 = encoder.Decode("NServiceBus_x002EMessageId");
+        var result2 = encoder.Decode("NServiceBus_x002EMessageId");
+        Assert.That(result1, Is.SameAs(result2));
     }
 }

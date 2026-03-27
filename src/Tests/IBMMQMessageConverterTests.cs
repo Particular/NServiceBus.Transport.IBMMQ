@@ -344,6 +344,97 @@ public class IBMMQMessageConverterTests
     }
 
     [TestFixture]
+    public class RoundTrip
+    {
+        [Test]
+        public void Headers_survive_ToNative_then_FromNative()
+        {
+            var headers = new Dictionary<string, string>
+            {
+                { Headers.MessageId, Guid.NewGuid().ToString() },
+                { "NServiceBus.EnclosedMessageTypes", "MyApp.Events.OrderPlaced" },
+                { "custom-header", "custom-value" }
+            };
+            var body = System.Text.Encoding.UTF8.GetBytes("payload");
+            var operation = CreateOperation(headers: headers, body: body);
+
+            var mqMessage = converter.ToNative(operation);
+            mqMessage.Seek(0);
+
+            var receivedHeaders = new Dictionary<string, string>();
+            string messageId = string.Empty;
+            var receivedBody = converter.FromNative(mqMessage, receivedHeaders, ref messageId);
+
+            Assert.That(receivedHeaders["NServiceBus.EnclosedMessageTypes"], Is.EqualTo("MyApp.Events.OrderPlaced"));
+            Assert.That(receivedHeaders["custom-header"], Is.EqualTo("custom-value"));
+            Assert.That(receivedBody, Is.EqualTo(body));
+        }
+
+        [Test]
+        public void Empty_header_values_survive_round_trip()
+        {
+            var headers = new Dictionary<string, string>
+            {
+                { Headers.MessageId, Guid.NewGuid().ToString() },
+                { "EmptyHeader", "" },
+                { "NormalHeader", "value" }
+            };
+            var operation = CreateOperation(headers: headers);
+
+            var mqMessage = converter.ToNative(operation);
+            mqMessage.Seek(0);
+
+            var receivedHeaders = new Dictionary<string, string>();
+            string messageId = string.Empty;
+            converter.FromNative(mqMessage, receivedHeaders, ref messageId);
+
+            Assert.That(receivedHeaders["EmptyHeader"], Is.EqualTo(""));
+            Assert.That(receivedHeaders["NormalHeader"], Is.EqualTo("value"));
+        }
+
+        [Test]
+        public void Empty_body_survives_round_trip()
+        {
+            var headers = new Dictionary<string, string>
+            {
+                { Headers.MessageId, Guid.NewGuid().ToString() }
+            };
+            var operation = CreateOperation(headers: headers, body: []);
+
+            var mqMessage = converter.ToNative(operation);
+            mqMessage.Seek(0);
+
+            var receivedHeaders = new Dictionary<string, string>();
+            string messageId = string.Empty;
+            var receivedBody = converter.FromNative(mqMessage, receivedHeaders, ref messageId);
+
+            Assert.That(receivedBody, Is.Empty);
+        }
+
+        [Test]
+        public void MessageId_falls_back_to_native_when_header_is_empty()
+        {
+            var headers = new Dictionary<string, string>
+            {
+                { Headers.MessageId, "" }
+            };
+            var operation = CreateOperation(headers: headers);
+            var mqMessage = converter.ToNative(operation);
+
+            var nativeId = new byte[24];
+            Array.Copy(Guid.NewGuid().ToByteArray(), nativeId, 16);
+            mqMessage.MessageId = nativeId;
+
+            mqMessage.Seek(0);
+            var receivedHeaders = new Dictionary<string, string>();
+            string messageId = string.Empty;
+            converter.FromNative(mqMessage, receivedHeaders, ref messageId);
+
+            Assert.That(messageId, Is.EqualTo(Convert.ToHexString(nativeId)));
+        }
+    }
+
+    [TestFixture]
     public class NativePropertyLifting
     {
         [Test]

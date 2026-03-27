@@ -120,7 +120,8 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
 
         if (transactionMode == TransportTransactionMode.SendsAtomicWithReceive)
         {
-            services.AddSingleton<IFailureInfoStorage>(new InMemoryFailureInfoStorage());
+            services.AddSingleton(TimeProvider.System);
+            services.AddSingleton<IFailureInfoStorage, InMemoryFailureInfoStorage>();
         }
 
         services
