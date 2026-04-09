@@ -16,7 +16,6 @@
 
   <ItemGroup>
     <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
-    <PackageReference Include="IBMMQDotnetClient" Version="9.4.5" />
   </ItemGroup>
 
 </Project>
