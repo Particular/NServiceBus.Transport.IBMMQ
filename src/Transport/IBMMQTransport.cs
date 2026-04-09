@@ -38,8 +38,8 @@ public sealed class IBMMQTransport : TransportDefinition
         get;
         set
         {
-            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1);
-            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, 65535);
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, 1, nameof(Port));
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, 65535, nameof(Port));
             field = value;
         }
     } = 1414;
@@ -116,7 +116,7 @@ public sealed class IBMMQTransport : TransportDefinition
         get;
         set
         {
-            ArgumentOutOfRangeException.ThrowIfNegative(value);
+            ArgumentOutOfRangeException.ThrowIfNegative(value, nameof(KeyResetCount));
             field = value;
         }
     }
@@ -135,8 +135,8 @@ public sealed class IBMMQTransport : TransportDefinition
         get;
         set
         {
-            ArgumentOutOfRangeException.ThrowIfLessThan(value, TimeSpan.FromMilliseconds(100));
-            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, TimeSpan.FromMilliseconds(30000));
+            ArgumentOutOfRangeException.ThrowIfLessThan(value, TimeSpan.FromMilliseconds(100), nameof(MessageWaitInterval));
+            ArgumentOutOfRangeException.ThrowIfGreaterThan(value, TimeSpan.FromMilliseconds(30000), nameof(MessageWaitInterval));
             field = value;
         }
     } = TimeSpan.FromMilliseconds(5000);
@@ -157,7 +157,7 @@ public sealed class IBMMQTransport : TransportDefinition
         get;
         set
         {
-            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value);
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(value, nameof(CharacterSet));
             field = value;
         }
     } = MQC.CODESET_UTF;
@@ -178,7 +178,7 @@ public sealed class IBMMQTransport : TransportDefinition
         get;
         set
         {
-            ArgumentNullException.ThrowIfNull(value);
+            ArgumentNullException.ThrowIfNull(value, nameof(TopicNaming));
             field = value;
             topicTopology.Naming = value;
         }
@@ -193,7 +193,7 @@ public sealed class IBMMQTransport : TransportDefinition
         get;
         set
         {
-            ArgumentNullException.ThrowIfNull(value);
+            ArgumentNullException.ThrowIfNull(value, nameof(ResourceNameSanitizer));
             field = value;
         }
     } = s => s;
