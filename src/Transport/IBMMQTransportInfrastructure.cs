@@ -1,5 +1,6 @@
 namespace NServiceBus.Transport.IBMMQ;
 
+using System.Collections.Concurrent;
 using IBM.WMQ;
 using Logging;
 using Microsoft.Extensions.DependencyInjection;
@@ -84,7 +85,7 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         // creation. Topic creation is idempotent; the cache prevents repeated attempts for
         // topics that have already been created successfully. GetOrAdd ensures the entry is
         // only stored on success — if CreateTopic throws, the next call will retry.
-        var createdTopics = new System.Collections.Concurrent.ConcurrentDictionary<string, byte>();
+        var createdTopics = new ConcurrentDictionary<string, byte>();
 
         void CreateTopic(string topicName, string topicString) =>
             createdTopics.GetOrAdd(topicName, _ =>
