@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -12,13 +12,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="IBMMQDotnetClient" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" AutomaticVersionRange="false" />
-    <PackageReference Include="NServiceBus" />
+    <PackageReference Include="IBMMQDotnetClient" Version="9.4.5" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" AutomaticVersionRange="false" />
+    <PackageReference Include="NServiceBus" Version="10.1.1" />
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Particular.Packaging" PrivateAssets="All" />
+    <PackageReference Include="Particular.Packaging" Version="4.5.0" PrivateAssets="All" />
   </ItemGroup>
 
   <ItemGroup>
