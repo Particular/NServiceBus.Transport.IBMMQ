@@ -29,7 +29,7 @@ public class EventTypeResolverTests
     {
         var names = EventTypeResolver.Resolve("NServiceBus.Transport.IBMMQ.CommandLine.Tests.LeafEvent", AssemblyPath);
 
-        Assert.That(names, Is.EqualTo(new[] { "NServiceBus.Transport.IBMMQ.CommandLine.Tests.LeafEvent" }));
+        Assert.That(names, Is.EqualTo(["NServiceBus.Transport.IBMMQ.CommandLine.Tests.LeafEvent"]));
     }
 
     [Test]

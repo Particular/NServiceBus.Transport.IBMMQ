@@ -99,6 +99,6 @@ public class TopicNamingTests
         var typeName = new string('A', 44);
 
         Assert.That(() => TopicNaming.GenerateTopicName(typeName, "DEV"), Throws.Nothing);
-        Assert.That(TopicNaming.GenerateTopicName(typeName, "DEV").Length, Is.EqualTo(48));
+        Assert.That(TopicNaming.GenerateTopicName(typeName, "DEV"), Has.Length.EqualTo(48));
     }
 }

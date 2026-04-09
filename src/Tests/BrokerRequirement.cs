@@ -1,7 +1,5 @@
 namespace NServiceBus.Transport.IBMMQ.Tests;
 
-using System;
-using System.Threading;
 using NUnit.Framework;
 
 /// <summary>

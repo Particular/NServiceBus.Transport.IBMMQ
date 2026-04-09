@@ -1,23 +1,21 @@
 namespace NServiceBus.Transport.IBMMQ.Tests;
 
-using System.Threading;
-using System.Threading.Tasks;
-using IBM.WMQ;
+using NServiceBus.Logging;
 using NUnit.Framework;
 
 [TestFixture]
 [Category("RequiresBroker")]
 public class MqConnectionPoolAdditionalTests
 {
-    static readonly NServiceBus.Logging.ILog log = NServiceBus.Logging.LogManager.GetLogger<MqConnectionPoolAdditionalTests>();
+    static readonly ILog log = LogManager.GetLogger<MqConnectionPoolAdditionalTests>();
 
     [OneTimeSetUp]
     public void Setup() => BrokerRequirement.Verify();
 
-    MqConnectionPool CreatePool(int maxSize = 2) => new(
+    static MqConnectionPool CreatePool(int maxSize = 2) => new(
         log,
         () => new MqConnection(
-            NServiceBus.Logging.LogManager.GetLogger<MqConnection>(),
+            LogManager.GetLogger<MqConnection>(),
             TestBrokerConnection.Connect(),
             name => name,
             (_, _) => { },
@@ -101,7 +99,7 @@ public class MqConnectionPoolAdditionalTests
             {
                 Interlocked.Increment(ref creationCount);
                 return new MqConnection(
-                    NServiceBus.Logging.LogManager.GetLogger<MqConnection>(),
+                    LogManager.GetLogger<MqConnection>(),
                     TestBrokerConnection.Connect(),
                     name => name,
                     (_, _) => { },

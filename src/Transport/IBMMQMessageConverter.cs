@@ -44,7 +44,7 @@ class IBMMQMessageConverter(MqPropertyNameEncoder propertyNameEncoder, int chara
             }
 
             var emptySet = new HashSet<string>(
-                string.IsNullOrEmpty(emptyRaw) ? Array.Empty<string>() : emptyRaw.Split(','));
+                string.IsNullOrEmpty(emptyRaw) ? [] : emptyRaw.Split(','));
 
             foreach (var escapedName in manifest.Split(','))
             {

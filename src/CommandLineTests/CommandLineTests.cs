@@ -1,11 +1,7 @@
 namespace NServiceBus.Transport.IBMMQ.CommandLine.Tests;
 
-using System;
 using System.Diagnostics;
-using System.IO;
 using System.Reflection;
-using System.Threading;
-using System.Threading.Tasks;
 using NUnit.Framework;
 
 [TestFixture]
@@ -16,13 +12,13 @@ public class CommandLineTests
     {
         var (output, error, exitCode) = await Execute("").ConfigureAwait(false);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
-            Assert.That(exitCode, Is.EqualTo(0));
+            Assert.That(exitCode, Is.Zero);
             Assert.That(error, Is.EqualTo(string.Empty));
             Assert.That(output, Does.Contain("endpoint"));
             Assert.That(output, Does.Contain("queue"));
-        });
+        }
     }
 
     [Test]
@@ -30,14 +26,14 @@ public class CommandLineTests
     {
         var (output, error, exitCode) = await Execute("endpoint").ConfigureAwait(false);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
-            Assert.That(exitCode, Is.EqualTo(0));
+            Assert.That(exitCode, Is.Zero);
             Assert.That(error, Is.EqualTo(string.Empty));
             Assert.That(output, Does.Contain("create"));
             Assert.That(output, Does.Contain("subscribe"));
             Assert.That(output, Does.Contain("unsubscribe"));
-        });
+        }
     }
 
     [Test]
@@ -45,13 +41,13 @@ public class CommandLineTests
     {
         var (output, error, exitCode) = await Execute("queue").ConfigureAwait(false);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
-            Assert.That(exitCode, Is.EqualTo(0));
+            Assert.That(exitCode, Is.Zero);
             Assert.That(error, Is.EqualTo(string.Empty));
             Assert.That(output, Does.Contain("create"));
             Assert.That(output, Does.Contain("delete"));
-        });
+        }
     }
 
     [Test]
@@ -59,11 +55,11 @@ public class CommandLineTests
     {
         var (_, error, exitCode) = await Execute("endpoint create").ConfigureAwait(false);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
-            Assert.That(exitCode, Is.Not.EqualTo(0));
+            Assert.That(exitCode, Is.Not.Zero);
             Assert.That(error, Does.Contain("name"));
-        });
+        }
     }
 
     [Test]
@@ -71,7 +67,7 @@ public class CommandLineTests
     {
         var (_, _, exitCode) = await Execute("endpoint subscribe").ConfigureAwait(false);
 
-        Assert.That(exitCode, Is.Not.EqualTo(0));
+        Assert.That(exitCode, Is.Not.Zero);
     }
 
     [Test]
@@ -79,11 +75,11 @@ public class CommandLineTests
     {
         var (_, error, exitCode) = await Execute("endpoint subscribe MyEndpoint").ConfigureAwait(false);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
-            Assert.That(exitCode, Is.Not.EqualTo(0));
+            Assert.That(exitCode, Is.Not.Zero);
             Assert.That(error, Does.Contain("event-type"));
-        });
+        }
     }
 
     [Test]
@@ -91,11 +87,11 @@ public class CommandLineTests
     {
         var (_, error, exitCode) = await Execute("queue create").ConfigureAwait(false);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
-            Assert.That(exitCode, Is.Not.EqualTo(0));
+            Assert.That(exitCode, Is.Not.Zero);
             Assert.That(error, Does.Contain("name"));
-        });
+        }
     }
 
     [Test]
@@ -103,11 +99,11 @@ public class CommandLineTests
     {
         var (_, error, exitCode) = await Execute("queue delete").ConfigureAwait(false);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
-            Assert.That(exitCode, Is.Not.EqualTo(0));
+            Assert.That(exitCode, Is.Not.Zero);
             Assert.That(error, Does.Contain("name"));
-        });
+        }
     }
 
     [Test]
@@ -115,7 +111,7 @@ public class CommandLineTests
     {
         var (output, _, _) = await Execute("--help").ConfigureAwait(false);
 
-        Assert.Multiple(() =>
+        using (Assert.EnterMultipleScope())
         {
             Assert.That(output, Does.Contain("--host"));
             Assert.That(output, Does.Contain("--port"));
@@ -123,7 +119,7 @@ public class CommandLineTests
             Assert.That(output, Does.Contain("--queue-manager"));
             Assert.That(output, Does.Contain("--user"));
             Assert.That(output, Does.Contain("--password"));
-        });
+        }
     }
 
     [Test]

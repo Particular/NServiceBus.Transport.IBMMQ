@@ -1,6 +1,7 @@
 namespace NServiceBus.Transport.IBMMQ.Tests;
 
 using IBM.WMQ;
+using NServiceBus.Logging;
 using NUnit.Framework;
 
 [TestFixture]
@@ -14,13 +15,13 @@ public class MqConnectionTests
     public void Each_connection_has_independent_queue_handle_cache()
     {
         using var connA = new MqConnection(
-            NServiceBus.Logging.LogManager.GetLogger<MqConnection>(),
+            LogManager.GetLogger<MqConnection>(),
             TestBrokerConnection.Connect(),
             name => name,
             (_, _) => { },
             100);
         using var connB = new MqConnection(
-            NServiceBus.Logging.LogManager.GetLogger<MqConnection>(),
+            LogManager.GetLogger<MqConnection>(),
             TestBrokerConnection.Connect(),
             name => name,
             (_, _) => { },
@@ -39,7 +40,7 @@ public class MqConnectionTests
     public void Dispose_closes_cached_handles()
     {
         var connA = new MqConnection(
-            NServiceBus.Logging.LogManager.GetLogger<MqConnection>(),
+            LogManager.GetLogger<MqConnection>(),
             TestBrokerConnection.Connect(),
             name => name,
             (_, _) => { },
@@ -50,6 +51,6 @@ public class MqConnectionTests
 
         var msg = new MQMessage();
         msg.WriteString("test");
-        Assert.Catch<System.Exception>(() => handle.Put(msg));
+        Assert.Catch<Exception>(() => handle.Put(msg));
     }
 }

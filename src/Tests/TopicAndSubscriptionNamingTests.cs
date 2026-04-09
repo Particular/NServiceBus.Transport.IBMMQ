@@ -1,9 +1,5 @@
 namespace NServiceBus.Transport.IBMMQ.Tests;
 
-using System;
-using System.Linq;
-using NUnit.Framework;
-
 // Short name types for predictable FullName lengths
 class Evt;
 class VeryLongEventNameThatWillExceedTheFortyEightCharacterLimit;

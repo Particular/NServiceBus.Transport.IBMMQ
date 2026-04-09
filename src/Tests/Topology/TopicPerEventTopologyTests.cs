@@ -1,7 +1,5 @@
 namespace NServiceBus.Transport.IBMMQ.Tests.Topology;
 
-using System;
-using System.Linq;
 using NUnit.Framework;
 
 [TestFixture]
@@ -88,8 +86,11 @@ public class TopicPerEventTopologyTests
 
         var destinations = topo.GetPublishDestinations(typeof(ConcreteEvent));
 
-        Assert.That(destinations[0].TopicName, Does.StartWith("PROD."));
-        Assert.That(destinations[0].TopicString, Does.StartWith("prod/"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(destinations[0].TopicName, Does.StartWith("PROD."));
+            Assert.That(destinations[0].TopicString, Does.StartWith("prod/"));
+        }
     }
 
     [Test]
@@ -121,8 +122,11 @@ public class TopicPerEventTopologyPolymorphicGuardTests
         var ex = Assert.Throws<InvalidOperationException>(() =>
             topology.GetSubscriptionTopicStrings(typeof(IMyEvent)));
 
-        Assert.That(ex!.Message, Does.Contain(nameof(IMyEvent)));
-        Assert.That(ex.Message, Does.Contain(nameof(TopicTopology.ThrowOnPolymorphicSubscription)));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(ex!.Message, Does.Contain(nameof(IMyEvent)));
+            Assert.That(ex.Message, Does.Contain(nameof(TopicTopology.ThrowOnPolymorphicSubscription)));
+        }
     }
 
     [Test]
@@ -383,8 +387,11 @@ public class TopicPerEventTopologyPublishToTests
 
         var destinations = topology.GetPublishDestinations(typeof(BaseEvent));
 
-        Assert.That(destinations[0].TopicName, Is.EqualTo(naming.GenerateTopicName(typeof(BaseEvent))));
-        Assert.That(destinations[0].TopicString, Is.EqualTo(naming.GenerateTopicString(typeof(BaseEvent))));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(destinations[0].TopicName, Is.EqualTo(naming.GenerateTopicName(typeof(BaseEvent))));
+            Assert.That(destinations[0].TopicString, Is.EqualTo(naming.GenerateTopicString(typeof(BaseEvent))));
+        }
     }
 
     [Test]
@@ -397,8 +404,11 @@ public class TopicPerEventTopologyPublishToTests
         var dest1 = topology.GetPublishDestinations(typeof(ConcreteEvent));
         var dest2 = topology.GetPublishDestinations(typeof(BaseEvent));
 
-        Assert.That(dest1[0].TopicString, Is.EqualTo(naming.GenerateTopicString(typeof(IMyEvent))));
-        Assert.That(dest2[0].TopicString, Is.EqualTo(naming.GenerateTopicString(typeof(IMyEvent))));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(dest1[0].TopicString, Is.EqualTo(naming.GenerateTopicString(typeof(IMyEvent))));
+            Assert.That(dest2[0].TopicString, Is.EqualTo(naming.GenerateTopicString(typeof(IMyEvent))));
+        }
     }
 
     [Test]
@@ -436,8 +446,11 @@ public class TopicPerEventTopologyPublishToTests
         var destinations = topology.GetPublishDestinations(typeof(ConcreteEvent));
 
         Assert.That(destinations, Has.Count.EqualTo(1));
-        Assert.That(destinations[0].TopicString, Is.EqualTo("legacy/order/events/"));
-        Assert.That(destinations[0].TopicName, Is.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(destinations[0].TopicString, Is.EqualTo("legacy/order/events/"));
+            Assert.That(destinations[0].TopicName, Is.Null);
+        }
     }
 
     [Test]
@@ -449,8 +462,11 @@ public class TopicPerEventTopologyPublishToTests
         var destinations = topology.GetPublishDestinations(typeof(ConcreteEvent));
 
         Assert.That(destinations, Has.Count.EqualTo(1));
-        Assert.That(destinations[0].TopicString, Is.EqualTo("legacy/order/events/"));
-        Assert.That(destinations[0].TopicName, Is.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(destinations[0].TopicString, Is.EqualTo("legacy/order/events/"));
+            Assert.That(destinations[0].TopicName, Is.Null);
+        }
     }
 
     [Test]
@@ -462,8 +478,11 @@ public class TopicPerEventTopologyPublishToTests
         var destinations = topology.GetPublishDestinations(typeof(ConcreteEvent));
 
         Assert.That(destinations, Has.Count.EqualTo(1));
-        Assert.That(destinations[0].TopicName, Is.EqualTo("MY.TOPIC"));
-        Assert.That(destinations[0].TopicString, Is.EqualTo("my/topic/"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(destinations[0].TopicName, Is.EqualTo("MY.TOPIC"));
+            Assert.That(destinations[0].TopicString, Is.EqualTo("my/topic/"));
+        }
     }
 
     [Test]
@@ -475,8 +494,11 @@ public class TopicPerEventTopologyPublishToTests
         var destinations = topology.GetPublishDestinations(typeof(ConcreteEvent));
 
         Assert.That(destinations, Has.Count.EqualTo(1));
-        Assert.That(destinations[0].TopicName, Is.EqualTo("MY.TOPIC"));
-        Assert.That(destinations[0].TopicString, Is.EqualTo("my/topic/"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(destinations[0].TopicName, Is.EqualTo("MY.TOPIC"));
+            Assert.That(destinations[0].TopicString, Is.EqualTo("my/topic/"));
+        }
     }
 
     [Test]

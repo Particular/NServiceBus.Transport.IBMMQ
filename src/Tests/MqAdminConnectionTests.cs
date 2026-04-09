@@ -1,6 +1,5 @@
 namespace NServiceBus.Transport.IBMMQ.Tests;
 
-using System;
 using IBM.WMQ;
 using IBM.WMQ.PCF;
 using NUnit.Framework;

@@ -1,8 +1,5 @@
 namespace NServiceBus.TransportTests;
 
-using System;
-using System.Threading;
-using System.Threading.Tasks;
 using NServiceBus.Transport;
 using NServiceBus.Transport.IBMMQ;
 
@@ -29,7 +26,7 @@ public class ConfigureIBMMQTransportInfrastructure : IConfigureTransportInfrastr
         if (name.Length > 48)
         {
             var hash = name.GetHashCode().ToString("X8");
-            name = name.Substring(0, 48 - 9) + "_" + hash; // 39 chars + "_" + 8 char hash = 48
+            name = name[..(48 - 9)] + "_" + hash; // 39 chars + "_" + 8 char hash = 48
         }
         return name;
     }

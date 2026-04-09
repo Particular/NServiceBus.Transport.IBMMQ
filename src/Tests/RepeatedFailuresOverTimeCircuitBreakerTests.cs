@@ -1,9 +1,6 @@
 namespace NServiceBus.Transport.IBMMQ.Tests;
 
-using System;
 using System.Diagnostics;
-using System.Threading;
-using System.Threading.Tasks;
 using NUnit.Framework;
 
 [TestFixture]
@@ -72,8 +69,11 @@ public class RepeatedFailuresOverTimeCircuitBreakerTests
         // Timer fires on a thread pool thread — give it a moment
         var result = await Task.WhenAny(triggered.Task, Task.Delay(TimeSpan.FromSeconds(5))).ConfigureAwait(false);
 
-        Assert.That(result, Is.EqualTo(triggered.Task), "Circuit breaker should have triggered");
-        Assert.That(triggered.Task.Result, Is.SameAs(expectedException));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(result, Is.EqualTo(triggered.Task), "Circuit breaker should have triggered");
+            Assert.That(triggered.Task.Result, Is.SameAs(expectedException));
+        }
     }
 
     [Test]

@@ -1,9 +1,9 @@
 namespace NServiceBus.Transport.IBMMQ.CommandLine.Tests
 {
-    using System;
     using NUnit.Framework;
-    using TransportTopicNaming = NServiceBus.Transport.IBMMQ.TopicNaming;
-    using CliTopicNaming = NServiceBus.Transport.IBMMQ.CommandLine.TopicNaming;
+    using CliTopicNaming = TopicNaming;
+    using TransportTopicNaming = IBMMQ.TopicNaming;
+
     [TestFixture]
     public class TopicNamingParityTests
     {

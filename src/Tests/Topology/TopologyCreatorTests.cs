@@ -1,16 +1,15 @@
 namespace NServiceBus.Transport.IBMMQ.Tests.Topology;
 
-using System;
-using System.Linq;
 using IBM.WMQ;
 using IBM.WMQ.PCF;
+using NServiceBus.Logging;
 using NUnit.Framework;
 
 [TestFixture]
 [Category("RequiresBroker")]
 public class TopologyCreatorTests
 {
-    static readonly NServiceBus.Logging.ILog log = NServiceBus.Logging.LogManager.GetLogger<TopologyCreatorTests>();
+    static readonly ILog log = LogManager.GetLogger<TopologyCreatorTests>();
     readonly TopicNaming naming = new ShortenedTopicNaming("TEST");
 
     [OneTimeSetUp]
@@ -53,8 +52,11 @@ public class TopologyCreatorTests
 
         creator.Create();
 
-        Assert.That(TopicAdminObjectExists(qm, "TEST.TOPOCREATOR.A"), Is.True);
-        Assert.That(TopicAdminObjectExists(qm, "TEST.TOPOCREATOR.B"), Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(TopicAdminObjectExists(qm, "TEST.TOPOCREATOR.A"), Is.True);
+            Assert.That(TopicAdminObjectExists(qm, "TEST.TOPOCREATOR.B"), Is.True);
+        }
     }
 
     [Test]

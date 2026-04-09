@@ -1,6 +1,5 @@
 namespace NServiceBus.Transport.IBMMQ.Tests;
 
-using System;
 using Microsoft.Extensions.Time.Testing;
 using NServiceBus.Extensibility;
 using NUnit.Framework;
@@ -15,8 +14,11 @@ public class InMemoryFailureInfoStorageTests
 
         storage.RecordFailure("msg-1", new Exception("fail"), new ContextBag());
 
-        Assert.That(storage.TryGetFailureInfo("msg-1", out var info), Is.True);
-        Assert.That(info!.NumberOfProcessingAttempts, Is.EqualTo(1));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(storage.TryGetFailureInfo("msg-1", out var info), Is.True);
+            Assert.That(info!.NumberOfProcessingAttempts, Is.EqualTo(1));
+        }
     }
 
     [Test]
@@ -28,8 +30,11 @@ public class InMemoryFailureInfoStorageTests
         storage.RecordFailure("msg-1", new Exception("second"), new ContextBag());
         storage.RecordFailure("msg-1", new Exception("third"), new ContextBag());
 
-        Assert.That(storage.TryGetFailureInfo("msg-1", out var info), Is.True);
-        Assert.That(info!.NumberOfProcessingAttempts, Is.EqualTo(3));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(storage.TryGetFailureInfo("msg-1", out var info), Is.True);
+            Assert.That(info!.NumberOfProcessingAttempts, Is.EqualTo(3));
+        }
     }
 
     [Test]
@@ -50,8 +55,11 @@ public class InMemoryFailureInfoStorageTests
     {
         var storage = new InMemoryFailureInfoStorage(TimeProvider.System);
 
-        Assert.That(storage.TryGetFailureInfo("unknown", out var info), Is.False);
-        Assert.That(info, Is.Null);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(storage.TryGetFailureInfo("unknown", out var info), Is.False);
+            Assert.That(info, Is.Null);
+        }
     }
 
     [Test]
@@ -84,8 +92,11 @@ public class InMemoryFailureInfoStorageTests
         storage.TryGetFailureInfo("msg-1", out var info1);
         storage.TryGetFailureInfo("msg-2", out var info2);
 
-        Assert.That(info1!.Exception.Message, Is.EqualTo("a"));
-        Assert.That(info2!.Exception.Message, Is.EqualTo("b"));
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(info1!.Exception.Message, Is.EqualTo("a"));
+            Assert.That(info2!.Exception.Message, Is.EqualTo("b"));
+        }
     }
 
     [Test]
@@ -102,8 +113,11 @@ public class InMemoryFailureInfoStorageTests
         // RecordFailure triggers sweep
         storage.RecordFailure("msg-2", new Exception("trigger"), new ContextBag());
 
-        Assert.That(storage.TryGetFailureInfo("msg-1", out _), Is.False);
-        Assert.That(storage.TryGetFailureInfo("msg-2", out _), Is.True);
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(storage.TryGetFailureInfo("msg-1", out _), Is.False);
+            Assert.That(storage.TryGetFailureInfo("msg-2", out _), Is.True);
+        }
     }
 
     [Test]

@@ -1,7 +1,7 @@
 namespace NServiceBus.Transport.IBMMQ.Tests;
 
-using System;
 using IBM.WMQ;
+using NServiceBus.Logging;
 using NUnit.Framework;
 
 [TestFixture]
@@ -18,7 +18,7 @@ public class DestinationCacheTests
     {
         using var qm = TestBrokerConnection.Connect();
         using var cache = new DestinationCache<MQQueue>(
-            NServiceBus.Logging.LogManager.GetLogger<DestinationCacheTests>(),
+            LogManager.GetLogger<DestinationCacheTests>(),
             capacity: 10);
 
         var handle1 = cache.GetOrAdd(QueueName, _ => qm.AccessQueue(QueueName, MQC.MQOO_INQUIRE));
@@ -33,7 +33,7 @@ public class DestinationCacheTests
         using var qm = TestBrokerConnection.Connect();
         var openCount = 0;
         using var cache = new DestinationCache<MQQueue>(
-            NServiceBus.Logging.LogManager.GetLogger<DestinationCacheTests>(),
+            LogManager.GetLogger<DestinationCacheTests>(),
             capacity: 2);
 
         MQQueue Open(string _)
@@ -59,7 +59,7 @@ public class DestinationCacheTests
         using var qm = TestBrokerConnection.Connect();
         var openCount = 0;
         using var cache = new DestinationCache<MQQueue>(
-            NServiceBus.Logging.LogManager.GetLogger<DestinationCacheTests>(),
+            LogManager.GetLogger<DestinationCacheTests>(),
             capacity: 2);
 
         MQQueue Open(string _)
@@ -88,7 +88,7 @@ public class DestinationCacheTests
         using var qm = TestBrokerConnection.Connect();
         var openCount = 0;
         using var cache = new DestinationCache<MQQueue>(
-            NServiceBus.Logging.LogManager.GetLogger<DestinationCacheTests>(),
+            LogManager.GetLogger<DestinationCacheTests>(),
             capacity: 10);
 
         MQQueue Open(string _)
@@ -108,7 +108,7 @@ public class DestinationCacheTests
     public void Evict_is_idempotent_for_unknown_key()
     {
         using var cache = new DestinationCache<MQQueue>(
-            NServiceBus.Logging.LogManager.GetLogger<DestinationCacheTests>(),
+            LogManager.GetLogger<DestinationCacheTests>(),
             capacity: 10);
 
         Assert.DoesNotThrow(() => cache.Evict("nonexistent"));
@@ -118,7 +118,7 @@ public class DestinationCacheTests
     public void Dispose_is_idempotent()
     {
         var cache = new DestinationCache<MQQueue>(
-            NServiceBus.Logging.LogManager.GetLogger<DestinationCacheTests>(),
+            LogManager.GetLogger<DestinationCacheTests>(),
             capacity: 10);
 
         cache.Dispose();
@@ -129,7 +129,7 @@ public class DestinationCacheTests
     public void GetOrAdd_throws_after_dispose()
     {
         var cache = new DestinationCache<MQQueue>(
-            NServiceBus.Logging.LogManager.GetLogger<DestinationCacheTests>(),
+            LogManager.GetLogger<DestinationCacheTests>(),
             capacity: 10);
 
         cache.Dispose();
