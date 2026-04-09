@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
+    <OutputType>Exe</OutputType>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <PackAsTool>true</PackAsTool>
@@ -11,20 +11,15 @@
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
 
-  <PropertyGroup>
-    <NuGetAuditMode>direct</NuGetAuditMode>
-    <NoWarn>PS0018</NoWarn>
-  </PropertyGroup>
-
-  <ItemGroup>
-    <InternalsVisibleTo Include="NServiceBus.Transport.IBMMQ.CommandLine.Tests" />
-  </ItemGroup>
-
   <ItemGroup>
     <PackageReference Include="IBMMQDotnetClient" />
     <PackageReference Include="McMaster.Extensions.CommandLineUtils" />
     <PackageReference Include="Particular.Packaging" PrivateAssets="All" />
     <PackageReference Include="System.Reflection.MetadataLoadContext" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="NServiceBus.Transport.IBMMQ.CommandLine.Tests" />
   </ItemGroup>
 
 </Project>
