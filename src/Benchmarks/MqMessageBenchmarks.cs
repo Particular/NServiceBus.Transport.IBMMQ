@@ -12,7 +12,7 @@ public class MqMessageBenchmarks
         return new MQMessage();
     }
 
-    MQMessage reusableMessage = new();
+    readonly MQMessage reusableMessage = new();
 
     [Benchmark]
     public MQMessage ClearMessage()

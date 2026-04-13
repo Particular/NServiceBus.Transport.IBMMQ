@@ -2,8 +2,6 @@
 
 namespace NServiceBus.Transport.IBMMQ.Tests;
 
-using System;
-using System.Collections.Generic;
 using IBM.WMQ;
 using NServiceBus.Transport;
 using NUnit.Framework;
@@ -80,16 +78,19 @@ public class MqMessageClearBehaviorTests
         var msg2TestProp = TryGetStringProperty(msg2, "TestProp");
         var msg2TestProp2 = TryGetStringProperty(msg2, "TestProp2");
 
-        // First message should have TestProp
-        Assert.That(msg1TestProp, Is.EqualTo("value1"), "First message should have TestProp=value1");
+        using (Assert.EnterMultipleScope())
+        {
+            // First message should have TestProp
+            Assert.That(msg1TestProp, Is.EqualTo("value1"), "First message should have TestProp=value1");
 
-        // Second message should have TestProp2
-        Assert.That(msg2TestProp2, Is.EqualTo("value2"), "Second message should have TestProp2=value2");
+            // Second message should have TestProp2
+            Assert.That(msg2TestProp2, Is.EqualTo("value2"), "Second message should have TestProp2=value2");
 
-        // Key assertion: if ClearMessage does NOT clear named properties,
-        // the stale TestProp from message 1 will leak into message 2
-        Assert.That(msg2TestProp, Is.EqualTo("value1"),
-            "ClearMessage does NOT clear named properties — stale TestProp leaked to second message");
+            // Key assertion: if ClearMessage does NOT clear named properties,
+            // the stale TestProp from message 1 will leak into message 2
+            Assert.That(msg2TestProp, Is.EqualTo("value1"),
+                "ClearMessage does NOT clear named properties — stale TestProp leaked to second message");
+        }
     }
 
     [Test]
@@ -137,10 +138,13 @@ public class MqMessageClearBehaviorTests
         reused.CorrelationId = MQC.MQCI_NONE;
         inputQueue.Get(reused, gmo);
 
-        Assert.That(TryGetStringProperty(reused, "PropB"), Is.EqualTo("b"),
-            "Message B should have PropB=b");
-        Assert.That(TryGetStringProperty(reused, "PropA"), Is.Null,
-            "Get() without PROPERTIES_IN_HANDLE replaces properties — PropA should not leak");
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(TryGetStringProperty(reused, "PropB"), Is.EqualTo("b"),
+                    "Message B should have PropB=b");
+            Assert.That(TryGetStringProperty(reused, "PropA"), Is.Null,
+                "Get() without PROPERTIES_IN_HANDLE replaces properties — PropA should not leak");
+        }
     }
 
     [Test]

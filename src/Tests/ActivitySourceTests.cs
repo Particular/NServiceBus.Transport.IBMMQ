@@ -1,6 +1,5 @@
 namespace NServiceBus.Transport.IBMMQ.Tests;
 
-using System.Collections.Generic;
 using System.Diagnostics;
 using NUnit.Framework;
 
@@ -50,7 +49,7 @@ public class ActivitySourceTests
         using var listener = new ActivityListener
         {
             ShouldListenTo = source => source.Name == ActivitySources.Name,
-            Sample = (ref ActivityCreationOptions<ActivityContext> _) => ActivitySamplingResult.AllDataAndRecorded,
+            Sample = (ref _) => ActivitySamplingResult.AllDataAndRecorded,
             ActivityStopped = activity => stoppedActivities.Add(activity)
         };
         ActivitySource.AddActivityListener(listener);
@@ -60,7 +59,11 @@ public class ActivitySourceTests
         }
 
         Assert.That(stoppedActivities, Has.Count.EqualTo(1));
-        Assert.That(stoppedActivities[0].OperationName, Is.EqualTo(ActivitySources.Dispatch));
-        Assert.That(stoppedActivities[0].Kind, Is.EqualTo(ActivityKind.Internal));
+
+        using (Assert.EnterMultipleScope())
+        {
+            Assert.That(stoppedActivities[0].OperationName, Is.EqualTo(ActivitySources.Dispatch));
+            Assert.That(stoppedActivities[0].Kind, Is.EqualTo(ActivityKind.Internal));
+        }
     }
 }

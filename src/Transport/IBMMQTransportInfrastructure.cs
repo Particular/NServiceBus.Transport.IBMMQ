@@ -1,8 +1,9 @@
 namespace NServiceBus.Transport.IBMMQ;
 
+using System.Collections.Concurrent;
 using IBM.WMQ;
-using Microsoft.Extensions.DependencyInjection;
 using Logging;
+using Microsoft.Extensions.DependencyInjection;
 
 sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDisposable
 {
@@ -78,29 +79,29 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         SanitizeResourceName resourceNameFormatter = transport.ResourceNameSanitizer;
         var characterSet = transport.CharacterSet;
 
-        CreateMqAdminConnection createAdmin = () =>
-            new MqAdminConnection(new MQQueueManager(queueManagerName, connectionProperties), resourceNameFormatter);
+        MqAdminConnection CreateAdmin() => new(new MQQueueManager(queueManagerName, connectionProperties), resourceNameFormatter);
 
         // Cache created topics across all connections to avoid redundant admin connection
         // creation. Topic creation is idempotent; the cache prevents repeated attempts for
         // topics that have already been created successfully. GetOrAdd ensures the entry is
         // only stored on success — if CreateTopic throws, the next call will retry.
-        var createdTopics = new System.Collections.Concurrent.ConcurrentDictionary<string, byte>();
-        CreateTopic createTopic = (topicName, topicString) =>
+        var createdTopics = new ConcurrentDictionary<string, byte>();
+
+        void CreateTopic(string topicName, string topicString) =>
             createdTopics.GetOrAdd(topicName, _ =>
             {
-                using var admin = createAdmin();
+                using var admin = CreateAdmin();
                 admin.CreateTopic(topicName, topicString);
                 return 0;
             });
 
         var pumpSettings = new MessagePumpSettings(messageWaitInterval);
 
-        MqConnection createDataPathConnection() => new(
+        MqConnection CreateDataPathConnection() => new(
             LogManager.GetLogger<MqConnection>(),
             new MQQueueManager(queueManagerName, connectionProperties),
             resourceNameFormatter,
-            createTopic,
+            CreateTopic,
             DefaultDestinationCacheCapacity);
 
         var circuitBreakerTimeout = transport.TimeToWaitBeforeTriggeringCircuitBreaker;
@@ -109,13 +110,13 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
             .AddSingleton((TopicTopology)transport.Topology)
             .AddSingleton<MqPropertyNameEncoder>()
             .AddSingleton(sp => new IBMMQMessageConverter(sp.GetRequiredService<MqPropertyNameEncoder>(), characterSet))
-            .AddSingleton(new MqConnectionPool(LogManager.GetLogger<MqConnectionPool>(), createDataPathConnection, Environment.ProcessorCount))
+            .AddSingleton(new MqConnectionPool(LogManager.GetLogger<MqConnectionPool>(), CreateDataPathConnection, Environment.ProcessorCount))
             .AddSingleton<IMessageDispatcher>(sp =>
                 new MessageDispatcher(
                     sp.GetRequiredService<MqConnectionPool>(),
                     sp.GetRequiredService<TopicTopology>(),
                     sp.GetRequiredService<IBMMQMessageConverter>()))
-            .AddSingleton(createAdmin)
+            .AddSingleton<CreateMqAdminConnection>(CreateAdmin)
             .AddSingleton(pumpSettings);
 
         if (transactionMode == TransportTransactionMode.SendsAtomicWithReceive)
@@ -125,7 +126,7 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         }
 
         services
-            .AddScoped(_ => createDataPathConnection())
+            .AddScoped(_ => CreateDataPathConnection())
             .AddScoped<CreateReceiveStrategy>(sp =>
                 ctx =>
                 {
@@ -173,15 +174,17 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
                     var cb = sp.GetRequiredKeyedService<RepeatedFailuresOverTimeCircuitBreaker>(rs.Id);
                     var scopeFactory = sp.GetRequiredService<IServiceScopeFactory>();
                     var settings = sp.GetRequiredService<MessagePumpSettings>();
-                    CreateMessagePumpWorker workerFactory = (queueName, onMessage, onError, workerIndex) =>
+
+                    MessagePumpWorker WorkerFactory(string queueName, OnMessage onMessage, OnError onError, int workerIndex) =>
                         new MessagePumpWorker(
                             LogManager.GetLogger<MessagePumpWorker>(),
                             scopeFactory, settings, criticalError, cb,
                             queueName, onMessage, onError, workerIndex);
+
                     var subMgr = sp.GetRequiredKeyedService<ISubscriptionManager>(rs.Id);
                     return new IBMMQMessageReceiver(
                         LogManager.GetLogger<IBMMQMessageReceiver>(),
-                        workerFactory, subMgr, rs, resourceNameFormatter);
+                        WorkerFactory, subMgr, rs, resourceNameFormatter);
                 });
         }
     }

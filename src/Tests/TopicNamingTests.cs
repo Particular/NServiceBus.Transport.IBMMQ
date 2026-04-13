@@ -1,6 +1,5 @@
 namespace NServiceBus.Transport.IBMMQ.Tests;
 
-using System;
 using System.Security.Cryptography;
 using System.Text;
 using NUnit.Framework;
@@ -91,7 +90,7 @@ public class ShortenedTopicNamingTests
     {
         var name = naming.GenerateTopicName(typeof(Evt));
 
-        Assert.That(name.Length, Is.LessThanOrEqualTo(48));
+        Assert.That(name, Has.Length.LessThanOrEqualTo(48));
         Assert.That(name, Does.Not.Contain("_"));
     }
 
@@ -100,7 +99,7 @@ public class ShortenedTopicNamingTests
     {
         var name = naming.GenerateTopicName(typeof(VeryLongEventNameThatWillExceedTheFortyEightCharacterLimit));
 
-        Assert.That(name.Length, Is.EqualTo(48));
+        Assert.That(name, Has.Length.EqualTo(48));
     }
 
     [Test]

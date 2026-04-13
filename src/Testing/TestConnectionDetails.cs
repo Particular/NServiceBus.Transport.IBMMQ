@@ -1,5 +1,4 @@
 #nullable enable
-using System;
 using System.Collections.Specialized;
 using System.Web;
 using NServiceBus.Transport.IBMMQ;

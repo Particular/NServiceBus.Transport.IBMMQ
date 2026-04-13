@@ -1,5 +1,4 @@
-﻿using NServiceBus;
-using NServiceBus.Transport.IBMMQ;
+﻿using NServiceBus.Transport.IBMMQ;
 using NUnit.Framework;
 using Particular.Approvals;
 using PublicApiGenerator;

@@ -1,20 +1,13 @@
-namespace NServiceBus.Transport.IBMMQ.CommandLine;
-
 using McMaster.Extensions.CommandLineUtils;
+using NServiceBus.Transport.IBMMQ.CommandLine;
 
-class Program
-{
-    static int Main(string[] args)
-    {
-        var app = new CommandLineApplication { Name = "ibmmq-transport" };
+var app = new CommandLineApplication { Name = "ibmmq-transport" };
 
-        var connectionOptions = ConnectionOptions.Register(app);
+var connectionOptions = ConnectionOptions.Register(app);
 
-        app.HelpOption();
-        EndpointCommand.Register(app, connectionOptions);
-        QueueCommand.Register(app, connectionOptions);
-        app.OnExecute(() => app.ShowHelp());
+app.HelpOption();
+EndpointCommand.Register(app, connectionOptions);
+QueueCommand.Register(app, connectionOptions);
+app.OnExecute(() => app.ShowHelp());
 
-        return app.Execute(args);
-    }
-}
+return app.Execute(args);

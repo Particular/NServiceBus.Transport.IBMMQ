@@ -1,7 +1,6 @@
 namespace NServiceBus.Transport.IBMMQ.Tests;
 
-using System.Threading.Tasks;
-using IBM.WMQ;
+using NServiceBus.Logging;
 using NUnit.Framework;
 
 [TestFixture]
@@ -15,9 +14,9 @@ public class MqConnectionPoolTests
     public async Task Discard_allows_new_connection_to_be_created()
     {
         var pool = new MqConnectionPool(
-            NServiceBus.Logging.LogManager.GetLogger<MqConnectionPool>(),
+            LogManager.GetLogger<MqConnectionPool>(),
             () => new MqConnection(
-                NServiceBus.Logging.LogManager.GetLogger<MqConnection>(),
+                LogManager.GetLogger<MqConnection>(),
                 TestBrokerConnection.Connect(),
                 name => name,
                 (_, _) => { },

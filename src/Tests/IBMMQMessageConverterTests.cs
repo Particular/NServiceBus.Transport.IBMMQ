@@ -1,8 +1,6 @@
 #pragma warning disable PS0024 // "I" in IBMMQ is from IBM, not an interface prefix
 namespace NServiceBus.Transport.IBMMQ.Tests;
 
-using System;
-using System.Collections.Generic;
 using IBM.WMQ;
 using NServiceBus.Performance.TimeToBeReceived;
 using NServiceBus.Transport;
@@ -365,9 +363,12 @@ public class IBMMQMessageConverterTests
             string messageId = string.Empty;
             var receivedBody = converter.FromNative(mqMessage, receivedHeaders, ref messageId);
 
-            Assert.That(receivedHeaders["NServiceBus.EnclosedMessageTypes"], Is.EqualTo("MyApp.Events.OrderPlaced"));
-            Assert.That(receivedHeaders["custom-header"], Is.EqualTo("custom-value"));
-            Assert.That(receivedBody, Is.EqualTo(body));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(receivedHeaders["NServiceBus.EnclosedMessageTypes"], Is.EqualTo("MyApp.Events.OrderPlaced"));
+                Assert.That(receivedHeaders["custom-header"], Is.EqualTo("custom-value"));
+                Assert.That(receivedBody, Is.EqualTo(body));
+            }
         }
 
         [Test]
@@ -388,8 +389,11 @@ public class IBMMQMessageConverterTests
             string messageId = string.Empty;
             converter.FromNative(mqMessage, receivedHeaders, ref messageId);
 
-            Assert.That(receivedHeaders["EmptyHeader"], Is.EqualTo(""));
-            Assert.That(receivedHeaders["NormalHeader"], Is.EqualTo("value"));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(receivedHeaders["EmptyHeader"], Is.EqualTo(""));
+                Assert.That(receivedHeaders["NormalHeader"], Is.EqualTo("value"));
+            }
         }
 
         [Test]
@@ -666,8 +670,11 @@ public class IBMMQMessageConverterTests
             converter.FromNative(mqMessage, receivedHeaders, ref messageId);
 
             Assert.That(receivedHeaders, Does.ContainKey(Headers.MessageId));
-            Assert.That(receivedHeaders[Headers.MessageId], Is.EqualTo(Convert.ToHexString(nativeId)));
-            Assert.That(messageId, Is.EqualTo(Convert.ToHexString(nativeId)));
+            using (Assert.EnterMultipleScope())
+            {
+                Assert.That(receivedHeaders[Headers.MessageId], Is.EqualTo(Convert.ToHexString(nativeId)));
+                Assert.That(messageId, Is.EqualTo(Convert.ToHexString(nativeId)));
+            }
         }
     }
 }

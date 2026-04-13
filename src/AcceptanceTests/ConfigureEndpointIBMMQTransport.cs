@@ -1,18 +1,14 @@
-using System;
 using System.Collections;
 using System.IO.Hashing;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using IBM.WMQ;
-using NServiceBus;
 using NServiceBus.AcceptanceTesting.Support;
-using Conventions = NServiceBus.AcceptanceTesting.Customization.Conventions;
 using NServiceBus.AcceptanceTests.Routing;
 using NServiceBus.AcceptanceTests.Routing.NativePublishSubscribe;
 using NServiceBus.AcceptanceTests.Sagas;
 using NServiceBus.AcceptanceTests.Versioning;
 using NServiceBus.Transport.IBMMQ;
+using Conventions = NServiceBus.AcceptanceTesting.Customization.Conventions;
 
 // ReSharper disable once CheckNamespace
 public class ConfigureEndpointIBMMQTransport : IConfigureEndpointTestExecution
