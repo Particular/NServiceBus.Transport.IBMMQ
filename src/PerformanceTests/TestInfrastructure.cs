@@ -11,6 +11,7 @@ using Transport.IBMMQ;
 
 static partial class TestInfrastructure
 {
+    static bool NonDurableMessages = false;
     static readonly IBMMQMessageConverter Converter = new(new MqPropertyNameEncoder(), MQC.CODESET_UTF);
     static readonly Hashtable ConnectionProperties = BuildConnectionProperties();
 
@@ -46,6 +47,11 @@ static partial class TestInfrastructure
 
     internal static partial void EnsureQueueExists(string queueName, int maxDepth)
     {
+        // The transport may auto-create queues with a lower default depth,
+        // and the send-only scenarios fill queues without a consumer draining them.
+        // Use a generous minimum to avoid MQRC_Q_FULL during sustained sends.
+        maxDepth = Math.Max(maxDepth, 100_000);
+
         using var queueManager = new MQQueueManager(TestConnectionDetails.QueueManagerName, ConnectionProperties);
         var agent = new PCFMessageAgent(queueManager);
         try
@@ -54,7 +60,7 @@ static partial class TestInfrastructure
             request.AddParameter(MQC.MQCA_Q_NAME, queueName);
             request.AddParameter(MQC.MQIA_Q_TYPE, MQC.MQQT_LOCAL);
             request.AddParameter(MQC.MQIA_MAX_Q_DEPTH, maxDepth);
-            request.AddParameter(MQC.MQIA_DEF_PERSISTENCE, MQC.MQPER_PERSISTENT);
+            request.AddParameter(MQC.MQIA_DEF_PERSISTENCE, NonDurableMessages ? MQC.MQPER_NOT_PERSISTENT : MQC.MQPER_PERSISTENT);
             agent.Send(request);
         }
         catch (PCFException e) when (e.ReasonCode == MQC.MQRCCF_OBJECT_ALREADY_EXISTS)
@@ -82,14 +88,54 @@ static partial class TestInfrastructure
             request.AddParameter(MQC.MQCA_Q_NAME, queueName);
             agent.Send(request);
         }
-        catch (PCFException)
+        catch (PCFException e) when (e.ReasonCode == MQC.MQRCCF_UNKNOWN_OBJECT_NAME)
         {
-            // Queue may not exist or may already be empty
+            // Queue does not exist yet, nothing to purge
+        }
+        catch (PCFException e)
+        {
+            DrainQueue(queueManager, queueName);
         }
         finally
         {
             agent.Disconnect();
             queueManager.Disconnect();
+        }
+    }
+
+    static void DrainQueue(MQQueueManager queueManager, string queueName)
+    {
+        try
+        {
+            using var queue = queueManager.AccessQueue(queueName, MQC.MQOO_INPUT_SHARED);
+            var gmo = new MQGetMessageOptions
+            {
+                Options = MQC.MQGMO_NO_WAIT | MQC.MQGMO_ACCEPT_TRUNCATED_MSG
+            };
+
+            int count = 0;
+            while (true)
+            {
+                try
+                {
+                    var msg = new MQMessage();
+                    queue.Get(msg, gmo);
+                    count++;
+                }
+                catch (MQException ex) when (ex.ReasonCode == MQC.MQRC_NO_MSG_AVAILABLE)
+                {
+                    break;
+                }
+            }
+
+            if (count > 0)
+            {
+                Console.Error.WriteLine($"  [WARN] Drained {count} messages from {queueName}");
+            }
+        }
+        catch (MQException ex)
+        {
+            Console.Error.WriteLine($"  [WARN] DrainQueue failed for {queueName}: reason={ex.ReasonCode}");
         }
     }
 
@@ -118,6 +164,11 @@ static partial class TestInfrastructure
                 [Headers.ContentType] = "application/json",
                 [Headers.MessageIntent] = intent
             };
+
+            if (NonDurableMessages)
+            {
+                headers[Headers.NonDurableMessage] = "true";
+            }
 
             var body = Encoding.UTF8.GetBytes($"{{\"Index\":{i}}}");
             var outgoingMessage = new OutgoingMessage(messageId, headers, body);
