@@ -12,7 +12,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="IBMMQDotnetClient" />
+    <PackageReference Include="IBMMQDotnetClient" AutomaticVersionRangeSegments="3" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" AutomaticVersionRange="false" />
     <PackageReference Include="NServiceBus" />
   </ItemGroup>
