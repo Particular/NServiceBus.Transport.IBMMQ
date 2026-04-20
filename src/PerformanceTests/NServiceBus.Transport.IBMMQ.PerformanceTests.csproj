@@ -11,10 +11,10 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="IBMMQDotnetClient" />
-    <PackageReference Include="NServiceBus.PerformanceTests.Sources" />
-    <PackageReference Include="System.CommandLine" />
-    <PackageReference Include="System.IO.Hashing" />
+    <PackageReference Include="IBMMQDotnetClient" Version="9.4.5" />
+    <PackageReference Include="NServiceBus.PerformanceTests.Sources" Version="1.0.0-alpha.2" />
+    <PackageReference Include="System.CommandLine" Version="2.0.5" />
+    <PackageReference Include="System.IO.Hashing" Version="10.0.5" />
   </ItemGroup>
 
   <ItemGroup>
