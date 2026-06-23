@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       ibm-mq:
-        image: icr.io/ibm-messaging/mq:latest
+        image: icr.io/ibm-messaging/mq:9.4.5.1-r1
         ports:
           - 1414:1414
           - 9443:9443
@@ -55,7 +55,7 @@ jobs:
       - name: Setup least-privilege test user
         shell: bash
         run: |
-          CONTAINER=$(docker ps -q --filter "ancestor=icr.io/ibm-messaging/mq:latest" | head -1)
+          CONTAINER=$(docker ps -q --filter "ancestor=icr.io/ibm-messaging/mq:9.4.5.1-r1" | head -1)
           .github/workflows/setup-leastpriv-tests.sh docker "$CONTAINER"
       - name: Build
         run: dotnet build src --configuration Release
