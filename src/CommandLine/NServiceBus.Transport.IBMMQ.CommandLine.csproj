@@ -12,7 +12,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="IBMMQDotnetClient" Version="9.4.5.1" />
+    <PackageReference Include="IBMMQDotnetClient" Version="10.0.0" />
     <PackageReference Include="McMaster.Extensions.CommandLineUtils" Version="5.1.0" />
     <PackageReference Include="System.Reflection.MetadataLoadContext" Version="10.0.7" />
   </ItemGroup>
