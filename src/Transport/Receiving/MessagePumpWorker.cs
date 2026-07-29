@@ -18,6 +18,8 @@ sealed class MessagePumpWorker(
     readonly CancellationTokenSource stopCts = new();
     readonly CancellationTokenSource cancellationCts = new();
     Task? pumpTask;
+    int stopped;
+    int disposed;
 
     public void Start()
     {
@@ -27,6 +29,11 @@ sealed class MessagePumpWorker(
 
     public async Task StopAsync(CancellationToken cancellationToken = default)
     {
+        if (Volatile.Read(ref stopped) != 0)
+        {
+            return;
+        }
+
         log.DebugFormat("Worker {0} stopping for queue {1}", workerIndex, queueName);
 
         CancellationTokenRegistration registration = default;
@@ -41,10 +48,17 @@ sealed class MessagePumpWorker(
             await stopCts.CancelAsync()
                 .ConfigureAwait(false);
 
-            if (pumpTask != null)
+            try
             {
-                await pumpTask
-                    .ConfigureAwait(false);
+                if (pumpTask != null)
+                {
+                    await pumpTask
+                        .ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                Interlocked.Exchange(ref stopped, 1);
             }
         }
         finally
@@ -56,11 +70,25 @@ sealed class MessagePumpWorker(
 
     public async ValueTask DisposeAsync()
     {
-        await StopAsync()
-            .ConfigureAwait(false);
-        cancellationCts.Dispose();
-        stopCts.Dispose();
-        log.DebugFormat("Worker {0} disposed", workerIndex);
+        if (Interlocked.Exchange(ref disposed, 1) != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            if (Volatile.Read(ref stopped) == 0)
+            {
+                await StopAsync()
+                    .ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            cancellationCts.Dispose();
+            stopCts.Dispose();
+            log.DebugFormat("Worker {0} disposed", workerIndex);
+        }
     }
 
     async Task PumpMessages(CancellationToken cancellationToken)

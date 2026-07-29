@@ -10,6 +10,7 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
 
     readonly ILog log;
     readonly MqConnectionPool sendPool;
+    readonly IBMMQMessageReceiver[] receivers;
     int _disposed;
 
     public IBMMQTransportInfrastructure(
@@ -21,9 +22,11 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         Action<string, Exception, CancellationToken> criticalError
     )
     {
-        this.log = log;
         ArgumentNullException.ThrowIfNull(connectionConfiguration);
         ArgumentNullException.ThrowIfNull(receiverSettings);
+
+        this.log = log;
+        ValidateTransactionMode(transactionMode);
 
         var queueManagerName = connectionConfiguration.QueueManagerName;
         var connectionProperties = connectionConfiguration.ConnectionProperties;
@@ -71,49 +74,54 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
 
         Dispatcher = new MessageDispatcher(sendPool, topology, messageConverter);
 
-        Receivers = receiverSettings.Select(IMessageReceiver (rs) =>
-        {
-            var receiveAddress = resourceNameFormatter(IBMMQMessageReceiver.ToTransportAddress(rs.ReceiveAddress));
-
-            var subscriptionManager = new IBMMQSubscriptionManager(
-                LogManager.GetLogger<IBMMQSubscriptionManager>(),
-                topology,
-                createAdmin,
-                rs.ReceiveAddress.BaseAddress
-            );
-
-            var circuitBreaker = new RepeatedFailuresOverTimeCircuitBreaker(
-                $"'{receiveAddress}'",
-                circuitBreakerTimeout,
-                ex => criticalError($"Failed to receive from {receiveAddress}", ex, CancellationToken.None));
-
-            MessagePumpWorker WorkerFactory(string queueName, OnMessage onMessage, OnError onError, int workerIndex)
+        receivers =
+        [
+            .. receiverSettings.Select(rs =>
             {
-                var context = new ReceiveContext(queueName, workerIndex, onMessage, onError, criticalError);
-                var strategyLog = LogManager.GetLogger<ReceiveStrategy>();
-                var strategy = transactionMode switch
+                var receiveAddress = resourceNameFormatter(IBMMQMessageReceiver.ToTransportAddress(rs.ReceiveAddress));
+
+                var subscriptionManager = new IBMMQSubscriptionManager(
+                    LogManager.GetLogger<IBMMQSubscriptionManager>(),
+                    topology,
+                    createAdmin,
+                    rs.ReceiveAddress.BaseAddress
+                );
+
+                var circuitBreaker = new RepeatedFailuresOverTimeCircuitBreaker(
+                    $"'{receiveAddress}'",
+                    circuitBreakerTimeout,
+                    ex => criticalError($"Failed to receive from {receiveAddress}", ex, CancellationToken.None));
+
+                MessagePumpWorker WorkerFactory(string queueName, OnMessage onMessage, OnError onError, int workerIndex)
                 {
-                    TransportTransactionMode.None =>
-                        (ReceiveStrategy)new NoTransactionReceiveStrategy(strategyLog, messageConverter, context),
-                    TransportTransactionMode.ReceiveOnly =>
-                        new ReceiveOnlyReceiveStrategy(strategyLog, messageConverter, context),
-                    TransportTransactionMode.SendsAtomicWithReceive =>
-                        new AtomicReceiveStrategy(strategyLog, messageConverter, failureInfoStorage!, context),
-                    TransportTransactionMode.TransactionScope =>
-                        throw new NotSupportedException("TransactionScope is not supported"),
-                    _ => throw new ArgumentOutOfRangeException(nameof(transactionMode), transactionMode, "Unsupported transaction mode")
-                };
+                    var context = new ReceiveContext(queueName, workerIndex, onMessage, onError, criticalError);
+                    var strategyLog = LogManager.GetLogger<ReceiveStrategy>();
+                    var strategy = transactionMode switch
+                    {
+                        TransportTransactionMode.None =>
+                            (ReceiveStrategy)new NoTransactionReceiveStrategy(strategyLog, messageConverter, context),
+                        TransportTransactionMode.ReceiveOnly =>
+                            new ReceiveOnlyReceiveStrategy(strategyLog, messageConverter, context),
+                        TransportTransactionMode.SendsAtomicWithReceive =>
+                            new AtomicReceiveStrategy(strategyLog, messageConverter, failureInfoStorage!, context),
+                        TransportTransactionMode.TransactionScope =>
+                            throw new NotSupportedException("TransactionScope is not supported"),
+                        _ => throw new ArgumentOutOfRangeException(nameof(transactionMode), transactionMode, "Unsupported transaction mode")
+                    };
 
-                return new MessagePumpWorker(
-                    LogManager.GetLogger<MessagePumpWorker>(),
-                    strategy, CreateDataPathConnection, pumpSettings, circuitBreaker,
-                    queueName, workerIndex);
-            }
+                    return new MessagePumpWorker(
+                        LogManager.GetLogger<MessagePumpWorker>(),
+                        strategy, CreateDataPathConnection, pumpSettings, circuitBreaker,
+                        queueName, workerIndex);
+                }
 
-            return new IBMMQMessageReceiver(
-                LogManager.GetLogger<IBMMQMessageReceiver>(),
-                WorkerFactory, subscriptionManager, rs, resourceNameFormatter);
-        }).ToDictionary(r => r.Id);
+                return new IBMMQMessageReceiver(
+                    LogManager.GetLogger<IBMMQMessageReceiver>(),
+                    WorkerFactory, subscriptionManager, circuitBreaker, rs, resourceNameFormatter);
+            })
+        ];
+
+        Receivers = receivers.ToDictionary(r => r.Id, r => (IMessageReceiver)r);
     }
 
     public override string ToTransportAddress(QueueAddress address) =>
@@ -134,7 +142,33 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
         }
 
         log.Debug("Disposing");
-        await sendPool.DisposeAsync()
-            .ConfigureAwait(false);
+        try
+        {
+            foreach (var receiver in receivers)
+            {
+                await receiver.DisposeAsync()
+                    .ConfigureAwait(false);
+            }
+        }
+        finally
+        {
+            await sendPool.DisposeAsync()
+                .ConfigureAwait(false);
+        }
+    }
+
+    static void ValidateTransactionMode(TransportTransactionMode transactionMode)
+    {
+        switch (transactionMode)
+        {
+            case TransportTransactionMode.None:
+            case TransportTransactionMode.ReceiveOnly:
+            case TransportTransactionMode.SendsAtomicWithReceive:
+                return;
+            case TransportTransactionMode.TransactionScope:
+                throw new NotSupportedException("TransactionScope is not supported");
+            default:
+                throw new ArgumentOutOfRangeException(nameof(transactionMode), transactionMode, "Unsupported transaction mode");
+        }
     }
 }

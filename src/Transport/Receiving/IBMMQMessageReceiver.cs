@@ -6,6 +6,7 @@ sealed class IBMMQMessageReceiver(
     ILog log,
     CreateMessagePumpWorker pumpWorkerFactory,
     ISubscriptionManager subscriptions,
+    RepeatedFailuresOverTimeCircuitBreaker circuitBreaker,
     ReceiveSettings receiveSettings,
     SanitizeResourceName resourceNameFormatter
 ) : IMessageReceiver, IAsyncDisposable
@@ -14,6 +15,7 @@ sealed class IBMMQMessageReceiver(
     readonly string formattedReceiveAddress = resourceNameFormatter(ToTransportAddress(receiveSettings.ReceiveAddress));
 
     int concurrency;
+    int disposed;
     OnMessage? onMessage;
     OnError? onError;
 
@@ -136,16 +138,28 @@ sealed class IBMMQMessageReceiver(
 
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref disposed, 1) != 0)
+        {
+            return;
+        }
+
         // Best-effort safety net — StopReceive should have already drained and
         // disposed all workers. We intentionally skip acquiring receiveLock here
         // because disposal must not deadlock if StopReceive was never called.
-        foreach (var worker in workers.ToArray())
+        try
         {
-            await worker.DisposeAsync()
-                .ConfigureAwait(false);
+            foreach (var worker in workers.ToArray())
+            {
+                await worker.DisposeAsync()
+                    .ConfigureAwait(false);
+            }
         }
-
-        receiveLock.Dispose();
+        finally
+        {
+            workers.Clear();
+            circuitBreaker.Dispose();
+            receiveLock.Dispose();
+        }
     }
 
     MessagePumpWorker CreateWorker(int index)
@@ -158,10 +172,16 @@ sealed class IBMMQMessageReceiver(
         MessagePumpWorker worker,
         CancellationToken cancellationToken)
     {
-        await worker.StopAsync(cancellationToken)
-            .ConfigureAwait(false);
-        await worker.DisposeAsync()
-            .ConfigureAwait(false);
+        try
+        {
+            await worker.StopAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+        finally
+        {
+            await worker.DisposeAsync()
+                .ConfigureAwait(false);
+        }
     }
 
     internal static string ToTransportAddress(QueueAddress address)
