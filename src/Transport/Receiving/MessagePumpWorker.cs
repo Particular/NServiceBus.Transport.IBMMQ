@@ -2,13 +2,12 @@ namespace NServiceBus.Transport.IBMMQ;
 
 using IBM.WMQ;
 using Logging;
-using Microsoft.Extensions.DependencyInjection;
 
 sealed record MessagePumpSettings(TimeSpan MessageWaitInterval);
 
 sealed class MessagePumpWorker(
     ILog log,
-    IServiceScopeFactory scopeFactory,
+    ScopeFactory scopeFactory,
     MessagePumpSettings settings,
     Action<string, Exception, CancellationToken> criticalError,
     RepeatedFailuresOverTimeCircuitBreaker circuitBreaker,
@@ -77,11 +76,10 @@ sealed class MessagePumpWorker(
             // Outer loop: scope lifecycle (reconnection)
             while (!stopCts.IsCancellationRequested)
             {
-                var scope = scopeFactory.CreateAsyncScope();
+                var scope = scopeFactory.CreateScope();
                 await using var _ = scope
                     .ConfigureAwait(false);
-                var createStrategy = scope.ServiceProvider.GetRequiredService<CreateReceiveStrategy>();
-                var strategy = createStrategy(receiveContext);
+                var strategy = scope.CreateStrategy(receiveContext);
 
                 MQQueue? queue = null;
                 try
