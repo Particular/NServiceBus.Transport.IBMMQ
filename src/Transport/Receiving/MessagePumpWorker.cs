@@ -7,19 +7,16 @@ sealed record MessagePumpSettings(TimeSpan MessageWaitInterval);
 
 sealed class MessagePumpWorker(
     ILog log,
-    ScopeFactory scopeFactory,
+    ReceiveStrategy strategy,
+    Func<MqConnection> connectionFactory,
     MessagePumpSettings settings,
-    Action<string, Exception, CancellationToken> criticalError,
     RepeatedFailuresOverTimeCircuitBreaker circuitBreaker,
     string queueName,
-    OnMessage onMessage,
-    OnError onError,
     int workerIndex
 ) : IAsyncDisposable
 {
     readonly CancellationTokenSource stopCts = new();
     readonly CancellationTokenSource cancellationCts = new();
-    readonly ReceiveContext receiveContext = new(queueName, workerIndex, onMessage, onError, criticalError);
     Task? pumpTask;
 
     public void Start()
@@ -76,15 +73,14 @@ sealed class MessagePumpWorker(
             // Outer loop: scope lifecycle (reconnection)
             while (!stopCts.IsCancellationRequested)
             {
-                var scope = scopeFactory.CreateScope();
-                await using var _ = scope
+                var conn = connectionFactory();
+                await using var _ = conn
                     .ConfigureAwait(false);
-                var strategy = scope.CreateStrategy(receiveContext);
 
                 MQQueue? queue = null;
                 try
                 {
-                    queue = strategy.Connection.OpenInputQueue(queueName);
+                    queue = conn.OpenInputQueue(queueName);
 
                     var getOptions = new MQGetMessageOptions
                     {
@@ -97,7 +93,7 @@ sealed class MessagePumpWorker(
                     // Inner loop: message processing
                     while (!stopCts.IsCancellationRequested)
                     {
-                        var received = await strategy.ReceiveMessage(queue, getOptions, cancellationToken)
+                        var received = await strategy.ReceiveMessage(queue, getOptions, conn, cancellationToken)
                             .ConfigureAwait(false);
 
                         if (!received)

@@ -11,10 +11,9 @@ using Logging;
 /// </summary>
 sealed class NoTransactionReceiveStrategy(
     ILog log,
-    MqConnection connection,
     IBMMQMessageConverter converter,
     ReceiveContext context
-) : RetryLoopReceiveStrategy(log, connection, converter, context)
+) : RetryLoopReceiveStrategy(log, converter, context)
 {
     public override int GetOptionsFlags => BaseGetOptions;
 }

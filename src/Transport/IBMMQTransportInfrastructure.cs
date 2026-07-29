@@ -10,7 +10,6 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
 
     readonly ILog log;
     readonly MqConnectionPool sendPool;
-    readonly ScopeFactory scopeFactory;
     int _disposed;
 
     public IBMMQTransportInfrastructure(
@@ -70,8 +69,6 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
             failureInfoStorage = new InMemoryFailureInfoStorage(TimeProvider.System);
         }
 
-        scopeFactory = new ScopeFactory(CreateDataPathConnection, messageConverter, failureInfoStorage, transactionMode);
-
         Dispatcher = new MessageDispatcher(sendPool, topology, messageConverter);
 
         Receivers = receiverSettings.Select(IMessageReceiver (rs) =>
@@ -90,11 +87,28 @@ sealed class IBMMQTransportInfrastructure : TransportInfrastructure, IAsyncDispo
                 circuitBreakerTimeout,
                 ex => criticalError($"Failed to receive from {receiveAddress}", ex, CancellationToken.None));
 
-            MessagePumpWorker WorkerFactory(string queueName, OnMessage onMessage, OnError onError, int workerIndex) =>
-                new MessagePumpWorker(
+            MessagePumpWorker WorkerFactory(string queueName, OnMessage onMessage, OnError onError, int workerIndex)
+            {
+                var context = new ReceiveContext(queueName, workerIndex, onMessage, onError, criticalError);
+                var strategyLog = LogManager.GetLogger<ReceiveStrategy>();
+                var strategy = transactionMode switch
+                {
+                    TransportTransactionMode.None =>
+                        (ReceiveStrategy)new NoTransactionReceiveStrategy(strategyLog, messageConverter, context),
+                    TransportTransactionMode.ReceiveOnly =>
+                        new ReceiveOnlyReceiveStrategy(strategyLog, messageConverter, context),
+                    TransportTransactionMode.SendsAtomicWithReceive =>
+                        new AtomicReceiveStrategy(strategyLog, messageConverter, failureInfoStorage!, context),
+                    TransportTransactionMode.TransactionScope =>
+                        throw new NotSupportedException("TransactionScope is not supported"),
+                    _ => throw new ArgumentOutOfRangeException(nameof(transactionMode), transactionMode, "Unsupported transaction mode")
+                };
+
+                return new MessagePumpWorker(
                     LogManager.GetLogger<MessagePumpWorker>(),
-                    scopeFactory, pumpSettings, criticalError, circuitBreaker,
-                    queueName, onMessage, onError, workerIndex);
+                    strategy, CreateDataPathConnection, pumpSettings, circuitBreaker,
+                    queueName, workerIndex);
+            }
 
             return new IBMMQMessageReceiver(
                 LogManager.GetLogger<IBMMQMessageReceiver>(),
