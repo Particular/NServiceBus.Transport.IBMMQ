@@ -12,6 +12,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="BitFaster.Caching" Version="2.6.0" />
     <PackageReference Include="IBMMQDotnetClient" Version="10.0.0" />
     <PackageReference Include="NServiceBus" Version="10.2.8" />
   </ItemGroup>

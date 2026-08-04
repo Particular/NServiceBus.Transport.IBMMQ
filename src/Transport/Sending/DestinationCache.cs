@@ -1,76 +1,41 @@
 namespace NServiceBus.Transport.IBMMQ;
 
+using BitFaster.Caching.Lru;
 using IBM.WMQ;
 using Logging;
 
-sealed class DestinationCache<T>(ILog log, int capacity) : IDisposable where T : MQDestination
+sealed class DestinationCache<T> : IDisposable where T : MQDestination
 {
-    readonly bool isDebugEnabled = log.IsDebugEnabled;
-    readonly Lock gate = new();
-    readonly Dictionary<string, LinkedListNode<(string Key, T Value)>> map = new(capacity);
-    readonly LinkedList<(string Key, T Value)> list = new();
+    readonly ILog log;
+    readonly bool isDebugEnabled;
+    readonly ConcurrentLru<string, T> cache;
     bool disposed;
+
+    public DestinationCache(ILog log, int capacity)
+    {
+        this.log = log;
+        isDebugEnabled = log.IsDebugEnabled;
+        cache = new ConcurrentLru<string, T>(capacity);
+        cache.Events.Value!.ItemRemoved += (_, e) => CloseQuietly(e.Value!);
+    }
 
     public T GetOrAdd(string key, Func<string, T> factory)
     {
-        lock (gate)
-        {
-            ObjectDisposedException.ThrowIf(disposed, this);
-
-            if (map.TryGetValue(key, out var node))
-            {
-                list.Remove(node);
-                list.AddFirst(node);
-                return node.Value.Value;
-            }
-
-            var value = factory(key);
-
-            if (list.Count >= capacity)
-            {
-                var lru = list.Last!;
-                list.RemoveLast();
-                map.Remove(lru.Value.Key);
-                CloseQuietly(lru.Value.Value);
-            }
-
-            var newNode = list.AddFirst((key, value));
-            map[key] = newNode;
-            return value;
-        }
+        ObjectDisposedException.ThrowIf(disposed, this);
+        return cache.GetOrAdd(key, factory);
     }
 
-    public void Evict(string key)
-    {
-        lock (gate)
-        {
-            if (map.Remove(key, out var node))
-            {
-                list.Remove(node);
-                CloseQuietly(node.Value.Value);
-            }
-        }
-    }
+    public void Evict(string key) => cache.TryRemove(key, out _);
 
     public void Dispose()
     {
-        lock (gate)
+        if (disposed)
         {
-            if (disposed)
-            {
-                return;
-            }
-
-            disposed = true;
-
-            foreach (var (_, value) in list)
-            {
-                CloseQuietly(value);
-            }
-
-            list.Clear();
-            map.Clear();
+            return;
         }
+
+        disposed = true;
+        cache.Clear();
     }
 
     void CloseQuietly(T destination)

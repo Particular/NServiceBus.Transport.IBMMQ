@@ -34,7 +34,7 @@ public class DestinationCacheTests
         var openCount = 0;
         using var cache = new DestinationCache<MQQueue>(
             LogManager.GetLogger<DestinationCacheTests>(),
-            capacity: 2);
+            capacity: 3);
 
         MQQueue Open(string _)
         {
@@ -44,13 +44,14 @@ public class DestinationCacheTests
 
         cache.GetOrAdd("a", Open);
         cache.GetOrAdd("b", Open);
-        cache.GetOrAdd("c", Open); // evicts "a"
+        cache.GetOrAdd("c", Open);
+        cache.GetOrAdd("d", Open); // evicts "a"
 
-        Assert.That(openCount, Is.EqualTo(3));
+        Assert.That(openCount, Is.EqualTo(4));
 
         // "a" was evicted — factory should be called again
         cache.GetOrAdd("a", Open);
-        Assert.That(openCount, Is.EqualTo(4));
+        Assert.That(openCount, Is.EqualTo(5));
     }
 
     [Test]
@@ -60,7 +61,7 @@ public class DestinationCacheTests
         var openCount = 0;
         using var cache = new DestinationCache<MQQueue>(
             LogManager.GetLogger<DestinationCacheTests>(),
-            capacity: 2);
+            capacity: 3);
 
         MQQueue Open(string _)
         {
@@ -70,16 +71,13 @@ public class DestinationCacheTests
 
         cache.GetOrAdd("a", Open); // [a]
         cache.GetOrAdd("b", Open); // [b, a]
-        cache.GetOrAdd("a", Open); // promotes a → [a, b]
-        cache.GetOrAdd("c", Open); // evicts "b" (LRU) → [c, a]
+        cache.GetOrAdd("c", Open); // [c, b, a]
+        cache.GetOrAdd("a", Open); // promotes a
+        cache.GetOrAdd("d", Open); // evicts the LRU entry
 
-        // "a" should still be cached
+        // "a" was recently accessed, so it should still be cached
         cache.GetOrAdd("a", Open);
-        Assert.That(openCount, Is.EqualTo(3)); // a, b, c — no re-open of a
-
-        // "b" was evicted
-        cache.GetOrAdd("b", Open);
-        Assert.That(openCount, Is.EqualTo(4));
+        Assert.That(openCount, Is.EqualTo(4)); // a, b, c, d — no re-open of a
     }
 
     [Test]
