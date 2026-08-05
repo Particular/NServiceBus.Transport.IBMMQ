@@ -13,7 +13,7 @@
 
   <ItemGroup>
     <PackageReference Include="IBMMQDotnetClient" Version="10.0.0" />
-    <PackageReference Include="NServiceBus" Version="10.2.7" />
+    <PackageReference Include="NServiceBus" Version="10.2.8" />
   </ItemGroup>
 
   <ItemGroup>
