@@ -16,7 +16,7 @@ using NUnit.Framework;
 ///   - Can send/receive messages, publish/subscribe to topics
 ///   - Cannot create/delete MQ objects via PCF
 ///
-/// Run extra/setup-leastpriv-tests.sh before executing these tests.
+/// Run .github/workflows/setup-leastpriv-tests.sh before executing these tests.
 /// </summary>
 [TestFixture]
 [Category("Integration")]
@@ -48,7 +48,7 @@ public class LeastPrivilegeTests
         catch (MQException)
         {
             Assert.Ignore(
-                "Cannot connect as testapp. Run extra/setup-leastpriv-tests.sh to configure the test environment.");
+                "Cannot connect as testapp. Run .github/workflows/setup-leastpriv-tests.sh to configure the test environment.");
         }
     }
 
