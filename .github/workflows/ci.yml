@@ -40,7 +40,7 @@ jobs:
         with:
           global-json-file: global.json
       - name: Setup IBM MQ
-        uses: Particular/setup-ibmmq-action@75b6087748fcdaef474574ca1fbe2b440141f07f
+        uses: Particular/setup-ibmmq-action@v1.0.0
         with:
           connection-string-name: IBMMQ_CONNECTIONSTRING
           init-script: .github/workflows/setup-leastpriv-tests.sh
