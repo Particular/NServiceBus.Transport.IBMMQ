@@ -13,59 +13,44 @@ on:
         default: false
 env:
   DOTNET_NOLOGO: true
-  IBMMQ_CONNECTIONSTRING: ${{ secrets.IBMMQ_CONNECTIONSTRING }}
 defaults:
   run:
     shell: pwsh
 jobs:
   build:
-    name: Linux
-    runs-on: ubuntu-latest
-    services:
-      ibm-mq:
-        image: icr.io/ibm-messaging/mq:9.4.5.1-r1
-        ports:
-          - 1414:1414
-          - 9443:9443
-        env:
-          LICENSE: accept
-          MQ_QMGR_NAME: QM1
-          MQ_ADMIN_PASSWORD: ${{ secrets.MQ_ADMIN_PASSWORD }}
-          MQ_APP_PASSWORD: ${{ secrets.MQ_APP_PASSWORD }}
-        options: >-
-          --health-cmd "dspmq"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-          --health-start-period 30s
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            name: Windows
+          - os: ubuntu-latest
+            name: Linux
     steps:
-      - name: Check for secrets
-        env:
-          SECRETS_AVAILABLE: ${{ secrets.SECRETS_AVAILABLE }}
-        shell: pwsh
-        run: exit $(If ($env:SECRETS_AVAILABLE -eq 'true') { 0 } Else { 1 })
       - name: Checkout
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0
+      - name: Setup WSL
+        uses: Particular/setup-wsl-action@v1.2.0
       - name: Setup .NET SDK
-        uses: actions/setup-dotnet@v5.2.0
+        uses: actions/setup-dotnet@v6.0.0
         with:
           global-json-file: global.json
-      - name: Setup least-privilege test user
-        shell: bash
-        run: |
-          CONTAINER=$(docker ps -q --filter "ancestor=icr.io/ibm-messaging/mq:9.4.5.1-r1" | head -1)
-          .github/workflows/setup-leastpriv-tests.sh docker "$CONTAINER"
+      - name: Setup IBM MQ
+        uses: Particular/setup-ibmmq-action@v1.0.0
+        with:
+          connection-string-name: IBMMQ_CONNECTIONSTRING
+          init-script: .github/workflows/setup-leastpriv-tests.sh
       - name: Build
         run: dotnet build src --configuration Release
       - name: Upload packages
-        uses: actions/upload-artifact@v7.0.0
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: NuGet packages
           path: nugets/
           retention-days: 7
       - name: Run tests
         uses: Particular/run-tests-action@v1.7.0
-
-
