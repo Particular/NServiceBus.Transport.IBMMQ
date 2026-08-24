@@ -371,9 +371,7 @@ public sealed class IBMMQTransport : TransportDefinition
         StartupDiagnosticEntries diagnostics,
         ConnectionConfiguration connectionConfiguration,
         ReceiveSettings[] receivers,
-        TransportTransactionMode transactionMode)
-    {
-
+        TransportTransactionMode transactionMode) =>
         diagnostics.Add("IBM MQ transport", new
         {
             TransactionMode = transactionMode.ToString(),
@@ -394,7 +392,6 @@ public sealed class IBMMQTransport : TransportDefinition
                 kvp => kvp.Key.FullName ?? kvp.Key.Name,
                 kvp => kvp.Value.Select(d => new { d.TopicName, d.TopicString }).ToArray())
         });
-    }
 
     static void WriteBrokerDiagnostics(ILog log, StartupDiagnosticEntries diagnostics, MQQueueManager connection)
     {

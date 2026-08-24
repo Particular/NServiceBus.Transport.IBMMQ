@@ -13,21 +13,21 @@ using Logging;
 /// </summary>
 sealed class AtomicReceiveStrategy(
     ILog log,
-    MqConnection connection,
     IBMMQMessageConverter converter,
     IFailureInfoStorage failureInfoStorage,
     ReceiveContext context
-) : ReceiveStrategy(connection, converter, log, context)
+) : ReceiveStrategy(converter, log, context)
 {
     public override int GetOptionsFlags => SyncpointGetOptions;
 
     protected override async ValueTask ProcessReceivedMessage(
         ReceivedMessage msg,
+        MqConnection connection,
         CancellationToken cancellationToken = default
     )
     {
         var transportTransaction = new TransportTransaction();
-        transportTransaction.Set(Connection);
+        transportTransaction.Set(connection);
 
         // Use the ContextBag from the failure record on re-delivery so that state set
         // during earlier processing survives into the ErrorContext and any subsequent
@@ -63,7 +63,7 @@ sealed class AtomicReceiveStrategy(
                 if (errorResult == ErrorHandleResult.Handled)
                 {
                     RecordError(failureRecord.Exception, failureRecord.NumberOfProcessingAttempts);
-                    Connection.Commit();
+                    connection.Commit();
                     failureInfoStorage.ClearFailure(msg.Id);
                     return;
                 }
@@ -78,19 +78,19 @@ sealed class AtomicReceiveStrategy(
                 cancellationToken
             ).ConfigureAwait(false);
 
-            Connection.Commit();
+            connection.Commit();
             failureInfoStorage.ClearFailure(msg.Id);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            Connection.Backout();
+            connection.Backout();
             throw;
         }
         catch (Exception ex)
         {
             RecordError(ex, (failureRecord?.NumberOfProcessingAttempts ?? 0) + 1);
             failureInfoStorage.RecordFailure(msg.Id, ex, contextBag);
-            Connection.Backout();
+            connection.Backout();
         }
     }
 }

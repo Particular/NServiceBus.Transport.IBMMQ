@@ -13,12 +13,10 @@ sealed record ReceiveContext(
     OnError OnError,
     Action<string, Exception, CancellationToken> CriticalError);
 
-abstract class ReceiveStrategy(MqConnection connection, IBMMQMessageConverter messageConverter, ILog log, ReceiveContext context)
+abstract class ReceiveStrategy(IBMMQMessageConverter messageConverter, ILog log, ReceiveContext context)
 {
     protected const int BaseGetOptions = MQC.MQGMO_WAIT | MQC.MQGMO_FAIL_IF_QUIESCING | MQC.MQGMO_PROPERTIES_IN_HANDLE;
     protected const int SyncpointGetOptions = BaseGetOptions | MQC.MQGMO_SYNCPOINT;
-
-    public MqConnection Connection => connection;
 
     public abstract int GetOptionsFlags { get; }
 
@@ -29,6 +27,7 @@ abstract class ReceiveStrategy(MqConnection connection, IBMMQMessageConverter me
     public async ValueTask<bool> ReceiveMessage(
         MQQueue queue,
         MQGetMessageOptions getOptions,
+        MqConnection connection,
         CancellationToken cancellationToken = default
     )
     {
@@ -60,7 +59,7 @@ abstract class ReceiveStrategy(MqConnection connection, IBMMQMessageConverter me
 
         string messageId = string.Empty;
         Dictionary<string, string> messageHeaders = [];
-        var messageBody = messageConverter.FromNative(receivedMessage, messageHeaders, ref messageId);
+        var messageBody = MessageConverter.FromNative(receivedMessage, messageHeaders, ref messageId);
 
         // Start transport-level activity after a message is dequeued. NServiceBus core
         // parents its ReceiveMessage activity to this transport activity when it finds
@@ -68,23 +67,23 @@ abstract class ReceiveStrategy(MqConnection connection, IBMMQMessageConverter me
         using var activity = ActivitySources.Main.StartActivity(ActivitySources.Receive, ActivityKind.Consumer);
         if (activity != null)
         {
-            activity.DisplayName = $"receive {context.QueueName}";
+            activity.DisplayName = $"receive {Context.QueueName}";
             if (activity.IsAllDataRequested)
             {
                 activity.SetTag(ActivitySources.TagMessagingSystem, ActivitySources.TagMessagingSystemValue);
-                activity.SetTag(ActivitySources.TagDestinationName, context.QueueName);
+                activity.SetTag(ActivitySources.TagDestinationName, Context.QueueName);
                 activity.SetTag(ActivitySources.TagOperationType, ActivitySources.OperationReceive);
                 activity.SetTag(ActivitySources.TagMessageId, messageId);
             }
         }
 
-        if (log.IsDebugEnabled)
+        if (Log.IsDebugEnabled)
         {
-            log.DebugFormat("Worker {0} received message {1}", context.WorkerIndex, messageId);
+            Log.DebugFormat("Worker {0} received message {1}", Context.WorkerIndex, messageId);
         }
 
         var msg = new ReceivedMessage(messageId, messageBody, messageHeaders);
-        await ProcessReceivedMessage(msg, cancellationToken)
+        await ProcessReceivedMessage(msg, connection, cancellationToken)
             .ConfigureAwait(false);
 
         return true;
@@ -92,6 +91,7 @@ abstract class ReceiveStrategy(MqConnection connection, IBMMQMessageConverter me
 
     protected abstract ValueTask ProcessReceivedMessage(
         ReceivedMessage msg,
+        MqConnection connection,
         CancellationToken cancellationToken = default
     );
 
@@ -106,13 +106,13 @@ abstract class ReceiveStrategy(MqConnection connection, IBMMQMessageConverter me
             ctx.Set(transportActivity);
         }
 
-        return new(context.OnMessage(CreateMessageContext(msg, tx, ctx), cancellationToken));
+        return new(Context.OnMessage(CreateMessageContext(msg, tx, ctx), cancellationToken));
     }
 
     protected ValueTask<ErrorHandleResult> ProcessError(
         ReceivedMessage msg, TransportTransaction tx, Exception ex,
         int failures, Extensibility.ContextBag ctx, CancellationToken cancellationToken = default) =>
-        new(context.OnError.Invoke(CreateErrorContext(msg, tx, ex, failures, ctx), cancellationToken));
+        new(Context.OnError.Invoke(CreateErrorContext(msg, tx, ex, failures, ctx), cancellationToken));
 
     protected async ValueTask<ErrorHandleResult> InvokeOnError(
         ReceivedMessage msg, TransportTransaction tx, Exception ex,
@@ -129,7 +129,7 @@ abstract class ReceiveStrategy(MqConnection connection, IBMMQMessageConverter me
         }
         catch (Exception onErrorEx)
         {
-            context.CriticalError(
+            Context.CriticalError(
                 $"Failed to execute recoverability policy for message with native ID: `{msg.Id}`",
                 onErrorEx, cancellationToken);
             return ErrorHandleResult.RetryRequired;
@@ -153,13 +153,14 @@ abstract class ReceiveStrategy(MqConnection connection, IBMMQMessageConverter me
 
     MessageContext CreateMessageContext(
         ReceivedMessage msg, TransportTransaction tx, Extensibility.ContextBag ctx) =>
-        new(msg.Id, new Dictionary<string, string>(msg.Headers), msg.Body, tx, context.QueueName, ctx);
+        new(msg.Id, new Dictionary<string, string>(msg.Headers), msg.Body, tx, Context.QueueName, ctx);
 
     ErrorContext CreateErrorContext(
         ReceivedMessage msg, TransportTransaction tx, Exception ex,
         int failures, Extensibility.ContextBag ctx) =>
-        new(ex, new Dictionary<string, string>(msg.Headers), msg.Id, msg.Body, tx, failures, context.QueueName, ctx);
+        new(ex, new Dictionary<string, string>(msg.Headers), msg.Id, msg.Body, tx, failures, Context.QueueName, ctx);
 
-    protected ILog Log => log;
-    protected ReceiveContext Context => context;
+    protected IBMMQMessageConverter MessageConverter { get; } = messageConverter;
+    protected ILog Log { get; } = log;
+    protected ReceiveContext Context { get; } = context;
 }

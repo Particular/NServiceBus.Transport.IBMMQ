@@ -5,13 +5,13 @@ using Logging;
 
 abstract class RetryLoopReceiveStrategy(
     ILog log,
-    MqConnection connection,
     IBMMQMessageConverter converter,
     ReceiveContext context
-) : ReceiveStrategy(connection, converter, log, context)
+) : ReceiveStrategy(converter, log, context)
 {
     protected override async ValueTask ProcessReceivedMessage(
         ReceivedMessage msg,
+        MqConnection connection,
         CancellationToken cancellationToken = default
     )
     {
@@ -35,12 +35,12 @@ abstract class RetryLoopReceiveStrategy(
                     cancellationToken
                 ).ConfigureAwait(false);
 
-                OnSuccess();
+                OnSuccess(connection);
                 return;
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
-                OnCancellation();
+                OnCancellation(connection);
                 throw;
             }
             catch (Exception ex)
@@ -61,7 +61,7 @@ abstract class RetryLoopReceiveStrategy(
                 if (result is ErrorHandleResult.Handled)
                 {
                     RecordError(ex, failureCount);
-                    OnErrorHandled();
+                    OnErrorHandled(connection);
                     return;
                 }
 
@@ -70,7 +70,7 @@ abstract class RetryLoopReceiveStrategy(
         }
     }
 
-    protected virtual void OnSuccess() { }
-    protected virtual void OnErrorHandled() { }
-    protected virtual void OnCancellation() { }
+    protected virtual void OnSuccess(MqConnection connection) { }
+    protected virtual void OnErrorHandled(MqConnection connection) { }
+    protected virtual void OnCancellation(MqConnection connection) { }
 }
