@@ -4,6 +4,7 @@ namespace NServiceBus.Transport.IBMMQ.Tests;
 
 using IBM.WMQ;
 using IBM.WMQ.PCF;
+using NServiceBus.Extensibility;
 using NServiceBus.Logging;
 using NUnit.Framework;
 
@@ -25,6 +26,7 @@ public class BackoutCountTests
     public void TearDown() => RunPcf(MQC.MQCMD_DELETE_Q, command => command.AddParameter(MQC.MQIACF_PURGE, MQC.MQPO_YES), MQC.MQRC_UNKNOWN_OBJECT_NAME);
 
     [TestCase(TransportTransactionMode.ReceiveOnly)]
+    [TestCase(TransportTransactionMode.SendsAtomicWithReceive)]
     public async Task Redelivery_invokes_recoverability_before_the_handler(TransportTransactionMode mode)
     {
         PutAndBackout(backouts: 2);
@@ -49,7 +51,31 @@ public class BackoutCountTests
         Assert.That(calls[1], Is.EqualTo("message"));
     }
 
-    static async Task ReceiveOnce(TransportTransactionMode mode, OnMessage onMessage, OnError onError, CancellationToken cancellationToken)
+    [Test]
+    public async Task Atomic_failure_record_with_lower_count_uses_backout_count()
+    {
+        var messageId = PutAndBackout(backouts: 3);
+        var storage = new InMemoryFailureInfoStorage(TimeProvider.System);
+        var handlerException = new InvalidOperationException("Handler failure");
+        storage.RecordFailure(messageId, handlerException, new ContextBag());
+        ErrorContext? reported = null;
+
+        await ReceiveOnce(
+            TransportTransactionMode.SendsAtomicWithReceive,
+            (_, _) => Task.CompletedTask,
+            (errorContext, _) =>
+            {
+                reported = errorContext;
+                return Task.FromResult(ErrorHandleResult.Handled);
+            },
+            TestContext.CurrentContext.CancellationToken,
+            storage).ConfigureAwait(false);
+
+        Assert.That(reported?.ImmediateProcessingFailures, Is.EqualTo(3));
+        Assert.That(reported?.Exception, Is.SameAs(handlerException));
+    }
+
+    static async Task ReceiveOnce(TransportTransactionMode mode, OnMessage onMessage, OnError onError, CancellationToken cancellationToken, IFailureInfoStorage? storage = null)
     {
         var context = new ReceiveContext(QueueName, 0, onMessage, onError, (_, _, _) => { });
         var converter = new IBMMQMessageConverter(new MqPropertyNameEncoder(), 1208);
@@ -57,7 +83,8 @@ public class BackoutCountTests
         ReceiveStrategy strategy = mode switch
         {
             TransportTransactionMode.ReceiveOnly => new ReceiveOnlyReceiveStrategy(log, converter, context),
-            TransportTransactionMode.None or TransportTransactionMode.SendsAtomicWithReceive or TransportTransactionMode.TransactionScope or _ =>
+            TransportTransactionMode.SendsAtomicWithReceive => new AtomicReceiveStrategy(log, converter, storage ?? new InMemoryFailureInfoStorage(TimeProvider.System), context),
+            TransportTransactionMode.None or TransportTransactionMode.TransactionScope or _ =>
                 throw new ArgumentOutOfRangeException(nameof(mode))
         };
 
@@ -68,13 +95,13 @@ public class BackoutCountTests
         Assert.That(await strategy.ReceiveMessage(queue, getOptions, connection, cancellationToken).ConfigureAwait(false), Is.True);
     }
 
-    static void PutAndBackout(int backouts)
+    static string PutAndBackout(int backouts)
     {
         using var qm = TestBrokerConnection.Connect();
+        var message = new MQMessage();
+        message.WriteString("payload");
         using (var output = qm.AccessQueue(QueueName, MQC.MQOO_OUTPUT))
         {
-            var message = new MQMessage();
-            message.WriteString("payload");
             output.Put(message);
         }
 
@@ -84,6 +111,8 @@ public class BackoutCountTests
             input.Get(new MQMessage(), new MQGetMessageOptions { Options = MQC.MQGMO_SYNCPOINT });
             qm.Backout();
         }
+
+        return Convert.ToHexString(message.MessageId);
     }
 
     static void RunPcf(int commandId, Action<PCFMessage> addParameters, int ignoredReason)

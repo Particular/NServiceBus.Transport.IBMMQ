@@ -40,6 +40,15 @@ sealed class AtomicReceiveStrategy(
         // duration of the InMemoryFailureInfoStorage TTL. This is bounded by the short
         // TTL (1 minute) and periodic sweeps.
         failureInfoStorage.TryGetFailureInfo(msg.Id, out var failureRecord);
+
+        // The failure record is in memory only. Each failure backs out, so BackoutCount is the minimum attempt count.
+        if (msg.BackoutCount > (failureRecord?.NumberOfProcessingAttempts ?? 0))
+        {
+            failureRecord = failureRecord is null
+                ? new FailureRecord(msg.BackoutCount, CreateBackedOutException(msg), new Extensibility.ContextBag())
+                : failureRecord with { NumberOfProcessingAttempts = msg.BackoutCount };
+        }
+
         var contextBag = failureRecord?.Context ?? new Extensibility.ContextBag();
 
         try
