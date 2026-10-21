@@ -16,7 +16,25 @@ abstract class RetryLoopReceiveStrategy(
     )
     {
         var transportTransaction = new TransportTransaction();
-        int failureCount = 0;
+
+        // BackoutCount > 0: an earlier delivery did not complete. Count each one as a failed attempt.
+        int failureCount = msg.BackoutCount;
+
+        if (failureCount > 0)
+        {
+            try
+            {
+                if (await TryHandleFailure(msg, transportTransaction, CreateBackedOutException(msg), failureCount, new Extensibility.ContextBag(), connection, cancellationToken).ConfigureAwait(false))
+                {
+                    return;
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                OnCancellation(connection);
+                throw;
+            }
+        }
 
         // The number of iterations is bounded by the NServiceBus immediate retries
         // configuration (Recoverability.Immediate.NumberOfRetries). Once exhausted,
@@ -49,25 +67,43 @@ abstract class RetryLoopReceiveStrategy(
                 attemptActivity?.SetStatus(ActivityStatusCode.Error, ex.Message);
                 attemptActivity?.SetTag(ActivitySources.TagFailureCount, failureCount);
 
-                var result = await InvokeOnError(
-                    msg,
-                    transportTransaction,
-                    ex,
-                    failureCount,
-                    contextBag,
-                    cancellationToken
-                ).ConfigureAwait(false);
-
-                if (result is ErrorHandleResult.Handled)
+                if (await TryHandleFailure(msg, transportTransaction, ex, failureCount, contextBag, connection, cancellationToken).ConfigureAwait(false))
                 {
-                    RecordError(ex, failureCount);
-                    OnErrorHandled(connection);
                     return;
                 }
 
                 // RetryRequired: loop back for immediate retry
             }
         }
+    }
+
+    async ValueTask<bool> TryHandleFailure(
+        ReceivedMessage msg,
+        TransportTransaction transportTransaction,
+        Exception ex,
+        int failureCount,
+        Extensibility.ContextBag contextBag,
+        MqConnection connection,
+        CancellationToken cancellationToken
+    )
+    {
+        var result = await InvokeOnError(
+            msg,
+            transportTransaction,
+            ex,
+            failureCount,
+            contextBag,
+            cancellationToken
+        ).ConfigureAwait(false);
+
+        if (result is not ErrorHandleResult.Handled)
+        {
+            return false;
+        }
+
+        RecordError(ex, failureCount);
+        OnErrorHandled(connection);
+        return true;
     }
 
     protected virtual void OnSuccess(MqConnection connection) { }

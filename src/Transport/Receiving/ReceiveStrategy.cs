@@ -4,7 +4,7 @@ using System.Diagnostics;
 using IBM.WMQ;
 using Logging;
 
-readonly record struct ReceivedMessage(string Id, byte[] Body, IReadOnlyDictionary<string, string> Headers);
+readonly record struct ReceivedMessage(string Id, byte[] Body, IReadOnlyDictionary<string, string> Headers, int BackoutCount);
 
 sealed record ReceiveContext(
     string QueueName,
@@ -82,7 +82,7 @@ abstract class ReceiveStrategy(IBMMQMessageConverter messageConverter, ILog log,
             Log.DebugFormat("Worker {0} received message {1}", Context.WorkerIndex, messageId);
         }
 
-        var msg = new ReceivedMessage(messageId, messageBody, messageHeaders);
+        var msg = new ReceivedMessage(messageId, messageBody, messageHeaders, receivedMessage.BackoutCount);
         await ProcessReceivedMessage(msg, connection, cancellationToken)
             .ConfigureAwait(false);
 
@@ -135,6 +135,9 @@ abstract class ReceiveStrategy(IBMMQMessageConverter messageConverter, ILog log,
             return ErrorHandleResult.RetryRequired;
         }
     }
+
+    protected static Exception CreateBackedOutException(ReceivedMessage msg) =>
+        new($"Message '{msg.Id}' was backed out {msg.BackoutCount} time(s). An earlier delivery did not complete.");
 
     /// <summary>
     /// Records error status and failure count on the current transport activity.
